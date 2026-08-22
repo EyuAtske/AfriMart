@@ -1,8 +1,28 @@
+name: Backend CI
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "sql/**"
+      - "sqlc.yaml"
+      - ".github/workflows/backend-ci.yml"
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - "backend/**"
+      - "sql/**"
+      - "sqlc.yaml"
+      - ".github/workflows/backend-ci.yml"
+
+permissions:
+  contents: read
 jobs:
   backend-test:
     name: backend-test
-    ...
-
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -24,7 +44,7 @@ jobs:
 
   backend-build:
     name: backend-build
-    ...
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
