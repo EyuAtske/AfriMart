@@ -210,18 +210,62 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Extract Gemini's generated JSON.
-          jq -e \
+          echo "Raw Gemini response:"
+          jq . .ai-review/gemini-response.json
+
+          # Make sure Gemini actually returned a candidate.
+          if ! jq -e '.candidates[0].content.parts[0].text' \
+              .ai-review/gemini-response.json > /dev/null; then
+
+            echo "ERROR: Gemini response does not contain a valid text response."
+
+            if jq -e '.error' .ai-review/gemini-response.json > /dev/null; then
+              echo "Gemini API error:"
+              jq .error .ai-review/gemini-response.json
+            fi
+
+            exit 1
+          fi
+
+          # Extract Gemini's text response.
+          jq -r \
             '.candidates[0].content.parts[0].text' \
             .ai-review/gemini-response.json \
-            > .ai-review/review-text.json
+            > .ai-review/review-text.txt
 
-          # Parse the JSON returned inside Gemini's text response.
-          jq -e . \
-            .ai-review/review-text.json \
-            > .ai-review/review.json
+          echo "Gemini generated response:"
+          cat .ai-review/review-text.txt
 
-          # Validate the expected structure.
+          # Remove Markdown JSON fences if Gemini added them.
+          sed -i \
+            -e 's/^```json[[:space:]]*$//' \
+            -e 's/^```[[:space:]]*$//' \
+            .ai-review/review-text.txt
+
+          # Parse the actual JSON object.
+          if ! jq -e . \
+              .ai-review/review-text.txt \
+              > .ai-review/review.json; then
+
+            echo "ERROR: Gemini returned invalid JSON."
+
+            echo "Response was:"
+            cat .ai-review/review-text.txt
+
+            exit 1
+          fi
+
+          # Make sure Gemini returned an object, not a string/array.
+          if [[ "$(jq -r 'type' .ai-review/review.json)" != "object" ]]; then
+            echo "ERROR: Gemini response is not a JSON object."
+
+            echo "Parsed response:"
+            jq . .ai-review/review.json
+
+            exit 1
+          fi
+
+          # Validate the expected review structure.
           jq -e '
             (.summary | type == "string") and
             (.verdict | IN(
