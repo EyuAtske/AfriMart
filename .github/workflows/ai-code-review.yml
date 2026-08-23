@@ -1,0 +1,253 @@
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "backend/**"
+      - "sql/**"
+      - "sqlc.yaml"
+      - ".github/copilot-instructions.md"
+      - ".github/ai-review-prompt.md"
+      - ".github/workflows/ai-code-review.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  ai-code-review:
+    name: ai-code-review
+    runs-on: ubuntu-latest
+
+    # Do not expose the Gemini API key to PRs created from forks.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify review prompt exists
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f ".github/ai-review-prompt.md" ]]; then
+            echo "ERROR: .github/ai-review-prompt.md was not found."
+            exit 1
+          fi
+
+      - name: Collect pull request diff
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p .ai-review
+
+          git diff \
+            --unified=80 \
+            "$BASE_SHA" \
+            "$HEAD_SHA" \
+            -- \
+            'backend/**' \
+            'sql/**' \
+            'sqlc.yaml' \
+            '.github/copilot-instructions.md' \
+            '.github/ai-review-prompt.md' \
+            > .ai-review/diff.patch
+
+          DIFF_SIZE=$(wc -c < .ai-review/diff.patch)
+
+          echo "Pull request diff size: ${DIFF_SIZE} bytes"
+
+          if [[ "$DIFF_SIZE" -eq 0 ]]; then
+            echo "No relevant backend changes found."
+            exit 0
+          fi
+
+          # Prevent excessively large requests.
+          # 120 KB is enough for normal AfriMart PRs while keeping
+          # Gemini requests reasonably small.
+          if [[ "$DIFF_SIZE" -gt 120000 ]]; then
+            echo "Diff exceeds 120 KB. Truncating review input."
+
+            head -c 120000 \
+              .ai-review/diff.patch \
+              > .ai-review/diff-truncated.patch
+
+            mv \
+              .ai-review/diff-truncated.patch \
+              .ai-review/diff.patch
+          fi
+
+      - name: Build Gemini review prompt
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          {
+            echo "# AfriMart AI Code Review"
+            echo
+            echo "## Project Review Instructions"
+            echo
+            cat .github/ai-review-prompt.md
+
+            echo
+            echo
+            echo "========================================"
+            echo "PULL REQUEST INFORMATION"
+            echo "========================================"
+            echo
+            echo "Repository: ${{ github.repository }}"
+            echo "Pull Request: #${{ github.event.pull_request.number }}"
+            echo "Title: ${{ github.event.pull_request.title }}"
+            echo "Author: ${{ github.event.pull_request.user.login }}"
+            echo
+
+            echo "========================================"
+            echo "PULL REQUEST DIFF"
+            echo "========================================"
+            echo
+            cat .ai-review/diff.patch
+          } > .ai-review/prompt.txt
+
+      - name: Validate Gemini API key
+        shell: bash
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+            echo "ERROR: GEMINI_API_KEY repository secret is not configured."
+            exit 1
+          fi
+
+      - name: Call Gemini
+        shell: bash
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-3.7-flash
+        run: |
+          set -euo pipefail
+
+          PROMPT_JSON=$(jq -Rs . < .ai-review/prompt.txt)
+
+          cat > .ai-review/request.json <<EOF
+          {
+            "system_instruction": {
+              "parts": [
+                {
+                  "text": "You are a senior backend software engineer reviewing an AfriMart pull request. Follow the supplied project-specific review instructions exactly. Review only the actual changes in the pull request."
+                }
+              ]
+            },
+            "contents": [
+              {
+                "role": "user",
+                "parts": [
+                  {
+                    "text": ${PROMPT_JSON}
+                  }
+                ]
+              }
+            ],
+            "generationConfig": {
+              "temperature": 0.1,
+              "responseMimeType": "application/json"
+            }
+          }
+          EOF
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --request POST \
+            "https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent" \
+            --header "Content-Type: application/json" \
+            --header "x-goog-api-key: ${GEMINI_API_KEY}" \
+            --data-binary @.ai-review/request.json \
+            > .ai-review/gemini-response.json
+
+      - name: Extract and validate Gemini response
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Extract Gemini's generated JSON.
+          jq -e \
+            '.candidates[0].content.parts[0].text' \
+            .ai-review/gemini-response.json \
+            > .ai-review/review-text.json
+
+          # Parse the JSON returned inside Gemini's text response.
+          jq -e . \
+            .ai-review/review-text.json \
+            > .ai-review/review.json
+
+          # Validate the expected structure.
+          jq -e '
+            (.summary | type == "string") and
+            (.verdict | IN(
+              "approve",
+              "changes_requested",
+              "comment"
+            )) and
+            (.findings | type == "array")
+          ' .ai-review/review.json > /dev/null
+
+          echo "Gemini review successfully validated."
+
+      - name: Create GitHub PR review comment
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          SUMMARY=$(jq -r '.summary' .ai-review/review.json)
+          VERDICT=$(jq -r '.verdict' .ai-review/review.json)
+          FINDINGS_COUNT=$(jq '.findings | length' .ai-review/review.json)
+
+          {
+            echo "## 🤖 Gemini AI Code Review"
+            echo
+            echo "$SUMMARY"
+            echo
+            echo "**Verdict:** \`$VERDICT\`"
+            echo
+
+            if [[ "$FINDINGS_COUNT" -eq 0 ]]; then
+              echo "### Findings"
+              echo
+              echo "✅ No actionable issues were found against the AfriMart project specification."
+            else
+              echo "### Findings"
+              echo
+
+              jq -r '
+                .findings[] |
+                "#### \(.severity) — \(.title)\n" +
+                "**File:** `\(.file):\(.line)`\n\n" +
+                "\(.explanation)\n\n" +
+                "**Recommendation:** \(.recommendation)\n"
+              ' .ai-review/review.json
+            fi
+
+            echo
+            echo "---"
+            echo
+            echo "_This review was generated by Gemini using `.github/ai-review-prompt.md` and the pull request diff._"
+
+          } > .ai-review/pr-comment.md
+
+          gh pr comment \
+            "$PR_NUMBER" \
+            --repo "$REPOSITORY" \
+            --body-file .ai-review/pr-comment.md
