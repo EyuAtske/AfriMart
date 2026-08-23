@@ -4,9 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
-	"net/mail"
 	"time"
 
 	"github.com/EyuAtske/AfriMart/backend/internal/auth"
@@ -34,6 +32,11 @@ type loginResponse struct {
 	Email        string    `json:"email"`
 	Token        string    `json:"token"`
 	RefreshToken string    `json:"refresh_token"`
+}
+
+type updateParams struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 func (apicfg *ApiConfig) HandleRegister(w http.ResponseWriter, r *http.Request) {
@@ -148,73 +151,36 @@ func (apicfg *ApiConfig) HandleRevoke(w http.ResponseWriter, r *http.Request) {
 }
 
 func (apicfg *ApiConfig) HandleUpdates(w http.ResponseWriter, r *http.Request) {
-	type updateParams struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
 	bearerToken, err := auth.GetBearerToken(r.Header)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, 401, "Missing or invalid Authorization header")
-		return
-	}
-	id, err := auth.ValidateJWT(bearerToken, apicfg.Secret)
-	if err != nil {
-		commErr.RespondErrorWithJson(w, 401, fmt.Sprintf("Invalid token %v", err))
-		return
-	}
-	var params updateParams
-	err = json.NewDecoder(r.Body).Decode(&params)
-	if err != nil {
-		commErr.RespondErrorWithJson(w, 400, "Something went wrong parsing the request body")
-		return
-	}
-	if params.Email == "" {
-		commErr.RespondErrorWithJson(w, http.StatusBadRequest, "email is required")
+		commErr.RespondErrorWithJson(w, http.StatusUnauthorized, "Missing or invalid Authorization header")
 		return
 	}
 
-	if _, err := mail.ParseAddress(params.Email); err != nil {
-		commErr.RespondErrorWithJson(w, http.StatusBadRequest, "invalid email")
+	userID, err := auth.ValidateJWT(bearerToken, apicfg.Secret)
+	if err != nil {
+		commErr.RespondErrorWithJson(w, http.StatusUnauthorized, "Invalid token")
 		return
 	}
 
-	if params.Password == "" {
-		commErr.RespondErrorWithJson(w, http.StatusBadRequest, "password is required")
+	params, err := decodeUpdateParams(r)
+	if err != nil {
+		commErr.RespondErrorWithJson(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	if len(params.Password) < 8 {
-    	commErr.RespondErrorWithJson(w, http.StatusBadRequest, "password must be at least 8 characters")
+	if err := validateUpdateParams(params); err != nil {
+		commErr.RespondErrorWithJson(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	hashedPassword, err := auth.HashPassword(params.Password)
+
+	usr, err := apicfg.updateUser(r, userID, params)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, 500, "Error while hashing password")
+		commErr.RespondErrorWithJson(w, http.StatusInternalServerError, "Error while updating user")
 		return
 	}
-	usr, err := apicfg.Queries.UpdateUserPasswordAndEmail(r.Context(), database.UpdateUserPasswordAndEmailParams{
-		PasswordHash: hashedPassword,
-		Email:        params.Email,
-		ID:           id,
-	})
-	if err != nil {
-		commErr.RespondErrorWithJson(w, 500, "Error while updating user")
-		return
-	}
-	resp := user{
-		Userid:     usr.ID,
-		Created_at: usr.CreatedAt,
-		Updated_at: usr.UpdatedAt,
-		Email:      usr.Email,
-	}
-	data, err := json.Marshal(resp)
-	if err != nil {
-		commErr.RespondErrorWithJson(w, 500, "Error while encoding response")
-		return
-	}
-	w.Header().Add("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	w.Write(data)
+
+	respondWithUpdatedUser(w, usr)
 }
 
 func (apicfg *ApiConfig) HandleRefresh(w http.ResponseWriter, r *http.Request) {
