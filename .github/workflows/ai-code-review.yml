@@ -130,7 +130,7 @@ jobs:
         shell: bash
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: gemini-3.7-flash
+          GEMINI_MODEL: gemini-3.6-flash
         run: |
           set -euo pipefail
 
@@ -138,13 +138,6 @@ jobs:
 
           cat > .ai-review/request.json <<EOF
           {
-            "system_instruction": {
-              "parts": [
-                {
-                  "text": "You are a senior backend software engineer reviewing an AfriMart pull request. Follow the supplied project-specific review instructions exactly. Review only the actual changes in the pull request."
-                }
-              ]
-            },
             "contents": [
               {
                 "role": "user",
@@ -156,22 +149,61 @@ jobs:
               }
             ],
             "generationConfig": {
-              "temperature": 0.1,
               "responseMimeType": "application/json"
             }
           }
           EOF
 
-          curl \
-            --fail-with-body \
-            --silent \
-            --show-error \
-            --request POST \
-            "https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent" \
-            --header "Content-Type: application/json" \
-            --header "x-goog-api-key: ${GEMINI_API_KEY}" \
-            --data-binary @.ai-review/request.json \
-            > .ai-review/gemini-response.json
+          URL="https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent"
+
+          MAX_ATTEMPTS=5
+
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            echo "Gemini request attempt ${attempt}/${MAX_ATTEMPTS}..."
+
+            HTTP_STATUS=$(curl \
+              --silent \
+              --show-error \
+              --output .ai-review/gemini-response.json \
+              --write-out "%{http_code}" \
+              --request POST \
+              "$URL" \
+              --header "Content-Type: application/json" \
+              --header "x-goog-api-key: ${GEMINI_API_KEY}" \
+              --data-binary @.ai-review/request.json)
+
+            echo "Gemini HTTP status: ${HTTP_STATUS}"
+
+            if [[ "$HTTP_STATUS" == "200" ]]; then
+              echo "Gemini request succeeded."
+              break
+            fi
+
+            if [[ "$HTTP_STATUS" == "429" ||
+                  "$HTTP_STATUS" == "500" ||
+                  "$HTTP_STATUS" == "502" ||
+                  "$HTTP_STATUS" == "503" ||
+                  "$HTTP_STATUS" == "504" ]]; then
+
+              if [[ "$attempt" -eq "$MAX_ATTEMPTS" ]]; then
+                echo "Gemini failed after ${MAX_ATTEMPTS} attempts."
+                cat .ai-review/gemini-response.json
+                exit 1
+              fi
+
+              DELAY=$((5 * 2 ** (attempt - 1)))
+
+              echo "Transient Gemini error."
+              echo "Retrying in ${DELAY} seconds..."
+
+              sleep "$DELAY"
+              continue
+            fi
+
+            echo "Gemini returned a non-retryable error:"
+            cat .ai-review/gemini-response.json
+            exit 1
+          done
 
       - name: Extract and validate Gemini response
         shell: bash
