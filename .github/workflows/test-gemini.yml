@@ -1,0 +1,43 @@
+name: Test Gemini API
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-gemini:
+    name: Test Gemini API
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: List available Gemini models
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+            echo "GEMINI_API_KEY is not configured."
+            exit 1
+          fi
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --request GET \
+            "https://generativelanguage.googleapis.com/v1beta/models" \
+            --header "x-goog-api-key: ${GEMINI_API_KEY}" \
+            > models.json
+
+          echo "Available Gemini models:"
+          jq -r '
+            .models[]
+            | select(
+                (.supportedGenerationMethods // [])
+                | index("generateContent")
+              )
+            | .name
+          ' models.json
