@@ -1,14 +1,16 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/EyuAtske/AfriMart/backend/internal/auth"
-	"github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/EyuAtske/AfriMart/backend/internal/commErr"
+	"github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/google/uuid"
 )
 
@@ -75,7 +77,7 @@ func (apicfg *ApiConfig) HandleLogIn(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&reqEmail)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, 500, "Error while decoding request")
+		commErr.RespondErrorWithJson(w, 400, "Error while decoding request")
 		return
 	}
 	expires_in_seconds := 3600
@@ -96,8 +98,10 @@ func (apicfg *ApiConfig) HandleLogIn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	refToken := auth.MakeRefreshToken()
+	refTokenHash := auth.HashRefreshToken(refToken)
+
 	_, err = apicfg.Queries.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
-		TokenHash: refToken,
+		TokenHash: refTokenHash,
 		UserID:    usr.ID,
 	})
 	if err != nil {
@@ -122,15 +126,23 @@ func (apicfg *ApiConfig) HandleLogIn(w http.ResponseWriter, r *http.Request) {
 func (apicfg *ApiConfig) HandleRevoke(w http.ResponseWriter, r *http.Request) {
 	bearerToken, err := auth.GetBearerToken(r.Header)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, 401, "Missing or invalid Authorization header")
+		commErr.RespondErrorWithJson(w, http.StatusUnauthorized, "Missing or invalid Authorization header")
 		return
 	}
-	err = apicfg.Queries.RevokeRefreshToken(r.Context(), bearerToken)
+
+	tokenHash := auth.HashRefreshToken(bearerToken)
+
+	_, err = apicfg.Queries.RevokeRefreshToken(r.Context(), tokenHash)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, 500, "Error while revoking refresh token")
+		if errors.Is(err, sql.ErrNoRows) {
+			commErr.RespondErrorWithJson(w, http.StatusUnauthorized, "Invalid refresh token")
+			return
+		}
+
+		commErr.RespondErrorWithJson(w, http.StatusInternalServerError, "Error while revoking refresh token")
 		return
 	}
-	w.Header().Add("Content-Type", "application/json; charset=utf-8")
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -191,7 +203,9 @@ func (apicfg *ApiConfig) HandleRefresh(w http.ResponseWriter, r *http.Request) {
 		commErr.RespondErrorWithJson(w, 401, "Missing or invalid Authorization header")
 		return
 	}
-	refToken, err := apicfg.Queries.GetRefreshToken(r.Context(), bearerToken)
+	tokenHash := auth.HashRefreshToken(bearerToken)
+
+	refToken, err := apicfg.Queries.GetRefreshToken(r.Context(), tokenHash)
 	if err != nil {
 		commErr.RespondErrorWithJson(w, 401, "Invalid refresh token")
 		return

@@ -17,7 +17,7 @@ VALUES (
     $1,
     Now(),
     $2,
-    Now() + INTERVAL '60 days',
+    Now() + INTERVAL '30 days',
     NULL
 )
 RETURNING id, user_id, token_hash, expires_at, revoked_at, created_at
@@ -61,13 +61,17 @@ func (q *Queries) GetRefreshToken(ctx context.Context, tokenHash string) (Refres
 	return i, err
 }
 
-const revokeRefreshToken = `-- name: RevokeRefreshToken :exec
+const revokeRefreshToken = `-- name: RevokeRefreshToken :one
 UPDATE refresh_tokens
-SET revoked_at = Now(), updated_at = Now()
+SET revoked_at = NOW()
 WHERE token_hash = $1
+  AND revoked_at IS NULL
+RETURNING id
 `
 
-func (q *Queries) RevokeRefreshToken(ctx context.Context, tokenHash string) error {
-	_, err := q.db.ExecContext(ctx, revokeRefreshToken, tokenHash)
-	return err
+func (q *Queries) RevokeRefreshToken(ctx context.Context, tokenHash string) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, revokeRefreshToken, tokenHash)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
