@@ -15,5 +15,5 @@ WHERE token_hash = $1;
 
 -- name: RevokeRefreshToken :exec
 UPDATE refresh_tokens
-SET revoked_at = Now(), updated_at = Now()
-WHERE token_hash = $1;x
+SET revoked_at = Now()
+WHERE token_hash = $1;
