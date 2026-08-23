@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/mail"
 	"time"
 
 	"github.com/EyuAtske/AfriMart/backend/internal/auth"
@@ -165,6 +166,25 @@ func (apicfg *ApiConfig) HandleUpdates(w http.ResponseWriter, r *http.Request) {
 	err = json.NewDecoder(r.Body).Decode(&params)
 	if err != nil {
 		commErr.RespondErrorWithJson(w, 400, "Something went wrong parsing the request body")
+		return
+	}
+	if params.Email == "" {
+		commErr.RespondErrorWithJson(w, http.StatusBadRequest, "email is required")
+		return
+	}
+
+	if _, err := mail.ParseAddress(params.Email); err != nil {
+		commErr.RespondErrorWithJson(w, http.StatusBadRequest, "invalid email")
+		return
+	}
+
+	if params.Password == "" {
+		commErr.RespondErrorWithJson(w, http.StatusBadRequest, "password is required")
+		return
+	}
+
+	if len(params.Password) < 8 {
+    	commErr.RespondErrorWithJson(w, http.StatusBadRequest, "password must be at least 8 characters")
 		return
 	}
 	hashedPassword, err := auth.HashPassword(params.Password)

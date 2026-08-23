@@ -15,7 +15,7 @@ import (
 
 func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
-		Issuer:    "chirpy-access",
+		Issuer:    "Afrimart-access",
 		IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
 		ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(expiresIn)),
 		Subject:   userID.String(),
@@ -42,7 +42,7 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 	if err != nil {
 		return uuid.Nil, err
 	}
-	if issuer != "chirpy-access" {
+	if issuer != "Afrimart-access" {
 		return uuid.Nil, errors.New("invalid token issuer")
 	}
 	uid, err := uuid.Parse(id)

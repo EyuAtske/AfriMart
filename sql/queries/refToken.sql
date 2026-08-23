@@ -13,7 +13,9 @@ RETURNING *;
 SELECT * FROM refresh_tokens
 WHERE token_hash = $1;
 
--- name: RevokeRefreshToken :exec
+-- name: RevokeRefreshToken :one
 UPDATE refresh_tokens
-SET revoked_at = Now()
-WHERE token_hash = $1;
+SET revoked_at = NOW()
+WHERE token_hash = $1
+  AND revoked_at IS NULL
+RETURNING id;

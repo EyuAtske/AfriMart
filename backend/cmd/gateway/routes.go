@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"os"
 
+	database "github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/EyuAtske/AfriMart/backend/internal/handlers"
 	"github.com/joho/godotenv"
-	database "github.com/EyuAtske/AfriMart/backend/internal/database"
 	_ "github.com/lib/pq"
 )
 
@@ -20,6 +20,10 @@ func main() {
 		log.Fatal("DB_URL must be set")
 	}
 
+	secretKey := os.Getenv("SECRET_KEY")
+	if secretKey == "" {
+		log.Fatal("SECRET_KEY environment variable is required")
+	}
 
 	dbConn, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -27,9 +31,9 @@ func main() {
 	}
 	dbQueries := database.New(dbConn)
 	apicfg := handlers.ApiConfig{
-		DB: dbConn,
+		DB:      dbConn,
 		Queries: dbQueries,
-		Secret: os.Getenv("SECRET_KEY"),
+		Secret:  secretKey,
 	}
 	servermux := http.NewServeMux()
 	server := &http.Server{
