@@ -23,7 +23,7 @@ func InitTracer(ctx context.Context) (func(context.Context) error, error) {
 	}
 
 	res, err := resource.New(
-		ctx,
+		context.Background(),
 		resource.WithAttributes(
 			semconv.ServiceName("afrimart-backend"),
 		),
