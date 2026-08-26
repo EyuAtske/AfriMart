@@ -6,15 +6,29 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"context"
+
+
+	"github.com/EyuAtske/AfriMart/backend/internal/observability"
 
 	database "github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/EyuAtske/AfriMart/backend/internal/handlers"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func main() {
 	godotenv.Load()
+	shutdownTracer, err := observability.InitTracer(context.Background())
+	if err != nil {
+		log.Fatalf("failed to initialize tracing: %v", err)
+	}
+	defer func() {
+		if err := shutdownTracer(context.Background()); err != nil {
+			log.Printf("failed to shutdown tracer: %v", err)
+		}
+	}()
 	dbURL := os.Getenv("DB_URL")
 	if dbURL == "" {
 		log.Fatal("DB_URL must be set")
@@ -37,7 +51,7 @@ func main() {
 	}
 	servermux := http.NewServeMux()
 	server := &http.Server{
-		Handler: servermux,
+		Handler: otelhttp.NewHandler(servermux, "afrimart-backend"),
 		Addr:    ":8080",
 	}
 	servermux.HandleFunc("GET /api/health", handlers.HandelHealth)
