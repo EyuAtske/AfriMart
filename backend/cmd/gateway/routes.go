@@ -1,13 +1,12 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"context"
-
 
 	"github.com/EyuAtske/AfriMart/backend/internal/observability"
 
@@ -21,14 +20,16 @@ import (
 func main() {
 	godotenv.Load()
 	shutdownTracer, err := observability.InitTracer(context.Background())
+
 	if err != nil {
-		log.Fatalf("failed to initialize tracing: %v", err)
+		log.Printf("warning: failed to initialize tracing: %v", err)
+	} else {
+		defer func() {
+			if err := shutdownTracer(context.Background()); err != nil {
+				log.Printf("failed to shutdown tracer: %v", err)
+			}
+		}()
 	}
-	defer func() {
-		if err := shutdownTracer(context.Background()); err != nil {
-			log.Printf("failed to shutdown tracer: %v", err)
-		}
-	}()
 	dbURL := os.Getenv("DB_URL")
 	if dbURL == "" {
 		log.Fatal("DB_URL must be set")

@@ -2,7 +2,9 @@ package observability
 
 import (
 	"context"
+	"os"
 
+	"github.com/joho/godotenv"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -11,8 +13,9 @@ import (
 )
 
 func InitTracer(ctx context.Context) (func(context.Context) error, error) {
+	godotenv.Load()
 	exporter, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithEndpoint("otel-collector:4317"),
+		otlptracegrpc.WithEndpoint(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")),
 		otlptracegrpc.WithInsecure(),
 	)
 	if err != nil {
