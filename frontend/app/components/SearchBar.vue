@@ -338,11 +338,11 @@ const isNaturalLanguageQuery = computed(() => {
           v-if="searchQuery && !isNaturalLanguageQuery"
           class="pt-2"
         >
-          <button
-            type="button"
+         <button
+          type="button"
             class="flex w-full items-center gap-3 text-left text-sm text-[#4c4945] transition-colors hover:text-[#806344]"
-            @click="performSearch"
-          >
+            @click="performSearch(searchQuery)"
+>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="16"
