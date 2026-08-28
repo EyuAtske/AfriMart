@@ -1,1 +1,24 @@
+# Environment files
 .env
+.env.*
+!.env.example
+
+# Node dependencies
+node_modules/
+
+# Nuxt generated files
+frontend/.nuxt/
+frontend/.output/
+frontend/.data/
+frontend/.nitro/
+frontend/.cache/
+frontend/dist/
+
+# Playwright test artifacts
+frontend/playwright-report/
+frontend/test-results/
+
+# OS / IDE
+.DS_Store
+.idea/
+.fleet/
