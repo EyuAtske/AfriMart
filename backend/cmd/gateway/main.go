@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/EyuAtske/AfriMart/backend/internal/observability"
 
 	database "github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/EyuAtske/AfriMart/backend/internal/handlers"
@@ -15,6 +18,17 @@ import (
 
 func main() {
 	godotenv.Load()
+	shutdownTracer, err := observability.InitTracer(context.Background())
+
+	if err != nil {
+		log.Printf("warning: failed to initialize tracing: %v", err)
+	} else {
+		defer func() {
+			if err := shutdownTracer(context.Background()); err != nil {
+				log.Printf("failed to shutdown tracer: %v", err)
+			}
+		}()
+	}
 	dbURL := os.Getenv("DB_URL")
 	if dbURL == "" {
 		log.Fatal("DB_URL must be set")
@@ -36,8 +50,9 @@ func main() {
 		Secret:  secretKey,
 	}
 	servermux := http.NewServeMux()
+	tracedHandler := observability.TraceMiddleware(servermux)
 	server := &http.Server{
-		Handler: servermux,
+		Handler: tracedHandler,
 		Addr:    ":8080",
 	}
 	servermux.HandleFunc("GET /api/health", handlers.HandelHealth)
