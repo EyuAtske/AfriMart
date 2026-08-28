@@ -27,6 +27,11 @@ const inputType = computed(() =>
     ? 'text'
     : props.type
 )
+
+const model = computed({
+  get: () => props.modelValue,
+  set: (val: string) => emit('update:modelValue', val)
+})
 </script>
 
 <template>
@@ -41,18 +46,12 @@ const inputType = computed(() =>
     <div class="relative">
       <input
         :id="name || label"
+        v-model="model"
         :name="name"
         :type="inputType"
-        :value="modelValue"
         :placeholder="placeholder"
         :autocomplete="autocomplete"
         class="h-12 w-full rounded-[5px] border border-[#cfc4b5] bg-[#faf8f4] px-4 text-sm text-[#211f1d] outline-none transition-all placeholder:text-[#92877b] hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
-        @input="
-          emit(
-            'update:modelValue',
-            ($event.target as HTMLInputElement).value
-          )
-        "
       />
 
       <button

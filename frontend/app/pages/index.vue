@@ -1,6 +1,14 @@
 <script setup lang="ts">
-import LoadMoreButton from '~/components/LoadMoreButton.vue';
+import LoadMoreButton from '~/components/LoadMoreButton.vue'
 import CategoryCard from '~/components/marketplace/CategoryCard.vue'
+
+useSeoMeta({
+  title: 'Afrimart — Curated Fashion & Independent Sellers Marketplace',
+  description: 'Discover clothing and unique items from independent sellers on Afrimart. Quality pieces, ethical shopping, one unified marketplace.',
+  ogTitle: 'Afrimart — Curated Fashion Marketplace',
+  ogDescription: 'Discover clothing and unique items from independent sellers on Afrimart.',
+  ogImage: '/images/herotemp.png'
+})
 
 const productsToShow = ref(10)
 
@@ -55,47 +63,13 @@ const loadMore = () => {
             class="mt-7 flex flex-wrap items-center gap-5 sm:mt-8 sm:gap-7 lg:mt-10"
           >
             <!-- Shop Now -->
-           <NuxtLink
-  to="/products"
-  class="group inline-flex items-center gap-4 rounded-full border border-[#806344] px-10 py-4 text-sm font-medium tracking-[0.14em] text-[#5d4b37] transition-all duration-300 hover:bg-[#806344] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#806344] focus:ring-offset-2 focus:ring-offset-[#f5f1e9]"
->
-  <span>SHOP NOW</span>
-
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="18"
-    height="18"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="1.5"
-    class="transition-transform duration-300 group-hover:translate-y-1"
-  >
-    <path d="M12 5v14" />
-    <path d="m6 13 6 6 6-6" />
-  </svg>
-</NuxtLink>
+           <NuxtLink to="/products" class="group inline-flex items-center gap-4 rounded-full border border-[#806344] px-10 py-4 text-sm font-medium tracking-[0.14em] text-[#5d4b37] transition-all duration-300 hover:bg-[#806344] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#806344] focus:ring-offset-2 focus:ring-offset-[#f5f1e9]">
+             <span>SHOP NOW</span>
+          </NuxtLink>
 
             <!-- Explore Items -->
-            <NuxtLink
-              to="/products"
-              class="group flex items-center gap-2 text-xs tracking-[0.1em] text-[#302d29] sm:gap-3 sm:text-sm"
-            >
-              EXPLORE ITEMS
-
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-                class="transition-transform group-hover:translate-x-1"
-              >
-                <path d="M5 12h14" />
-                <path d="m13 6 6 6-6 6" />
-              </svg>
+            <NuxtLink to="/shop" class="group inline-flex items-center gap-4 rounded-full border border-[#806344] px-10 py-4 text-sm font-medium tracking-[0.14em] text-[#5d4b37] transition-all duration-300 hover:bg-[#806344] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#806344] focus:ring-offset-2 focus:ring-offset-[#f5f1e9]">
+              <span>SELL ITEMS</span>
             </NuxtLink>
           </div>
         </div>
@@ -110,19 +84,19 @@ const loadMore = () => {
         <CategoryCard
           title="Men"
           image="/images/mencat.jpg"
-          to="/men"
+          to="/products?category=Men"
         />
 
         <CategoryCard
           title="Women"
           image="/images/womencat.jpg"
-          to="/women"
+          to="/products?category=Women"
         />
 
         <CategoryCard
           title="Kids"
           image="/images/kidscat.jpg"
-          to="/kids"
+          to="/products?category=Kids"
         />
       </div>
     </section>

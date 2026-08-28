@@ -39,21 +39,21 @@
             </NuxtLink>
 
             <NuxtLink
-              to="/men"
+              to="/products?category=Men"
               class="text-base text-[#998d82] transition-colors hover:text-white"
             >
               Men
             </NuxtLink>
 
             <NuxtLink
-              to="/women"
+              to="/products?category=Women"
               class="text-base text-[#998d82] transition-colors hover:text-white"
             >
               Women
             </NuxtLink>
 
             <NuxtLink
-              to="/kids"
+              to="/products?category=Kids"
               class="text-base text-[#998d82] transition-colors hover:text-white"
             >
               Kids

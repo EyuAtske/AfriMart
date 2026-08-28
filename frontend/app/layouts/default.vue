@@ -11,5 +11,6 @@ import App from '~/app.vue';
       <slot />
     </main>
    <LayoutAppFooter />
+   <UiAppToast />
   </div>
 </template>

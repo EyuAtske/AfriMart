@@ -1,116 +1,131 @@
 <script setup lang="ts">
 const isMenuOpen = ref(false)
 const searchQuery = ref('')
+const router = useRouter()
+const { cartProducts } = useMarketplace()
+
+const cartCount = computed(() =>
+  cartProducts.value.reduce((total, item) => total + (item?.quantity || 0), 0)
+)
+
+const submitSearch = async () => {
+  const search = searchQuery.value.trim()
+
+  await router.push({
+    path: '/products',
+    query: search ? { search } : undefined
+  })
+
+  isMenuOpen.value = false
+}
 
 const categories = [
   {
     name: 'MEN',
-    to: '/men',
+    to: '/products?category=Men',
     sections: [
       {
         title: 'CLOTHING',
         items: [
-          { name: 'T-Shirts', to: '/men/clothing/t-shirts' },
-          { name: 'Shirts', to: '/men/clothing/shirts' },
-          { name: 'Trousers', to: '/men/clothing/trousers' },
-          { name: 'Jeans', to: '/men/clothing/jeans' },
-          { name: 'Jackets', to: '/men/clothing/jackets' },
-          { name: 'Hoodies', to: '/men/clothing/hoodies' },
-        ],
+          { name: 'T-Shirts', to: '/products?category=Men&search=t-shirt' },
+          { name: 'Shirts', to: '/products?category=Men&search=shirt' },
+          { name: 'Trousers', to: '/products?category=Men&search=trousers' },
+          { name: 'Jeans', to: '/products?category=Men&search=jeans' },
+          { name: 'Jackets', to: '/products?category=Men&search=jacket' },
+          { name: 'Hoodies', to: '/products?category=Men&search=hoodie' }
+        ]
       },
       {
         title: 'SHOES',
         items: [
-          { name: 'Sneakers', to: '/men/shoes/sneakers' },
-          { name: 'Formal Shoes', to: '/men/shoes/formal' },
-          { name: 'Boots', to: '/men/shoes/boots' },
-          { name: 'Sandals', to: '/men/shoes/sandals' },
-        ],
+          { name: 'Sneakers', to: '/products?category=Shoes&search=sneakers' },
+          { name: 'Formal Shoes', to: '/products?category=Shoes&search=formal' },
+          { name: 'Boots', to: '/products?category=Shoes&search=boots' },
+          { name: 'Sandals', to: '/products?category=Shoes&search=sandals' }
+        ]
       },
       {
         title: 'ACCESSORIES',
         items: [
-          { name: 'Bags', to: '/men/accessories/bags' },
-          { name: 'Watches', to: '/men/accessories/watches' },
-          { name: 'Belts', to: '/men/accessories/belts' },
-          { name: 'Hats', to: '/men/accessories/hats' },
-        ],
-      },
-    ],
+          { name: 'Bags', to: '/products?category=Accessories&search=bag' },
+          { name: 'Watches', to: '/products?category=Accessories&search=watch' },
+          { name: 'Belts', to: '/products?category=Accessories&search=belt' },
+          { name: 'Hats', to: '/products?category=Accessories&search=hat' }
+        ]
+      }
+    ]
   },
-
   {
     name: 'WOMEN',
-    to: '/women',
+    to: '/products?category=Women',
     sections: [
       {
         title: 'CLOTHING',
         items: [
-          { name: 'Dresses', to: '/women/clothing/dresses' },
-          { name: 'Tops', to: '/women/clothing/tops' },
-          { name: 'Trousers', to: '/women/clothing/trousers' },
-          { name: 'Jeans', to: '/women/clothing/jeans' },
-          { name: 'Skirts', to: '/women/clothing/skirts' },
-          { name: 'Jackets', to: '/women/clothing/jackets' },
-          { name: 'Sweaters', to: '/women/clothing/sweaters' },
-        ],
+          { name: 'Dresses', to: '/products?category=Women&search=dress' },
+          { name: 'Tops', to: '/products?category=Women&search=top' },
+          { name: 'Trousers', to: '/products?category=Women&search=trousers' },
+          { name: 'Jeans', to: '/products?category=Women&search=jeans' },
+          { name: 'Skirts', to: '/products?category=Women&search=skirt' },
+          { name: 'Jackets', to: '/products?category=Women&search=jacket' },
+          { name: 'Sweaters', to: '/products?category=Women&search=sweater' }
+        ]
       },
       {
         title: 'SHOES',
         items: [
-          { name: 'Sneakers', to: '/women/shoes/sneakers' },
-          { name: 'Heels', to: '/women/shoes/heels' },
-          { name: 'Boots', to: '/women/shoes/boots' },
-          { name: 'Sandals', to: '/women/shoes/sandals' },
-          { name: 'Flats', to: '/women/shoes/flats' },
-        ],
+          { name: 'Sneakers', to: '/products?category=Shoes&search=sneakers' },
+          { name: 'Heels', to: '/products?category=Shoes&search=heels' },
+          { name: 'Boots', to: '/products?category=Shoes&search=boots' },
+          { name: 'Sandals', to: '/products?category=Shoes&search=sandals' },
+          { name: 'Flats', to: '/products?category=Shoes&search=flats' }
+        ]
       },
       {
         title: 'ACCESSORIES',
         items: [
-          { name: 'Bags', to: '/women/accessories/bags' },
-          { name: 'Jewelry', to: '/women/accessories/jewelry' },
-          { name: 'Belts', to: '/women/accessories/belts' },
-          { name: 'Hats', to: '/women/accessories/hats' },
-          { name: 'Scarves', to: '/women/accessories/scarves' },
-        ],
-      },
-    ],
+          { name: 'Bags', to: '/products?category=Accessories&search=bag' },
+          { name: 'Jewelry', to: '/products?category=Accessories&search=jewelry' },
+          { name: 'Belts', to: '/products?category=Accessories&search=belt' },
+          { name: 'Hats', to: '/products?category=Accessories&search=hat' },
+          { name: 'Scarves', to: '/products?category=Accessories&search=scarf' }
+        ]
+      }
+    ]
   },
-
   {
     name: 'KIDS',
-    to: '/kids',
+    to: '/products?category=Kids',
     sections: [
       {
         title: 'CLOTHING',
         items: [
-          { name: 'T-Shirts', to: '/kids/clothing/t-shirts' },
-          { name: 'Dresses', to: '/kids/clothing/dresses' },
-          { name: 'Trousers', to: '/kids/clothing/trousers' },
-          { name: 'Jeans', to: '/kids/clothing/jeans' },
-          { name: 'Jackets', to: '/kids/clothing/jackets' },
-          { name: 'Hoodies', to: '/kids/clothing/hoodies' },
-        ],
+          { name: 'T-Shirts', to: '/products?category=Kids&search=t-shirt' },
+          { name: 'Dresses', to: '/products?category=Kids&search=dress' },
+          { name: 'Trousers', to: '/products?category=Kids&search=trousers' },
+          { name: 'Jeans', to: '/products?category=Kids&search=jeans' },
+          { name: 'Jackets', to: '/products?category=Kids&search=jacket' },
+          { name: 'Hoodies', to: '/products?category=Kids&search=hoodie' }
+        ]
       },
       {
         title: 'SHOES',
         items: [
-          { name: 'Sneakers', to: '/kids/shoes/sneakers' },
-          { name: 'Sandals', to: '/kids/shoes/sandals' },
-          { name: 'Boots', to: '/kids/shoes/boots' },
-        ],
+          { name: 'Sneakers', to: '/products?category=Shoes&search=sneakers' },
+          { name: 'Sandals', to: '/products?category=Shoes&search=sandals' },
+          { name: 'Boots', to: '/products?category=Shoes&search=boots' }
+        ]
       },
       {
         title: 'ACCESSORIES',
         items: [
-          { name: 'Bags', to: '/kids/accessories/bags' },
-          { name: 'Hats', to: '/kids/accessories/hats' },
-          { name: 'Belts', to: '/kids/accessories/belts' },
-        ],
-      },
-    ],
-  },
+          { name: 'Bags', to: '/products?category=Accessories&search=bag' },
+          { name: 'Hats', to: '/products?category=Accessories&search=hat' },
+          { name: 'Belts', to: '/products?category=Accessories&search=belt' }
+        ]
+      }
+    ]
+  }
 ]
 </script>
 
@@ -282,7 +297,10 @@ const categories = [
       <!-- Right actions -->
       <div class="ml-auto flex items-center gap-2.5 sm:gap-4 lg:gap-5">
         <!--z Search Input -->
-        <div class="relative flex items-center">
+        <form
+          class="relative flex items-center"
+          @submit.prevent="submitSearch"
+        >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="18"
@@ -299,10 +317,10 @@ const categories = [
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Search products or ask AI ✦..."
+            placeholder="Search products"
             class="w-36 sm:w-56 lg:w-64 h-9 sm:h-10 pl-9 pr-3.5 text-xs sm:text-sm bg-transparent rounded-full border border-[#d7d0c4] text-[#302d29] placeholder-[#8c857b] focus:outline-none focus:border-[#806344] transition-all"
           />
-        </div>
+        </form>
 
         <!-- Account -->
         <NuxtLink
@@ -344,9 +362,10 @@ const categories = [
           </svg>
 
           <span
-            class="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#806344] text-[10px] font-medium text-white"
+            v-if="cartCount"
+            class="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#806344] px-1 text-[10px] font-semibold leading-none text-white"
           >
-            2
+            {{ cartCount }}
           </span>
         </NuxtLink>
       </div>
