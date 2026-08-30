@@ -7,18 +7,23 @@ package database
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/google/uuid"
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (id, created_at, updated_at, password_hash, email)
+INSERT INTO users (id, created_at, updated_at, password_hash, email, first_name, last_name, username, role)
 VALUES (
     gen_random_uuid(),
     Now(),
     Now(),
     $1,
-    $2
+    $2,
+    $3,
+    $4,
+    $5,
+    $6
 )
 RETURNING id, email, password_hash, first_name, last_name, username, role, created_at, updated_at
 `
@@ -26,10 +31,21 @@ RETURNING id, email, password_hash, first_name, last_name, username, role, creat
 type CreateUserParams struct {
 	PasswordHash string
 	Email        string
+	FirstName    sql.NullString
+	LastName     sql.NullString
+	Username     sql.NullString
+	Role         string
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, createUser, arg.PasswordHash, arg.Email)
+	row := q.db.QueryRowContext(ctx, createUser,
+		arg.PasswordHash,
+		arg.Email,
+		arg.FirstName,
+		arg.LastName,
+		arg.Username,
+		arg.Role,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -76,21 +92,49 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 	return i, err
 }
 
-const updateUserPasswordAndEmail = `-- name: UpdateUserPasswordAndEmail :one
+const updateUserPassword = `-- name: UpdateUserPassword :one
 UPDATE users
-SET password_hash = $1, email = $2, updated_at = Now()
-WHERE id = $3
+SET password_hash = $1, updated_at = Now()
+WHERE id = $2
 RETURNING id, email, password_hash, first_name, last_name, username, role, created_at, updated_at
 `
 
-type UpdateUserPasswordAndEmailParams struct {
+type UpdateUserPasswordParams struct {
 	PasswordHash string
-	Email        string
 	ID           uuid.UUID
 }
 
-func (q *Queries) UpdateUserPasswordAndEmail(ctx context.Context, arg UpdateUserPasswordAndEmailParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, updateUserPasswordAndEmail, arg.PasswordHash, arg.Email, arg.ID)
+func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserPassword, arg.PasswordHash, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.FirstName,
+		&i.LastName,
+		&i.Username,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateUsername = `-- name: UpdateUsername :one
+UPDATE users
+SET username = $1, updated_at = Now()
+WHERE id = $2
+RETURNING id, email, password_hash, first_name, last_name, username, role, created_at, updated_at
+`
+
+type UpdateUsernameParams struct {
+	Username sql.NullString
+	ID       uuid.UUID
+}
+
+func (q *Queries) UpdateUsername(ctx context.Context, arg UpdateUsernameParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUsername, arg.Username, arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,

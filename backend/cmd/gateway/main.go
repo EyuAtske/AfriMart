@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -12,37 +10,73 @@ import (
 
 	database "github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/EyuAtske/AfriMart/backend/internal/handlers"
+	"github.com/XSAM/otelsql"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
 func main() {
 	godotenv.Load()
-	shutdownTracer, err := observability.InitTracer(context.Background())
 
+	logger := observability.NewLogger()
+	slog.SetDefault(logger)
+
+	shutdownTracer, err := observability.InitTracer(context.Background())
 	if err != nil {
-		log.Printf("warning: failed to initialize tracing: %v", err)
+		slog.Error("warning: failed to initialize tracing",
+		"error", err,
+	)
 	} else {
 		defer func() {
 			if err := shutdownTracer(context.Background()); err != nil {
-				log.Printf("failed to shutdown tracer: %v", err)
+				slog.Error(
+					"failed to shutdown tracer",
+					"error", err,
+				)
 			}
 		}()
 	}
+
+	slog.Info("starting AfriMart backend")
+
 	dbURL := os.Getenv("DB_URL")
 	if dbURL == "" {
-		log.Fatal("DB_URL must be set")
+		slog.Error("DB_URL must be set")
+		os.Exit(1)
 	}
 
 	secretKey := os.Getenv("SECRET_KEY")
 	if secretKey == "" {
-		log.Fatal("SECRET_KEY environment variable is required")
+		slog.Error("SECRET_KEY environment variable is required")
+		os.Exit(1)
 	}
 
-	dbConn, err := sql.Open("postgres", dbURL)
+	dbConn, err := otelsql.Open("postgres", dbURL)
 	if err != nil {
-		log.Fatalf("Error opening database: %s", err)
+		slog.Error(
+			"Error opening database",
+			"error", err,
+		)
+		os.Exit(1)
 	}
+
+	defer dbConn.Close()
+
+	if _, err := otelsql.RegisterDBStatsMetrics(dbConn); err != nil {
+		slog.Warn(
+			"failed to register DB metrics", 
+			"error", err,
+		)
+	}
+
+	if err := dbConn.Ping(); err != nil {
+		slog.Error(
+			"database connection failed", 
+			"error", err,
+		)
+		os.Exit(1)
+	}
+	slog.Info("database connected")
 	dbQueries := database.New(dbConn)
 	apicfg := handlers.ApiConfig{
 		DB:      dbConn,
@@ -55,11 +89,16 @@ func main() {
 		Handler: tracedHandler,
 		Addr:    ":8080",
 	}
+	slog.Info(
+		"server started", 
+		"address", server.Addr,
+	)
 	servermux.HandleFunc("GET /api/health", handlers.HandelHealth)
 	servermux.HandleFunc("POST /api/auth/register", apicfg.HandleRegister)
 	servermux.HandleFunc("POST /api/auth/login", apicfg.HandleLogIn)
 	servermux.HandleFunc("POST /api/auth/logout", apicfg.HandleRevoke)
-	servermux.HandleFunc("PUT /api/auth/user", apicfg.HandleUpdates)
+	servermux.HandleFunc("PUT /api/auth/password", apicfg.HandleUpdatePassword)
+	servermux.HandleFunc("PUT /api/auth/username", apicfg.HandleUpdateUsername)
 	servermux.HandleFunc("POST /api/refresh", apicfg.HandleRefresh)
 	servermux.HandleFunc("POST /api/shops", handlers.HandelProducts)
 	servermux.HandleFunc("GET /api/shops", handlers.HandelProducts)
@@ -87,6 +126,6 @@ func main() {
 	servermux.HandleFunc("POST /api/orders/{id}/cancel", handlers.HandelProducts)
 	err = server.ListenAndServe()
 	if err != nil {
-		fmt.Print(err)
+		slog.Error("Error listening to server", "error", err)
 	}
 }

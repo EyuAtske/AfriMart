@@ -1,17 +1,29 @@
-package handlers
+package auth
 
 import (
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/mail"
+	"time"
 
-	"github.com/EyuAtske/AfriMart/backend/internal/auth"
 	database "github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/google/uuid"
 )
 
-func decodeUpdateParams(r *http.Request) (updateParams, error) {
+type updateParams struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type user struct {
+	Userid     uuid.UUID `json:"id"`
+	Created_at time.Time `json:"created_at"`
+	Updated_at time.Time `json:"updated_at"`
+	Email      string    `json:"email"`
+}
+
+func DecodeUpdateParams(r *http.Request) (updateParams, error) {
 	var params updateParams
 
 	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
@@ -21,7 +33,7 @@ func decodeUpdateParams(r *http.Request) (updateParams, error) {
 	return params, nil
 }
 
-func validateUpdateParams(params updateParams) error {
+func ValidateUpdateParams(params updateParams) error {
 	if params.Email == "" {
 		return errors.New("email is required")
 	}
@@ -41,27 +53,7 @@ func validateUpdateParams(params updateParams) error {
 	return nil
 }
 
-func (apicfg *ApiConfig) updateUser(
-	r *http.Request,
-	userID uuid.UUID,
-	params updateParams,
-) (database.User, error) {
-	hashedPassword, err := auth.HashPassword(params.Password)
-	if err != nil {
-		return database.User{}, err
-	}
-
-	return apicfg.Queries.UpdateUserPasswordAndEmail(
-		r.Context(),
-		database.UpdateUserPasswordAndEmailParams{
-			PasswordHash: hashedPassword,
-			Email:        params.Email,
-			ID:           userID,
-		},
-	)
-}
-
-func respondWithUpdatedUser(w http.ResponseWriter, usr database.User) {
+func RespondWithUpdatedUser(w http.ResponseWriter, usr database.User) {
 	resp := user{
 		Userid:     usr.ID,
 		Created_at: usr.CreatedAt,
