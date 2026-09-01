@@ -124,9 +124,13 @@ func (apicfg *ApiConfig) HandleLogIn(w http.ResponseWriter, r *http.Request) {
 		commErr.RespondErrorWithJson(w, r, 401, "Incorrect email or password", err)
 		return
 	}
-	check, _ := auth.CheckPasswordHash(reqEmail.Password, usr.PasswordHash)
+	check, err := auth.CheckPasswordHash(reqEmail.Password, usr.PasswordHash)
+	if err != nil {
+		commErr.RespondErrorWithJson(w, r, 500, "Error checking password", err)
+		return
+	}
 	if !check {
-		commErr.RespondErrorWithJson(w, r, 401, "Incorrect email or password", err)
+		commErr.RespondErrorWithJson(w, r, 401, "Incorrect email or password", nil)
 		return
 	}
 	token, err := auth.MakeJWT(usr.ID, apicfg.Secret, time.Duration(expires_in_seconds)*time.Second)
@@ -192,7 +196,7 @@ func (apicfg *ApiConfig) HandleRevoke(w http.ResponseWriter, r *http.Request) {
 
 func (apicfg *ApiConfig) HandleUpdatePassword(w http.ResponseWriter, r *http.Request) {
 	slog.InfoContext(
-		r.Context(),	
+		r.Context(),
 		"request received",
 		"method", r.Method,
 		"path", r.URL.Path,
@@ -222,7 +226,7 @@ func (apicfg *ApiConfig) HandleUpdatePassword(w http.ResponseWriter, r *http.Req
 
 	hashedPassword, err := auth.HashPassword(params.Password)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, http.StatusUnauthorized, err.Error(), err)
+		commErr.RespondErrorWithJson(w, r, http.StatusInternalServerError, err.Error(), err)
 		return
 	}
 
@@ -305,7 +309,7 @@ func (apicfg *ApiConfig) HandleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if refToken.ExpiresAt.Before(time.Now()) || refToken.RevokedAt.Valid {
-		commErr.RespondErrorWithJson(w, r, 401, "Refresh token has expired or been revoked", err)
+		commErr.RespondErrorWithJson(w, r, 401, "Refresh token has expired or been revoked", errors.New("token expired or revoked"))
 		return
 	}
 	newToken, err := auth.MakeJWT(refToken.UserID, apicfg.Secret, time.Hour)
