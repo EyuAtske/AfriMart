@@ -10,8 +10,9 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
-func RespondErrorWithJson(w http.ResponseWriter, statusCode int, msg string, err error) {
-    slog.Error(
+func RespondErrorWithJson(w http.ResponseWriter, r *http.Request, statusCode int, msg string, err error) {
+    slog.ErrorContext(
+        r.Context(),
         msg,
         "error", err,
     )

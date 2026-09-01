@@ -1,5 +1,6 @@
 services:
   backend:
+    container_name: afrimart-backend 
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -66,6 +67,31 @@ services:
       - tempo_data:/tmp/tempo
     ports:
       - "3200:3200"
+  loki:
+    image: grafana/loki:3.7.0
+    container_name: afrimart-loki
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./observability/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+  alloy:
+    image: grafana/alloy:latest
+    container_name: afrimart-alloy
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+    volumes:
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy
+    ports:
+      - "12345:12345"
+    depends_on:
+      - loki
 
   grafana:
     image: grafana/grafana:latest
@@ -74,8 +100,10 @@ services:
       - "3001:3000"
     depends_on:
       - tempo
+      - loki
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning
     restart: unless-stopped
 
 volumes:
@@ -83,3 +111,5 @@ volumes:
   rabbitmq_data:
   tempo_data:
   grafana-data:
+  loki_data:
+  alloy_data:

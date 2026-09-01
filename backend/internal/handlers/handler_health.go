@@ -7,7 +7,8 @@ import (
 )
 
 func HandelHealth(w http.ResponseWriter, r *http.Request) {
-	slog.Info(
+	slog.InfoContext(
+		r.Context(),
 		"request received",
 		"method", r.Method,
 		"path", r.URL.Path,

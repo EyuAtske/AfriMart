@@ -18,17 +18,19 @@ import (
 func main() {
 	godotenv.Load()
 
+	ctx := context.Background()
+
 	logger := observability.NewLogger()
 	slog.SetDefault(logger)
 
-	shutdownTracer, err := observability.InitTracer(context.Background())
+	shutdownTracer, err := observability.InitTracer(ctx)
 	if err != nil {
 		slog.Error("warning: failed to initialize tracing",
-		"error", err,
-	)
+			"error", err,
+		)
 	} else {
 		defer func() {
-			if err := shutdownTracer(context.Background()); err != nil {
+			if err := shutdownTracer(ctx); err != nil {
 				slog.Error(
 					"failed to shutdown tracer",
 					"error", err,
@@ -64,14 +66,14 @@ func main() {
 
 	if _, err := otelsql.RegisterDBStatsMetrics(dbConn); err != nil {
 		slog.Warn(
-			"failed to register DB metrics", 
+			"failed to register DB metrics",
 			"error", err,
 		)
 	}
 
 	if err := dbConn.Ping(); err != nil {
 		slog.Error(
-			"database connection failed", 
+			"database connection failed",
 			"error", err,
 		)
 		os.Exit(1)
@@ -90,7 +92,7 @@ func main() {
 		Addr:    ":8080",
 	}
 	slog.Info(
-		"server started", 
+		"server started",
 		"address", server.Addr,
 	)
 	servermux.HandleFunc("GET /api/health", handlers.HandelHealth)
@@ -124,8 +126,8 @@ func main() {
 	servermux.HandleFunc("GET /api/seller/orders", handlers.HandelProducts)
 	servermux.HandleFunc("PATCH /api/orders/{id}/status", handlers.HandelProducts)
 	servermux.HandleFunc("POST /api/orders/{id}/cancel", handlers.HandelProducts)
-	err = server.ListenAndServe()
-	if err != nil {
-		slog.Error("Error listening to server", "error", err)
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		slog.Error("server failed", "error", err)
+		os.Exit(1)
 	}
 }
