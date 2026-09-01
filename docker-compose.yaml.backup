@@ -102,7 +102,7 @@ services:
       - tempo
       - loki
     volumes:
-      - afrimart-grafana-test:/var/lib/grafana
+      - grafana-data:/var/lib/grafana
       - ./observability/grafana/provisioning:/etc/grafana/provisioning
     restart: unless-stopped
 
@@ -110,6 +110,6 @@ volumes:
   postgres_data:
   rabbitmq_data:
   tempo_data:
-  afrimart-grafana-test:
+  grafana-data:
   loki_data:
   alloy_data:
