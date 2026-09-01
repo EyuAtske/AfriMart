@@ -25,7 +25,7 @@ func main() {
 
 	shutdownTracer, err := observability.InitTracer(ctx)
 	if err != nil {
-		slog.Error("warning: failed to initialize tracing",
+		slog.Error("warning: failed to initialize tracing and metrics",
 			"error", err,
 		)
 	} else {

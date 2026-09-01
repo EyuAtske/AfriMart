@@ -16,6 +16,9 @@ exporters:
       insecure: true
   otlp_http/loki:
     endpoint: http://loki:3100/otlp
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: afrimart
   debug:
     verbosity: detailed
     
@@ -37,3 +40,11 @@ service:
       exporters:
         - otlp_http/loki
         - debug
+    metrics:
+      receivers: 
+       - otlp
+      processors: 
+       - batch
+      exporters: 
+       - prometheus
+       - debug

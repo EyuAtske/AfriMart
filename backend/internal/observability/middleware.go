@@ -7,5 +7,5 @@ import (
 )
 
 func TraceMiddleware(next http.Handler) http.Handler {
-	return otelhttp.NewHandler(next, "afrimart-http")
+	return otelhttp.NewMiddleware("afrimart-backend")(next)
 }
