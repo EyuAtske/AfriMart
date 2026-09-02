@@ -20,6 +20,16 @@ type RefreshToken struct {
 	CreatedAt time.Time
 }
 
+type Shop struct {
+	ID          uuid.UUID
+	OwnerID     uuid.UUID
+	Name        string
+	Description sql.NullString
+	Status      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type User struct {
 	ID           uuid.UUID
 	Email        string

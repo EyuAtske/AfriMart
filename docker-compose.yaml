@@ -105,9 +105,8 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
+      - '--web.enable-remote-write-receiver'
     depends_on:
       - otel-collector
       - backend
@@ -117,6 +116,8 @@ services:
     container_name: afrimart-grafana
     ports:
       - "3001:3000"
+    environment:
+      - GF_SERVER_HTTP_ADDR=0.0.0.0 
     depends_on:
       - tempo
       - loki

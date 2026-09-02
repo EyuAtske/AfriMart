@@ -1,11 +1,11 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/mail"
-	"time"
 
 	database "github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/google/uuid"
@@ -16,11 +16,9 @@ type updateParams struct {
 	Password string `json:"password"`
 }
 
-type user struct {
-	Userid     uuid.UUID `json:"id"`
-	Created_at time.Time `json:"created_at"`
-	Updated_at time.Time `json:"updated_at"`
+type profile struct{
 	Email      string    `json:"email"`
+	Username string `json:"username"`
 }
 
 func DecodeUpdateParams(r *http.Request) (updateParams, error) {
@@ -67,4 +65,23 @@ func RespondWithUpdatedUser(w http.ResponseWriter, usr database.User) {
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		return
 	}
+}
+
+func RespondWithUserProfile(w http.ResponseWriter, usr database.GetUserByIDRow) {
+	resp := profile{
+		Email:      usr.Email,
+		Username: usr.Username.String,
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		return
+	}
+}
+
+func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
+	userID, ok := ctx.Value(userIDKey).(uuid.UUID)
+	return userID, ok
 }

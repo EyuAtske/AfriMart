@@ -31,3 +31,8 @@ UPDATE users
 SET username = $1, updated_at = Now()
 WHERE id = $2
 RETURNING *;
+
+-- name: GetUserByID :one
+SELECT email, username
+FROM users
+WHERE id = $1;

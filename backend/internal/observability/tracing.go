@@ -22,19 +22,13 @@ func InitTracer(ctx context.Context) (func(context.Context) error, error) {
 		endpoint = "otel-collector:4317"
 	}
 
-	res, err := resource.New(
-		ctx,
-		resource.WithAttributes(
-			semconv.ServiceName("afrimart-backend"),
-		),
-	)
+	res, err := resource.New(ctx, resource.WithAttributes(semconv.ServiceName("afrimart-backend")))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
-	traceExporter, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithEndpoint(endpoint),
-		otlptracegrpc.WithInsecure(),
-	)
+
+	// 1. Tracing
+	traceExporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithEndpoint(endpoint), otlptracegrpc.WithInsecure())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create trace exporter: %w", err)
 	}
@@ -44,24 +38,18 @@ func InitTracer(ctx context.Context) (func(context.Context) error, error) {
 		sdktrace.WithResource(res),
 	)
 	otel.SetTracerProvider(tracerProvider)
-	metricExporter, err := otlpmetricgrpc.New(ctx,
-		otlpmetricgrpc.WithEndpoint(endpoint),
-		otlpmetricgrpc.WithInsecure(),
-	)
+	metricExporter, err := otlpmetricgrpc.New(ctx, otlpmetricgrpc.WithEndpoint(endpoint), otlpmetricgrpc.WithInsecure())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric exporter: %w", err)
 	}
 
 	meterProvider := metric.NewMeterProvider(
-		metric.WithReader(metric.NewPeriodicReader(metricExporter,
-			metric.WithInterval(15*time.Second))),
+		metric.WithReader(metric.NewPeriodicReader(metricExporter, metric.WithInterval(15*time.Second))),
 		metric.WithResource(res),
 	)
-	otel.SetMeterProvider(meterProvider) 
-	if err := runtime.Start(
-		runtime.WithMeterProvider(meterProvider),
-		runtime.WithMinimumReadMemStatsInterval(5*time.Second),
-	); err != nil {
+	otel.SetMeterProvider(meterProvider)
+
+	if err := runtime.Start(runtime.WithMeterProvider(meterProvider), runtime.WithMinimumReadMemStatsInterval(5*time.Second)); err != nil {
 		fmt.Printf("warning: failed to start runtime metrics: %v\n", err)
 	}
 

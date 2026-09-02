@@ -6,8 +6,12 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/EyuAtske/AfriMart/backend/internal/auth"
+	"github.com/EyuAtske/AfriMart/backend/internal/health"
 	"github.com/EyuAtske/AfriMart/backend/internal/observability"
+	"github.com/EyuAtske/AfriMart/backend/internal/shop"
 
+	"github.com/EyuAtske/AfriMart/backend/internal/config"
 	database "github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/EyuAtske/AfriMart/backend/internal/handlers"
 	"github.com/XSAM/otelsql"
@@ -80,10 +84,16 @@ func main() {
 	}
 	slog.Info("database connected")
 	dbQueries := database.New(dbConn)
-	apicfg := handlers.ApiConfig{
+	apicfg := config.ApiConfig{
 		DB:      dbConn,
 		Queries: dbQueries,
 		Secret:  secretKey,
+	}
+	authHandler := &auth.AuthHandler{
+		Config: &apicfg,
+	}
+	shopHandler := &shop.ShopHandler{
+		Config: &apicfg,
 	}
 	servermux := http.NewServeMux()
 	tracedHandler := observability.TraceMiddleware(servermux)
@@ -95,14 +105,16 @@ func main() {
 		"server started",
 		"address", server.Addr,
 	)
-	servermux.HandleFunc("GET /api/health", handlers.HandelHealth)
-	servermux.HandleFunc("POST /api/auth/register", apicfg.HandleRegister)
-	servermux.HandleFunc("POST /api/auth/login", apicfg.HandleLogIn)
-	servermux.HandleFunc("POST /api/auth/logout", apicfg.HandleRevoke)
-	servermux.HandleFunc("PUT /api/auth/password", apicfg.HandleUpdatePassword)
-	servermux.HandleFunc("PUT /api/auth/username", apicfg.HandleUpdateUsername)
-	servermux.HandleFunc("POST /api/refresh", apicfg.HandleRefresh)
-	servermux.HandleFunc("POST /api/shops", handlers.HandelProducts)
+	protected := auth.AuthMiddleware(apicfg.Secret)
+	servermux.HandleFunc("GET /api/health", health.HandelHealth)
+	servermux.HandleFunc("POST /api/auth/register", authHandler.HandleRegister)
+	servermux.HandleFunc("POST /api/auth/login", authHandler.HandleLogIn)
+	servermux.HandleFunc("POST /api/auth/logout", authHandler.HandleRevoke)
+	servermux.Handle("PUT /api/auth/password", protected(http.HandlerFunc(authHandler.HandleUpdatePassword)),)
+	servermux.Handle("PUT /api/auth/username", protected(http.HandlerFunc(authHandler.HandleUpdateUsername)))
+	servermux.Handle("PUT /api/user/profile", protected(http.HandlerFunc(authHandler.HandleGetProfile)))
+	servermux.HandleFunc("POST /api/refresh", authHandler.HandleRefresh)
+	servermux.Handle("POST /api/shops",protected(http.HandlerFunc(shopHandler.HandleCreateShop)),)
 	servermux.HandleFunc("GET /api/shops", handlers.HandelProducts)
 	servermux.HandleFunc("GET /api/shops/{id}", handlers.HandelProducts)
 	servermux.HandleFunc("PUT /api/shops/{id}", handlers.HandelProducts)
