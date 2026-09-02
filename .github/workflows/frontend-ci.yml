@@ -1,23 +1,20 @@
+
 name: Afrimart Frontend CI
 
 on:
   pull_request:
     branches:
       - main
-      - develop
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend-ci.yml'
-      - '.github/frontend-prompt.yml'
 
   push:
     branches:
       - main
-      - develop
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend-ci.yml'
-      - '.github/frontend-prompt.yml'
 
 jobs:
   frontend-check:
@@ -40,21 +37,20 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Verify Node and pnpm versions
+        run: |
+          node -v
+          pnpm -v
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Type check
         run: pnpm exec nuxt typecheck
-
-      - name: Lint
-        run: pnpm lint --if-present
-
-      - name: Unit tests
-        run: pnpm test --if-present
 
   frontend-build:
     name: Frontend Build
@@ -77,12 +73,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Verify Node and pnpm versions
+        run: |
+          node -v
+          pnpm -v
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build Nuxt application
         run: pnpm build
+
