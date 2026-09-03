@@ -1,15 +1,31 @@
 services:
+  backend:
+    container_name: afrimart-backend 
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: "postgres://postgres:postgres@postgres:5432/afrimart?sslmode=disable"
+      SECRET_KEY: "afrimart-secret"
+      RABBITMQ_URL: "amqp://admin:admin@rabbitmq:5672/"
+      OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
+    depends_on:
+      - postgres
+      - rabbitmq
+      - otel-collector
   postgres:
-    image: postgres:16
+    image: postgres:17
     container_name: afrimart-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: afrimart
     ports:
-    - "5432:5432"
+      - "5432:5432"
     volumes:
-    - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -28,7 +44,93 @@ services:
       RABBITMQ_DEFAULT_PASS: admin
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: afrimart-otel-collector
+    command:
+      - "--config=/etc/otelcol-contrib/config.yaml"
+    volumes:
+      - ./observability/otel-collector/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889" 
+    depends_on:
+      - tempo
+      - loki
+
+  tempo:
+    image: grafana/tempo:3.0.0
+    container_name: afrimart-tempo
+    user: "0:0"
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./observability/tempo/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo_data:/tmp/tempo
+    ports:
+      - "3200:3200"
+  loki:
+    image: grafana/loki:3.7.0
+    container_name: afrimart-loki
+    command: -config.file=/etc/loki/loki-config.yaml
+    volumes:
+      - ./observability/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+  alloy:
+    image: grafana/alloy:latest
+    container_name: afrimart-alloy
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+    volumes:
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy
+    ports:
+      - "12345:12345"
+    depends_on:
+      - loki
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: afrimart-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+      - '--web.enable-remote-write-receiver'
+    depends_on:
+      - otel-collector
+      - backend
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: afrimart-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SERVER_HTTP_ADDR=0.0.0.0 
+    depends_on:
+      - tempo
+      - loki
+    volumes:
+      - afrimart-grafana-test:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning
+    restart: unless-stopped
 
 volumes:
   postgres_data:
   rabbitmq_data:
+  tempo_data:
+  afrimart-grafana-test:
+  loki_data:
+  alloy_data:
+  prometheus_data:

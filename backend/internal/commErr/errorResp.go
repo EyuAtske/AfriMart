@@ -2,6 +2,7 @@ package commErr
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 )
 
@@ -9,13 +10,26 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
-func RespondErrorWithJson(w http.ResponseWriter, statusCode int, err string) {
-    w.Header().Set("Content-Type", "application/json; charset=utf-8")
-    w.WriteHeader(statusCode)
+func RespondErrorWithJson(w http.ResponseWriter, r *http.Request, statusCode int, msg string, err error) {
+	if err != nil {
+		slog.ErrorContext(
+			r.Context(),
+			msg,
+			"error", err,
+		)
+	} else {
+		slog.ErrorContext(
+			r.Context(),
+			msg,
+		)
+	}
 
-    errorRep := errorResponse{
-        Error: err,
-    }
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(statusCode)
 
-    _ = json.NewEncoder(w).Encode(errorRep)
+	errorRep := errorResponse{
+		Error: msg,
+	}
+
+	_ = json.NewEncoder(w).Encode(errorRep)
 }

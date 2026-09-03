@@ -1,4 +1,4 @@
-package auth_test
+package auth
 
 import (
 	"crypto/sha256"
@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/EyuAtske/AfriMart/backend/internal/auth"
 )
 
 func TestJWT(t *testing.T) {
@@ -16,13 +15,13 @@ func TestJWT(t *testing.T) {
 	expiresIn := time.Hour
 
 	// Test token creation
-	token, err := auth.MakeJWT(userID, secret, expiresIn)
+	token, err := MakeJWT(userID, secret, expiresIn)
 	if err != nil {
 		t.Fatalf("Failed to create JWT: %v", err)
 	}
 
 	// Test token validation
-	returnedUserID, err := auth.ValidateJWT(token, secret)
+	returnedUserID, err := ValidateJWT(token, secret)
 	if err != nil {
 		t.Fatalf("Failed to validate JWT: %v", err)
 	}
@@ -31,17 +30,17 @@ func TestJWT(t *testing.T) {
 	}
 
 	// Test expired token
-	expiredToken, err := auth.MakeJWT(userID, secret, -time.Hour)
+	expiredToken, err := MakeJWT(userID, secret, -time.Hour)
 	if err != nil {
 		t.Fatalf("Failed to create expired JWT: %v", err)
 	}
-	_, err = auth.ValidateJWT(expiredToken, secret)
+	_, err = ValidateJWT(expiredToken, secret)
 	if err == nil {
 		t.Fatal("Expected error for expired token, got none")
 	}
 
 	// Test invalid token
-	_, err = auth.ValidateJWT("invalidtoken", secret)
+	_, err = ValidateJWT("invalidtoken", secret)
 	if err == nil {
 		t.Fatal("Expected error for invalid token, got none")
 	}
@@ -50,7 +49,7 @@ func TestJWT(t *testing.T) {
 func TestGetBearerToken(t *testing.T) {
 	headers := make(map[string][]string)
 	headers["Authorization"] = []string{"Bearer mytoken"}
-	token, err:= auth.GetBearerToken(headers)
+	token, err:= GetBearerToken(headers)
 	if err != nil {
 		t.Fatalf("Failed to get bearer token: %v", err)
 	}
@@ -60,7 +59,7 @@ func TestGetBearerToken(t *testing.T) {
 
 	// Test missing header
 	headers = make(map[string][]string)
-	_, err = auth.GetBearerToken(headers)
+	_, err = GetBearerToken(headers)
 	if err == nil {
 		t.Fatal("Expected error for missing Authorization header, got none")
 	}
@@ -69,7 +68,7 @@ func TestGetBearerToken(t *testing.T) {
 func TestHashRefreshToken(t *testing.T) {
 	token := "test-refresh-token"
 
-	got := auth.HashRefreshToken(token)
+	got := HashRefreshToken(token)
 
 	expectedHash := sha256.Sum256([]byte(token))
 	expected := hex.EncodeToString(expectedHash[:])
@@ -90,8 +89,8 @@ func TestHashRefreshToken(t *testing.T) {
 func TestHashRefreshTokenIsDeterministic(t *testing.T) {
 	token := "same-refresh-token"
 
-	first := auth.HashRefreshToken(token)
-	second := auth.HashRefreshToken(token)
+	first := HashRefreshToken(token)
+	second := HashRefreshToken(token)
 
 	if first != second {
 		t.Fatalf(
@@ -103,10 +102,235 @@ func TestHashRefreshTokenIsDeterministic(t *testing.T) {
 }
 
 func TestHashRefreshTokenDifferentTokens(t *testing.T) {
-	first := auth.HashRefreshToken("refresh-token-1")
-	second := auth.HashRefreshToken("refresh-token-2")
+	first := HashRefreshToken("refresh-token-1")
+	second := HashRefreshToken("refresh-token-2")
 
 	if first == second {
 		t.Fatal("Different refresh tokens produced the same hash")
 	}
+}
+
+func TestJWTWithDifferentUsers(t *testing.T) {
+	secret := "mysecret"
+	firstUserID := uuid.New()
+	secondUserID := uuid.New()
+
+	firstToken, err := MakeJWT(firstUserID, secret, time.Hour)
+	if err != nil {
+		t.Fatalf("Failed to create first JWT: %v", err)
+	}
+
+	secondToken, err := MakeJWT(secondUserID, secret, time.Hour)
+	if err != nil {
+		t.Fatalf("Failed to create second JWT: %v", err)
+	}
+
+	returnedFirstID, err := ValidateJWT(firstToken, secret)
+	if err != nil {
+		t.Fatalf("Failed to validate first JWT: %v", err)
+	}
+
+	returnedSecondID, err := ValidateJWT(secondToken, secret)
+	if err != nil {
+		t.Fatalf("Failed to validate second JWT: %v", err)
+	}
+
+	if returnedFirstID != firstUserID {
+		t.Fatalf(
+			"Expected first user ID %v, got %v",
+			firstUserID,
+			returnedFirstID,
+		)
+	}
+
+	if returnedSecondID != secondUserID {
+		t.Fatalf(
+			"Expected second user ID %v, got %v",
+			secondUserID,
+			returnedSecondID,
+		)
+	}
+}
+
+func TestJWTWrongSecret(t *testing.T) {
+	userID := uuid.New()
+
+	token, err := MakeJWT(userID, "correct-secret", time.Hour)
+	if err != nil {
+		t.Fatalf("Failed to create JWT: %v", err)
+	}
+
+	_, err = ValidateJWT(token, "wrong-secret")
+	if err == nil {
+		t.Fatal("Expected validation to fail with wrong secret")
+	}
+}
+
+func TestGetBearerTokenInvalidFormat(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+	}{
+		{
+			name:   "missing bearer prefix",
+			header: "mytoken",
+		},
+		{
+			name:   "empty bearer token",
+			header: "Bearer ",
+		},
+		{
+			name:   "wrong authentication scheme",
+			header: "Basic mytoken",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			headers := map[string][]string{
+				"Authorization": {tt.header},
+			}
+
+			_, err := GetBearerToken(headers)
+			if err == nil {
+				t.Fatalf(
+					"Expected error for Authorization header %q",
+					tt.header,
+				)
+			}
+		})
+	}
+}
+
+func TestHashRefreshTokenEmptyToken(t *testing.T) {
+	got := HashRefreshToken("")
+
+	expectedHash := sha256.Sum256([]byte(""))
+	expected := hex.EncodeToString(expectedHash[:])
+
+	if got != expected {
+		t.Fatalf(
+			"Expected hash %q, got %q",
+			expected,
+			got,
+		)
+	}
+}
+
+func TestHashRefreshTokenChangesWhenInputChanges(t *testing.T) {
+	first := HashRefreshToken("refresh-token")
+	second := HashRefreshToken("refresh-token-changed")
+
+	if first == second {
+		t.Fatal("Changing the refresh token should change its hash")
+	}
+}
+
+func TestValidateRegistration(t *testing.T) {
+    tests := []registrationTestCase{
+        {
+            name: "valid registration",
+            request: register{
+                Email:    "user@example.com",
+                Username: "testuser",
+                Password: "password123",
+            },
+            wantEmail:    "user@example.com",
+            wantUsername: "testuser",
+        },
+        {
+            name: "trims email",
+            request: register{
+                Email:    "  user@example.com  ",
+                Username: "testuser",
+                Password: "password123",
+            },
+            wantEmail:    "user@example.com",
+            wantUsername: "testuser",
+        },
+        {
+            name: "missing email",
+            request: register{
+                Username: "testuser",
+                Password: "password123",
+            },
+            wantError: true,
+        },
+        {
+            name: "invalid email",
+            request: register{
+                Email:    "not-an-email",
+                Username: "testuser",
+                Password: "password123",
+            },
+            wantError: true,
+        },
+        {
+            name: "password too short",
+            request: register{
+                Email:    "user@example.com",
+                Username: "testuser",
+                Password: "1234567",
+            },
+            wantError: true,
+        },
+        {
+            name: "missing username",
+            request: register{
+                Email:    "user@example.com",
+                Password: "password123",
+            },
+            wantError: true,
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            req := tt.request
+            err := validateRegistration(&req)
+
+            assertValidationResult(t, err, tt.wantError)
+            assertSanitizedValues(t, req, tt)
+        })
+    }
+}
+
+type registrationTestCase struct {
+    name         string
+    request      register
+    wantError    bool
+    wantEmail    string
+    wantUsername string
+}
+
+func assertValidationResult(t *testing.T, err error, wantError bool) {
+    t.Helper()
+
+    if wantError && err == nil {
+        t.Fatal("expected validation error, got nil")
+    }
+
+    if !wantError && err != nil {
+        t.Fatalf("expected no validation error, got: %v", err)
+    }
+}
+
+func assertSanitizedValues(
+    t *testing.T,
+    req register,
+    tt registrationTestCase,
+) {
+    t.Helper()
+
+    if tt.wantError {
+        return
+    }
+
+    if req.Email != tt.wantEmail {
+        t.Fatalf("expected email %q, got %q", tt.wantEmail, req.Email)
+    }
+
+    if req.Username != tt.wantUsername {
+        t.Fatalf("expected username %q, got %q", tt.wantUsername, req.Username)
+    }
 }
