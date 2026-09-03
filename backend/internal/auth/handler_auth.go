@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/EyuAtske/AfriMart/backend/config"
@@ -65,6 +66,16 @@ func (apicfg *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request
 		commErr.RespondErrorWithJson(w, r, 400, "Error while decoding", err)
 		return
 	}
+	if err := validateRegistration(reqEmail); err != nil {
+		commErr.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			err.Error(),
+			err,
+		)
+		return
+	}
 	hashedPassword, err := HashPassword(reqEmail.Password)
 	if err != nil {
 		commErr.RespondErrorWithJson(w, r, 500, "Error while decoding request", err)
@@ -73,11 +84,11 @@ func (apicfg *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request
 	users, err := apicfg.Config.Queries.CreateUser(r.Context(), database.CreateUserParams{
 		FirstName: sql.NullString{
 			String: reqEmail.First,
-			Valid:  true,
+			Valid:  strings.TrimSpace(reqEmail.First) != "",
 		},
 		LastName: sql.NullString{
 			String: reqEmail.Last,
-			Valid:  true,
+			Valid:  strings.TrimSpace(reqEmail.Last) != "",
 		},
 		Username: sql.NullString{
 			String: reqEmail.Username,

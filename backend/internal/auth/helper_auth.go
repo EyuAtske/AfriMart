@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/mail"
 	"strings"
 
 	"github.com/EyuAtske/AfriMart/backend/internal/commErr"
@@ -135,4 +136,26 @@ func (apicfg *AuthHandler) updateUsername(
 			ID: userID,
 		},
 	)
+}
+
+func validateRegistration(req register) error {
+	req.Email = strings.TrimSpace(req.Email)
+
+	if req.Email == "" {
+		return errors.New("email is required")
+	}
+
+	if _, err := mail.ParseAddress(req.Email); err != nil {
+		return errors.New("invalid email address")
+	}
+
+	if len(req.Password) < 8 {
+		return errors.New("password must be at least 8 characters long")
+	}
+
+	if strings.TrimSpace(req.Username) == "" {
+		return errors.New("username is required")
+	}
+
+	return nil
 }

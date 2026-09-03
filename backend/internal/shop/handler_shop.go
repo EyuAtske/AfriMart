@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/EyuAtske/AfriMart/backend/internal/auth"
-	"github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/EyuAtske/AfriMart/backend/config"
+	"github.com/EyuAtske/AfriMart/backend/internal/auth"
+	"github.com/EyuAtske/AfriMart/backend/internal/commErr"
+	"github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/google/uuid"
 )
 
@@ -23,19 +24,19 @@ type createShopRequest struct {
 func (apiCfg *ShopHandler) HandleCreateShop(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		commErr.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Error getting user id", nil)
 		return
 	}
 
 	var params createShopRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		commErr.RespondErrorWithJson(w, r, http.StatusBadRequest, "Error decoding params", err)
 		return
 	}
 
 	if params.Name == "" {
-		http.Error(w, "shop name is required", http.StatusBadRequest)
+		commErr.RespondErrorWithJson(w, r, http.StatusBadRequest, "shop name is required", nil)
 		return
 	}
 
@@ -49,7 +50,7 @@ func (apiCfg *ShopHandler) HandleCreateShop(w http.ResponseWriter, r *http.Reque
 		},
 	})
 	if err != nil {
-		http.Error(w, "could not create shop", http.StatusInternalServerError)
+		commErr.RespondErrorWithJson(w, r, http.StatusInternalServerError, "could not create shop", err)
 		return
 	}
 
