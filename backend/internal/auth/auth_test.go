@@ -227,105 +227,110 @@ func TestHashRefreshTokenChangesWhenInputChanges(t *testing.T) {
 }
 
 func TestValidateRegistration(t *testing.T) {
-	tests := []struct {
-		name        string
-		request     register
-		wantError   bool
-		wantEmail   string
-		wantUsername string
-	}{
-		{
-			name: "valid registration",
-			request: register{
-				Email:    "user@example.com",
-				Username: "testuser",
-				Password: "password123",
-			},
-			wantError:    false,
-			wantEmail:    "user@example.com",
-			wantUsername: "testuser",
-		},
-		{
-			name: "trims email",
-			request: register{
-				Email:    "  user@example.com  ",
-				Username: "testuser",
-				Password: "password123",
-			},
-			wantError:    false,
-			wantEmail:    "user@example.com",
-			wantUsername: "testuser",
-		},
-		{
-			name: "missing email",
-			request: register{
-				Username: "testuser",
-				Password: "password123",
-			},
-			wantError: true,
-		},
-		{
-			name: "invalid email",
-			request: register{
-				Email:    "not-an-email",
-				Username: "testuser",
-				Password: "password123",
-			},
-			wantError: true,
-		},
-		{
-			name: "password too short",
-			request: register{
-				Email:    "user@example.com",
-				Username: "testuser",
-				Password: "1234567",
-			},
-			wantError: true,
-		},
-		{
-			name: "missing username",
-			request: register{
-				Email:    "user@example.com",
-				Password: "password123",
-			},
-			wantError: true,
-		},
-	}
+    tests := []registrationTestCase{
+        {
+            name: "valid registration",
+            request: register{
+                Email:    "user@example.com",
+                Username: "testuser",
+                Password: "password123",
+            },
+            wantEmail:    "user@example.com",
+            wantUsername: "testuser",
+        },
+        {
+            name: "trims email",
+            request: register{
+                Email:    "  user@example.com  ",
+                Username: "testuser",
+                Password: "password123",
+            },
+            wantEmail:    "user@example.com",
+            wantUsername: "testuser",
+        },
+        {
+            name: "missing email",
+            request: register{
+                Username: "testuser",
+                Password: "password123",
+            },
+            wantError: true,
+        },
+        {
+            name: "invalid email",
+            request: register{
+                Email:    "not-an-email",
+                Username: "testuser",
+                Password: "password123",
+            },
+            wantError: true,
+        },
+        {
+            name: "password too short",
+            request: register{
+                Email:    "user@example.com",
+                Username: "testuser",
+                Password: "1234567",
+            },
+            wantError: true,
+        },
+        {
+            name: "missing username",
+            request: register{
+                Email:    "user@example.com",
+                Password: "password123",
+            },
+            wantError: true,
+        },
+    }
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := tt.request
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            req := tt.request
+            err := validateRegistration(&req)
 
-			err := validateRegistration(&req)
+            assertValidationResult(t, err, tt.wantError)
+            assertSanitizedValues(t, req, tt)
+        })
+    }
+}
 
-			if tt.wantError && err == nil {
-				t.Fatal("Expected validation error, got nil")
-			}
+type registrationTestCase struct {
+    name         string
+    request      register
+    wantError    bool
+    wantEmail    string
+    wantUsername string
+}
 
-			if !tt.wantError && err != nil {
-				t.Fatalf(
-					"Expected no validation error, got: %v",
-					err,
-				)
-			}
+func assertValidationResult(t *testing.T, err error, wantError bool) {
+    t.Helper()
 
-			if !tt.wantError {
-				if req.Email != tt.wantEmail {
-					t.Fatalf(
-						"Expected email %q, got %q",
-						tt.wantEmail,
-						req.Email,
-					)
-				}
+    if wantError && err == nil {
+        t.Fatal("expected validation error, got nil")
+    }
 
-				if req.Username != tt.wantUsername {
-					t.Fatalf(
-						"Expected username %q, got %q",
-						tt.wantUsername,
-						req.Username,
-					)
-				}
-			}
-		})
-	}
+    if !wantError && err != nil {
+        t.Fatalf("expected no validation error, got: %v", err)
+    }
+}
+
+func assertSanitizedValues(
+    t *testing.T,
+    req register,
+    tt registrationTestCase,
+) {
+    t.Helper()
+
+    if tt.wantError {
+        return
+    }
+
+    if req.Email != tt.wantEmail {
+        t.Fatalf("expected email %q, got %q", tt.wantEmail, req.Email)
+    }
+
+    if req.Username != tt.wantUsername {
+        t.Fatalf("expected username %q, got %q", tt.wantUsername, req.Username)
+    }
 }
