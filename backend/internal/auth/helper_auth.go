@@ -138,7 +138,7 @@ func (apicfg *AuthHandler) updateUsername(
 	)
 }
 
-func validateRegistration(req register) error {
+func validateRegistration(req *register) error {
 	req.Email = strings.TrimSpace(req.Email)
 
 	if req.Email == "" {

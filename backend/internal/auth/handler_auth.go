@@ -59,14 +59,14 @@ func (apicfg *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request
 		"method", r.Method,
 		"path", r.URL.Path,
 	)
-	var reqEmail register
+	var reg register
 	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&reqEmail)
+	err := decoder.Decode(&reg)
 	if err != nil {
 		commErr.RespondErrorWithJson(w, r, 400, "Error while decoding", err)
 		return
 	}
-	if err := validateRegistration(reqEmail); err != nil {
+	if err := validateRegistration(&reg); err != nil {
 		commErr.RespondErrorWithJson(
 			w,
 			r,
@@ -76,25 +76,25 @@ func (apicfg *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request
 		)
 		return
 	}
-	hashedPassword, err := HashPassword(reqEmail.Password)
+	hashedPassword, err := HashPassword(reg.Password)
 	if err != nil {
 		commErr.RespondErrorWithJson(w, r, 500, "Error while decoding request", err)
 		return
 	}
 	users, err := apicfg.Config.Queries.CreateUser(r.Context(), database.CreateUserParams{
 		FirstName: sql.NullString{
-			String: reqEmail.First,
-			Valid:  strings.TrimSpace(reqEmail.First) != "",
+			String: reg.First,
+			Valid:  strings.TrimSpace(reg.First) != "",
 		},
 		LastName: sql.NullString{
-			String: reqEmail.Last,
-			Valid:  strings.TrimSpace(reqEmail.Last) != "",
+			String: reg.Last,
+			Valid:  strings.TrimSpace(reg.Last) != "",
 		},
 		Username: sql.NullString{
-			String: reqEmail.Username,
+			String: reg.Username,
 			Valid:  true,
 		},
-		Email:        reqEmail.Email,
+		Email:        reg.Email,
 		PasswordHash: hashedPassword,
 	})
 	if err != nil {
@@ -124,20 +124,20 @@ func (apicfg *AuthHandler) HandleLogIn(w http.ResponseWriter, r *http.Request) {
 		"method", r.Method,
 		"path", r.URL.Path,
 	)
-	var reqEmail login
+	var reg login
 	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&reqEmail)
+	err := decoder.Decode(&reg)
 	if err != nil {
 		commErr.RespondErrorWithJson(w, r, 400, "Error while decoding request", err)
 		return
 	}
 	expires_in_seconds := 3600
-	usr, err := apicfg.Config.Queries.GetUserByEmail(r.Context(), reqEmail.Email)
+	usr, err := apicfg.Config.Queries.GetUserByEmail(r.Context(), reg.Email)
 	if err != nil {
 		commErr.RespondErrorWithJson(w, r, 401, "Incorrect email or password", err)
 		return
 	}
-	check, err := CheckPasswordHash(reqEmail.Password, usr.PasswordHash)
+	check, err := CheckPasswordHash(reg.Password, usr.PasswordHash)
 	if err != nil {
 		commErr.RespondErrorWithJson(w, r, 500, "Error checking password", err)
 		return

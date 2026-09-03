@@ -35,8 +35,8 @@ func (apiCfg *ShopHandler) HandleCreateShop(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if params.Name == "" {
-		commErr.RespondErrorWithJson(w, r, http.StatusBadRequest, "shop name is required", nil)
+	if err := validateCreateShopRequest(&params); err != nil {
+		commErr.RespondErrorWithJson(w, r, http.StatusBadRequest, err.Error(), err)
 		return
 	}
 
