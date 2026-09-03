@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/EyuAtske/AfriMart/backend/internal/commErr"
 	"github.com/EyuAtske/AfriMart/backend/config"
+	"github.com/EyuAtske/AfriMart/backend/internal/commErr"
 	"github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/google/uuid"
 )
@@ -24,7 +24,6 @@ type register struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	Email    string `json:"email"`
-	Role     string `json:"role"`
 }
 
 type login struct {
@@ -86,7 +85,6 @@ func (apicfg *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request
 		},
 		Email:        reqEmail.Email,
 		PasswordHash: hashedPassword,
-		Role:         reqEmail.Role,
 	})
 	if err != nil {
 		commErr.RespondErrorWithJson(w, r, 500, "Error while creating user", err)
@@ -249,44 +247,43 @@ func (apicfg *AuthHandler) HandleUpdatePassword(w http.ResponseWriter, r *http.R
 	RespondWithUpdatedUser(w, usr)
 }
 
-func (apicfg *AuthHandler) HandleUpdateUsername(w http.ResponseWriter, r *http.Request) {
+func (apicfg *AuthHandler) HandleUpdateUsername(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	slog.InfoContext(
 		r.Context(),
 		"request received",
 		"method", r.Method,
 		"path", r.URL.Path,
 	)
-	userID, ok := UserIDFromContext(r.Context())
+
+	userID, ok := getUserID(w, r)
 	if !ok {
+		return
+	}
+
+	params, err := decodeAndValidateUsername(r)
+	if err != nil {
 		commErr.RespondErrorWithJson(
 			w,
 			r,
-			http.StatusUnauthorized,
-			"User not authenticated",
-			errors.New("user ID missing from context"),
+			http.StatusBadRequest,
+			err.Error(),
+			err,
 		)
 		return
 	}
 
-	var params updateUsername
-
-	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-		commErr.RespondErrorWithJson(w, r, http.StatusBadRequest, err.Error(), err)
-		return
-	}
-
-	usr, err := apicfg.Config.Queries.UpdateUsername(
-		r.Context(),
-		database.UpdateUsernameParams{
-			Username: sql.NullString{
-				String: params.Username,
-				Valid:  true,
-			},
-			ID: userID,
-		},
-	)
+	usr, err := apicfg.updateUsername(r, userID, params.Username)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Error while updating user", err)
+		commErr.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Error while updating username",
+			err,
+		)
 		return
 	}
 

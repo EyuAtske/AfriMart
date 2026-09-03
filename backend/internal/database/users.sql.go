@@ -13,7 +13,7 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (id, created_at, updated_at, password_hash, email, first_name, last_name, username, role)
+INSERT INTO users (id, created_at, updated_at, password_hash, email, first_name, last_name, username)
 VALUES (
     gen_random_uuid(),
     Now(),
@@ -22,8 +22,7 @@ VALUES (
     $2,
     $3,
     $4,
-    $5,
-    $6
+    $5
 )
 RETURNING id, email, password_hash, first_name, last_name, username, role, created_at, updated_at
 `
@@ -34,7 +33,6 @@ type CreateUserParams struct {
 	FirstName    sql.NullString
 	LastName     sql.NullString
 	Username     sql.NullString
-	Role         string
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -44,7 +42,6 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.FirstName,
 		arg.LastName,
 		arg.Username,
-		arg.Role,
 	)
 	var i User
 	err := row.Scan(

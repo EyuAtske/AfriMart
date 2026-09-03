@@ -12,72 +12,23 @@ import (
 	"github.com/EyuAtske/AfriMart/backend/internal/shop"
 
 	"github.com/EyuAtske/AfriMart/backend/config"
-	database "github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/EyuAtske/AfriMart/backend/internal/handlers"
-	"github.com/XSAM/otelsql"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
 func main() {
 	godotenv.Load()
-
 	ctx := context.Background()
-
 	shutdownObservability := observability.SetupObservability(ctx)
 	defer shutdownObservability()
-
 	slog.Info("starting AfriMart backend")
-
-	dbURL := os.Getenv("DB_URL")
-	if dbURL == "" {
-		slog.Error("DB_URL must be set")
-		os.Exit(1)
-	}
-
-	secretKey := os.Getenv("SECRET_KEY")
-	if secretKey == "" {
-		slog.Error("SECRET_KEY environment variable is required")
-		os.Exit(1)
-	}
-
-	dbConn, err := otelsql.Open("postgres", dbURL)
-	if err != nil {
-		slog.Error(
-			"Error opening database",
-			"error", err,
-		)
-		os.Exit(1)
-	}
-
-	defer dbConn.Close()
-
-	if _, err := otelsql.RegisterDBStatsMetrics(dbConn); err != nil {
-		slog.Warn(
-			"failed to register DB metrics",
-			"error", err,
-		)
-	}
-
-	if err := dbConn.Ping(); err != nil {
-		slog.Error(
-			"database connection failed",
-			"error", err,
-		)
-		os.Exit(1)
-	}
-	slog.Info("database connected")
-	dbQueries := database.New(dbConn)
-	apicfg := config.ApiConfig{
-		DB:      dbConn,
-		Queries: dbQueries,
-		Secret:  secretKey,
-	}
+	apicfg := config.SetupAPIConfig(ctx)
 	authHandler := &auth.AuthHandler{
-		Config: &apicfg,
+		Config: apicfg,
 	}
 	shopHandler := &shop.ShopHandler{
-		Config: &apicfg,
+		Config: apicfg,
 	}
 	servermux := http.NewServeMux()
 	tracedHandler := observability.TraceMiddleware(servermux)
@@ -94,11 +45,11 @@ func main() {
 	servermux.HandleFunc("POST /api/auth/register", authHandler.HandleRegister)
 	servermux.HandleFunc("POST /api/auth/login", authHandler.HandleLogIn)
 	servermux.HandleFunc("POST /api/auth/logout", authHandler.HandleRevoke)
-	servermux.Handle("PUT /api/auth/password", protected(http.HandlerFunc(authHandler.HandleUpdatePassword)),)
+	servermux.Handle("PUT /api/auth/password", protected(http.HandlerFunc(authHandler.HandleUpdatePassword)))
 	servermux.Handle("PUT /api/auth/username", protected(http.HandlerFunc(authHandler.HandleUpdateUsername)))
 	servermux.Handle("GET /api/user/profile", protected(http.HandlerFunc(authHandler.HandleGetProfile)))
 	servermux.HandleFunc("POST /api/refresh", authHandler.HandleRefresh)
-	servermux.Handle("POST /api/shops",protected(http.HandlerFunc(shopHandler.HandleCreateShop)),)
+	servermux.Handle("POST /api/shops", protected(http.HandlerFunc(shopHandler.HandleCreateShop)))
 	servermux.HandleFunc("GET /api/shops", handlers.HandelProducts)
 	servermux.HandleFunc("GET /api/shops/{id}", handlers.HandelProducts)
 	servermux.HandleFunc("PUT /api/shops/{id}", handlers.HandelProducts)
