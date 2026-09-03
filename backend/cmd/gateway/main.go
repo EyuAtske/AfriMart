@@ -11,7 +11,7 @@ import (
 	"github.com/EyuAtske/AfriMart/backend/internal/observability"
 	"github.com/EyuAtske/AfriMart/backend/internal/shop"
 
-	"github.com/EyuAtske/AfriMart/backend/internal/config"
+	"github.com/EyuAtske/AfriMart/backend/config"
 	database "github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/EyuAtske/AfriMart/backend/internal/handlers"
 	"github.com/XSAM/otelsql"
@@ -24,24 +24,8 @@ func main() {
 
 	ctx := context.Background()
 
-	logger := observability.NewLogger()
-	slog.SetDefault(logger)
-
-	shutdownTracer, err := observability.InitTracer(ctx)
-	if err != nil {
-		slog.Error("warning: failed to initialize tracing and metrics",
-			"error", err,
-		)
-	} else {
-		defer func() {
-			if err := shutdownTracer(ctx); err != nil {
-				slog.Error(
-					"failed to shutdown tracer",
-					"error", err,
-				)
-			}
-		}()
-	}
+	shutdownObservability := observability.SetupObservability(ctx)
+	defer shutdownObservability()
 
 	slog.Info("starting AfriMart backend")
 
@@ -112,7 +96,7 @@ func main() {
 	servermux.HandleFunc("POST /api/auth/logout", authHandler.HandleRevoke)
 	servermux.Handle("PUT /api/auth/password", protected(http.HandlerFunc(authHandler.HandleUpdatePassword)),)
 	servermux.Handle("PUT /api/auth/username", protected(http.HandlerFunc(authHandler.HandleUpdateUsername)))
-	servermux.Handle("PUT /api/user/profile", protected(http.HandlerFunc(authHandler.HandleGetProfile)))
+	servermux.Handle("GET /api/user/profile", protected(http.HandlerFunc(authHandler.HandleGetProfile)))
 	servermux.HandleFunc("POST /api/refresh", authHandler.HandleRefresh)
 	servermux.Handle("POST /api/shops",protected(http.HandlerFunc(shopHandler.HandleCreateShop)),)
 	servermux.HandleFunc("GET /api/shops", handlers.HandelProducts)

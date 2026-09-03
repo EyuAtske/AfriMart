@@ -11,17 +11,24 @@ type errorResponse struct {
 }
 
 func RespondErrorWithJson(w http.ResponseWriter, r *http.Request, statusCode int, msg string, err error) {
-    slog.ErrorContext(
-        r.Context(),
-        msg,
-        "error", err,
-    )
-    w.Header().Set("Content-Type", "application/json; charset=utf-8")
-    w.WriteHeader(statusCode)
+	slog.ErrorContext(
+		r.Context(),
+		msg,
+		"error", err,
+	)
 
-    errorRep := errorResponse{
-        Error: msg + err.Error(),
-    }
+	errorMessage := msg
 
-    _ = json.NewEncoder(w).Encode(errorRep)
+	if err != nil {
+		errorMessage = err.Error()
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(statusCode)
+
+	errorRep := errorResponse{
+		Error: errorMessage,
+	}
+
+	_ = json.NewEncoder(w).Encode(errorRep)
 }

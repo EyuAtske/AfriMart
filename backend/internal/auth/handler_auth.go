@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/EyuAtske/AfriMart/backend/internal/commErr"
-	"github.com/EyuAtske/AfriMart/backend/internal/config"
+	"github.com/EyuAtske/AfriMart/backend/config"
 	"github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/google/uuid"
 )

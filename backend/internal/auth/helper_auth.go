@@ -5,14 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/mail"
 
 	database "github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/google/uuid"
 )
 
 type updateParams struct {
-	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
@@ -32,13 +30,6 @@ func DecodeUpdateParams(r *http.Request) (updateParams, error) {
 }
 
 func ValidateUpdateParams(params updateParams) error {
-	if params.Email == "" {
-		return errors.New("email is required")
-	}
-
-	if _, err := mail.ParseAddress(params.Email); err != nil {
-		return errors.New("invalid email")
-	}
 
 	if params.Password == "" {
 		return errors.New("password is required")

@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/EyuAtske/AfriMart/backend/internal/auth"
-	"github.com/EyuAtske/AfriMart/backend/internal/config"
+	"github.com/EyuAtske/AfriMart/backend/config"
 	"github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/google/uuid"
 )
