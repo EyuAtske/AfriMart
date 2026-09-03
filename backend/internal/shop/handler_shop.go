@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/EyuAtske/AfriMart/backend/config"
 	"github.com/EyuAtske/AfriMart/backend/internal/auth"
@@ -40,15 +41,20 @@ func (apiCfg *ShopHandler) HandleCreateShop(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	shop, err := apiCfg.Config.Queries.CreateShop(r.Context(), database.CreateShopParams{
-		ID:      uuid.New(),
-		OwnerID: userID,
-		Name:    params.Name,
-		Description: sql.NullString{
-			String: params.Description,
-			Valid:  true,
+	params.Description = strings.TrimSpace(params.Description)
+
+	shop, err := apiCfg.Config.Queries.CreateShop(
+		r.Context(),
+		database.CreateShopParams{
+			ID:      uuid.New(),
+			OwnerID: userID,
+			Name:    params.Name,
+			Description: sql.NullString{
+				String: params.Description,
+				Valid:  params.Description != "",
+			},
 		},
-	})
+	)
 	if err != nil {
 		commErr.RespondErrorWithJson(w, r, http.StatusInternalServerError, "could not create shop", err)
 		return

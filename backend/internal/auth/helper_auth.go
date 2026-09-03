@@ -139,23 +139,24 @@ func (apicfg *AuthHandler) updateUsername(
 }
 
 func validateRegistration(req *register) error {
-	req.Email = strings.TrimSpace(req.Email)
+    req.Email = strings.TrimSpace(req.Email)
+    req.Username = strings.TrimSpace(req.Username)
 
-	if req.Email == "" {
-		return errors.New("email is required")
-	}
+    if req.Email == "" {
+        return errors.New("email is required")
+    }
 
-	if _, err := mail.ParseAddress(req.Email); err != nil {
-		return errors.New("invalid email address")
-	}
+    if _, err := mail.ParseAddress(req.Email); err != nil {
+        return errors.New("invalid email address")
+    }
 
-	if len(req.Password) < 8 {
-		return errors.New("password must be at least 8 characters long")
-	}
+    if len(req.Password) < 8 {
+        return errors.New("password must be at least 8 characters long")
+    }
 
-	if strings.TrimSpace(req.Username) == "" {
-		return errors.New("username is required")
-	}
+    if req.Username == "" {
+        return errors.New("username is required")
+    }
 
-	return nil
+    return nil
 }

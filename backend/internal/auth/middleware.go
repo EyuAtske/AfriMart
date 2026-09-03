@@ -7,7 +7,9 @@ import (
 	"github.com/EyuAtske/AfriMart/backend/internal/commErr"
 )
 
-const userIDKey string = "userID"
+type contextKey string
+
+const userIDKey contextKey = "userID"
 
 func AuthMiddleware(secret string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
