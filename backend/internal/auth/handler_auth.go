@@ -17,6 +17,7 @@ import (
 
 type AuthHandler struct {
 	Config *config.ApiConfig
+	Queries AuthQuerier
 }
 
 type register struct {
@@ -81,7 +82,7 @@ func (apicfg *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request
 		commErr.RespondErrorWithJson(w, r, 500, "Error while decoding request", err)
 		return
 	}
-	users, err := apicfg.Config.Queries.CreateUser(r.Context(), database.CreateUserParams{
+	users, err := apicfg.Queries.CreateUser(r.Context(), database.CreateUserParams{
 		FirstName: sql.NullString{
 			String: reg.First,
 			Valid:  strings.TrimSpace(reg.First) != "",
@@ -243,7 +244,7 @@ func (apicfg *AuthHandler) HandleUpdatePassword(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	usr, err := apicfg.Config.Queries.UpdateUserPassword(
+	usr, err := apicfg.Queries.UpdateUserPassword(
 		r.Context(),
 		database.UpdateUserPasswordParams{
 			PasswordHash: hashedPassword,
@@ -258,10 +259,7 @@ func (apicfg *AuthHandler) HandleUpdatePassword(w http.ResponseWriter, r *http.R
 	RespondWithUpdatedUser(w, usr)
 }
 
-func (apicfg *AuthHandler) HandleUpdateUsername(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
+func (apicfg *AuthHandler) HandleUpdateUsername(w http.ResponseWriter,r *http.Request) {
 	slog.InfoContext(
 		r.Context(),
 		"request received",

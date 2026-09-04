@@ -26,9 +26,11 @@ func main() {
 	apicfg := config.SetupAPIConfig(ctx)
 	authHandler := &auth.AuthHandler{
 		Config: apicfg,
+		Queries: apicfg.Queries,
 	}
 	shopHandler := &shop.ShopHandler{
-		Config: apicfg,
+		Config:  apicfg,
+		Queries: apicfg.Queries,
 	}
 	servermux := http.NewServeMux()
 	tracedHandler := observability.TraceMiddleware(servermux)
@@ -50,10 +52,11 @@ func main() {
 	servermux.Handle("GET /api/user/profile", protected(http.HandlerFunc(authHandler.HandleGetProfile)))
 	servermux.HandleFunc("POST /api/refresh", authHandler.HandleRefresh)
 	servermux.Handle("POST /api/shops", protected(http.HandlerFunc(shopHandler.HandleCreateShop)))
-	servermux.HandleFunc("GET /api/shops", handlers.HandelProducts)
-	servermux.HandleFunc("GET /api/shops/{id}", handlers.HandelProducts)
-	servermux.HandleFunc("PUT /api/shops/{id}", handlers.HandelProducts)
-	servermux.HandleFunc("DELETE /api/shops/{id}", handlers.HandelProducts)
+	servermux.Handle("GET /api/shops/me", protected(http.HandlerFunc(shopHandler.HandleGetMyShop)))
+	servermux.Handle("PATCH /api/shops/{shopID}/name", protected(http.HandlerFunc(shopHandler.HandleUpdateShopName)))
+	servermux.Handle("PATCH /api/shops/{shopID}/description", protected(http.HandlerFunc(shopHandler.HandleUpdateShopDescription)))
+	servermux.Handle("PATCH /api/shops/{shopID}/deactivate", protected(http.HandlerFunc(shopHandler.HandleDeactivateShop)))
+	servermux.Handle("PATCH /api/shops/{shopID}/activate", protected(http.HandlerFunc(shopHandler.HandleActivateShop)))
 	servermux.HandleFunc("GET /api/products", handlers.HandelProducts)
 	servermux.HandleFunc("GET /api/products/{id}", handlers.HandelProducts)
 	servermux.HandleFunc("POST /api/products", handlers.HandelProducts)

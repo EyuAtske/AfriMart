@@ -126,7 +126,7 @@ func (apicfg *AuthHandler) updateUsername(
 	userID uuid.UUID,
 	username string,
 ) (database.User, error) {
-	return apicfg.Config.Queries.UpdateUsername(
+	return apicfg.Queries.UpdateUsername(
 		r.Context(),
 		database.UpdateUsernameParams{
 			Username: sql.NullString{
