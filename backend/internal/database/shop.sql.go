@@ -137,6 +137,34 @@ func (q *Queries) GetShopByID(ctx context.Context, id uuid.UUID) (Shop, error) {
 	return i, err
 }
 
+const getShopByIDAndOwnerID = `-- name: GetShopByIDAndOwnerID :one
+
+SELECT id, owner_id, name, description, status, created_at, updated_at
+FROM shops
+WHERE id = $1
+  AND owner_id = $2
+`
+
+type GetShopByIDAndOwnerIDParams struct {
+	ID      uuid.UUID
+	OwnerID uuid.UUID
+}
+
+func (q *Queries) GetShopByIDAndOwnerID(ctx context.Context, arg GetShopByIDAndOwnerIDParams) (Shop, error) {
+	row := q.db.QueryRowContext(ctx, getShopByIDAndOwnerID, arg.ID, arg.OwnerID)
+	var i Shop
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getShopByOwnerID = `-- name: GetShopByOwnerID :one
 SELECT id, owner_id, name, description, status, created_at, updated_at
 FROM shops

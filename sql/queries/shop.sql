@@ -64,3 +64,10 @@ SET
 WHERE id = $1
 AND owner_id = $2
 RETURNING *;
+
+-- name: GetShopByIDAndOwnerID :one
+
+SELECT *
+FROM shops
+WHERE id = $1
+  AND owner_id = $2;

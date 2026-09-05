@@ -16,4 +16,9 @@ type ShopQuerier interface {
 		ctx context.Context,
 		arg database.ActivateShopParams,
 	) (database.Shop, error)
+
+	GetShopByIDAndOwnerID(
+    	ctx context.Context,
+    	arg database.GetShopByIDAndOwnerIDParams,
+	) (database.Shop, error)
 }

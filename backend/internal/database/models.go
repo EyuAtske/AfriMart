@@ -11,6 +11,38 @@ import (
 	"github.com/google/uuid"
 )
 
+type Category struct {
+	ID        uuid.UUID
+	Name      string
+	CreatedAt time.Time
+}
+
+type Product struct {
+	ID            uuid.UUID
+	ShopID        uuid.UUID
+	CategoryID    uuid.UUID
+	SubcategoryID uuid.UUID
+	Name          string
+	Description   sql.NullString
+	Brand         sql.NullString
+	Color         sql.NullString
+	Size          sql.NullString
+	Price         string
+	Stock         int32
+	Image         sql.NullString
+	Status        string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type ProductImage struct {
+	ID        uuid.UUID
+	ProductID uuid.UUID
+	ImageUrl  string
+	SortOrder int32
+	CreatedAt time.Time
+}
+
 type RefreshToken struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
@@ -28,6 +60,13 @@ type Shop struct {
 	Status      string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type Subcategory struct {
+	ID         uuid.UUID
+	CategoryID uuid.UUID
+	Name       string
+	CreatedAt  time.Time
 }
 
 type User struct {

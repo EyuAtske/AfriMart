@@ -23,6 +23,11 @@ type mockShopQueries struct {
 		ctx context.Context,
 		arg database.ActivateShopParams,
 	) (database.Shop, error)
+
+	getShopByIDAndOwnerID func(
+    	ctx context.Context,
+    	arg database.GetShopByIDAndOwnerIDParams,
+	) (database.Shop, error)
 }
 
 func (m *mockShopQueries) DeactivateShop(
@@ -37,6 +42,13 @@ func (m *mockShopQueries) ActivateShop(
 	arg database.ActivateShopParams,
 ) (database.Shop, error) {
 	return m.activateShopFunc(ctx, arg)
+}
+
+func (m *mockShopQueries) GetShopByIDAndOwnerID(
+	ctx context.Context,
+	arg database.GetShopByIDAndOwnerIDParams,
+) (database.Shop, error) {
+	return m.getShopByIDAndOwnerID(ctx, arg)
 }
 
 func TestValidateCreateShopRequest(t *testing.T) {
