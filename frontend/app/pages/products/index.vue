@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import ProductGrid from '~/components/marketplace/ProductGrid.vue'
 import LoadMoreButton from '~/components/LoadMoreButton.vue'
+const { gtag } = useGtag()
+const { track } = useAnalytics()
 
 useSeoMeta({
   title: 'Browse Products — Afrimart Marketplace',
@@ -12,6 +14,7 @@ useSeoMeta({
 const route = useRoute()
 const { categories, filterProducts } = useMarketplace()
 const { productRepo } = useRepositories()
+
 
 const search = ref(typeof route.query.search === 'string' ? route.query.search : '')
 const selectedCategory = ref(
@@ -65,6 +68,21 @@ const hasMore = computed(() =>
 
 const handleLoadMore = () => {
   visibleCount.value += itemsPerPage
+
+  track('load_more_products', {
+    category: selectedCategory.value,
+    search_term: search.value.trim() || undefined,
+    products_visible: visibleCount.value
+  })
+}
+const handleSearch = () => {
+  const term = search.value.trim()
+
+  if (!term) return
+
+  gtag('event', 'search', {
+    search_term: term
+  })
 }
 </script>
 
@@ -86,33 +104,35 @@ const handleLoadMore = () => {
           </p>
         </div>
 
-        <div class="rounded-full bg-[#211f1d] px-5 py-2 text-xs font-medium uppercase tracking-[0.14em] text-white">
+        <UiAppBadge variant="dark">
           Showing {{ displayedProducts.length }} of {{ filteredProducts.length }} items
-        </div>
+        </UiAppBadge>
       </div>
 
       <!-- Search & Category Filter Controls -->
-      <div class="mb-8 grid gap-4 rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-4 shadow-[0_20px_70px_rgba(33,31,29,0.05)] sm:grid-cols-[1fr_240px]">
-        <input
-          v-model="search"
-          type="search"
-          placeholder="Search products or shops"
-          class="h-12 rounded-full border border-[#cfc4b5] bg-[#f5f1e9] px-5 text-sm text-[#211f1d] outline-none transition focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
-        />
+      <UiAppCard class="mb-8 p-4 shadow-[0_20px_70px_rgba(33,31,29,0.05)]">
+        <div class="grid gap-4 sm:grid-cols-[1fr_240px]">
+          <input v-model="search" type="search" placeholder="Search products or shops" @keyup.enter="handleSearch"
+            class="h-12 rounded-full border border-[#cfc4b5] bg-[#f5f1e9] px-5 text-sm text-[#211f1d] outline-none transition placeholder:text-[#92877b] hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
+          />
 
-        <select
-          v-model="selectedCategory"
-          class="h-12 rounded-full border border-[#cfc4b5] bg-[#f5f1e9] px-5 text-sm text-[#211f1d] outline-none transition focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
-        >
-          <option
-            v-for="category in categories"
-            :key="category"
-            :value="category"
+          <select
+            v-model="selectedCategory"
+            @change="track('category_filter_used', {
+              category: selectedCategory
+            })"
+            class="h-12 rounded-full border border-[#cfc4b5] bg-[#f5f1e9] px-5 text-sm text-[#211f1d] outline-none transition hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
           >
-            {{ category }}
-          </option>
-        </select>
-      </div>
+            <option
+              v-for="category in categories"
+              :key="category"
+              :value="category"
+            >
+              {{ category }}
+            </option>
+          </select>
+        </div>
+      </UiAppCard>
 
       <template v-if="filteredProducts.length">
         <ProductGrid :products="displayedProducts" />
@@ -123,18 +143,11 @@ const handleLoadMore = () => {
         />
       </template>
 
-      <div
+      <UiAppEmptyState
         v-else
-        class="rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-10 text-center"
-      >
-        <h2 class="font-serif text-3xl text-[#211f1d]">
-          No products found
-        </h2>
-
-        <p class="mt-2 text-sm text-[#756a60]">
-          Try a different search term or category.
-        </p>
-      </div>
+        title="No products found"
+        description="Try a different search term or category."
+      />
     </section>
   </main>
 </template>

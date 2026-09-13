@@ -19,28 +19,28 @@ const { hasShop } = useSellerShop()
         </p>
 
         <div class="mt-8 flex flex-col gap-3 sm:flex-row">
-          <NuxtLink
+          <UiAppButton
             to="/shop"
-            class="inline-flex h-12 items-center justify-center rounded-full bg-[#211f1d] px-6 text-sm font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#3b3733]"
+            variant="primary"
           >
             {{ hasShop ? 'Go to dashboard' : 'Become a seller' }}
-          </NuxtLink>
+          </UiAppButton>
 
-          <NuxtLink
+          <UiAppButton
             v-if="hasShop"
             to="/seller/orders"
-            class="inline-flex h-12 items-center justify-center rounded-full border border-[#806344] px-6 text-sm font-medium uppercase tracking-[0.14em] text-[#5d4b37] transition hover:bg-[#806344] hover:text-white"
+            variant="secondary"
           >
             Seller orders
-          </NuxtLink>
+          </UiAppButton>
         </div>
       </div>
 
-      <div class="overflow-hidden rounded-[8px] border border-[#d9d0c4] bg-[#faf8f4] shadow-[0_20px_70px_rgba(33,31,29,0.06)]">
+      <div class="overflow-hidden rounded-xl border border-[#d9d0c4] bg-[#faf8f4] shadow-[0_20px_70px_rgba(33,31,29,0.06)]">
         <img
           src="/images/product8.jpg"
           alt="Seller product display"
-          class="h-[520px] w-full object-cover object-top"
+          class="h-72 sm:h-96 lg:h-[520px] w-full object-cover object-top"
         />
       </div>
     </section>

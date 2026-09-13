@@ -55,7 +55,7 @@ const adjustStock = (id: number, currentStock: number, delta: number) => {
 </script>
 
 <template>
-  <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-8">
+  <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-12">
     <div class="mx-auto flex max-w-6xl flex-col gap-10 lg:flex-row">
       <AccountSidebar active="shop" />
 
@@ -71,18 +71,18 @@ const adjustStock = (id: number, currentStock: number, delta: number) => {
             </p>
           </div>
 
-          <NuxtLink
+          <UiAppButton
             v-if="hasShop"
             to="/shop"
-            class="inline-flex h-12 items-center justify-center rounded-full border border-[#806344] px-6 text-sm font-medium uppercase tracking-[0.14em] text-[#5d4b37] transition hover:bg-[#806344] hover:text-white"
+            variant="secondary"
           >
             + Add Product
-          </NuxtLink>
+          </UiAppButton>
         </div>
 
-        <section
+        <UiAppCard
           v-if="hasShop && shop"
-          class="rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8"
+          padding="large"
         >
           <!-- Filters bar -->
           <div class="flex flex-col gap-4 border-b border-[#ded6cc] pb-6 sm:flex-row sm:items-center sm:justify-between">
@@ -98,7 +98,7 @@ const adjustStock = (id: number, currentStock: number, delta: number) => {
             <div class="flex flex-wrap items-center gap-3">
               <select
                 v-model="selectedCategory"
-                class="h-10 rounded-full border border-[#cfc4b5] bg-[#f5f1e9] px-4 text-xs text-[#211f1d] outline-none hover:border-[#806344]"
+                class="h-10 rounded-full border border-[#cfc4b5] bg-[#f5f1e9] px-4 text-xs text-[#211f1d] outline-none transition hover:border-[#806344] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
               >
                 <option v-for="cat in categories" :key="cat" :value="cat">
                   Category: {{ cat }}
@@ -107,7 +107,7 @@ const adjustStock = (id: number, currentStock: number, delta: number) => {
 
               <select
                 v-model="selectedStatus"
-                class="h-10 rounded-full border border-[#cfc4b5] bg-[#f5f1e9] px-4 text-xs text-[#211f1d] outline-none hover:border-[#806344]"
+                class="h-10 rounded-full border border-[#cfc4b5] bg-[#f5f1e9] px-4 text-xs text-[#211f1d] outline-none transition hover:border-[#806344] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
               >
                 <option value="All">Status: All</option>
                 <option value="Active">Status: Active</option>
@@ -124,7 +124,7 @@ const adjustStock = (id: number, currentStock: number, delta: number) => {
             <article
               v-for="product in filteredProducts"
               :key="product.id"
-              class="overflow-hidden rounded-[10px] border border-[#ded6cc] bg-[#f5f1e9] flex flex-col justify-between"
+              class="overflow-hidden rounded-lg border border-[#ded6cc] bg-[#f5f1e9] flex flex-col justify-between"
             >
               <div>
                 <div class="relative">
@@ -133,12 +133,13 @@ const adjustStock = (id: number, currentStock: number, delta: number) => {
                     :alt="product.name"
                     class="h-48 w-full object-cover object-top"
                   />
-                  <span
-                    class="absolute top-3 right-3 rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white shadow-md"
-                    :class="product.status === 'Active' ? 'bg-[#806344]' : 'bg-gray-500'"
-                  >
-                    {{ product.status }}
-                  </span>
+                  <div class="absolute top-3 right-3">
+                    <UiAppBadge
+                      :variant="product.status === 'Active' ? 'brand' : 'muted'"
+                    >
+                      {{ product.status }}
+                    </UiAppBadge>
+                  </div>
                 </div>
 
                 <div class="p-4">
@@ -163,7 +164,8 @@ const adjustStock = (id: number, currentStock: number, delta: number) => {
                     <div class="flex items-center gap-2 rounded-full border border-[#cfc4b5] bg-[#faf8f4] px-2 py-1 text-xs">
                       <button
                         type="button"
-                        class="h-5 w-5 rounded-full bg-[#ded6cc] text-[#211f1d] hover:bg-[#806344] hover:text-white"
+                        aria-label="Decrease stock"
+                        class="flex h-7 w-7 items-center justify-center rounded-full bg-[#ded6cc] text-[#211f1d] transition hover:bg-[#806344] hover:text-white"
                         @click="adjustStock(product.id, product.stock, -1)"
                       >
                         -
@@ -171,7 +173,8 @@ const adjustStock = (id: number, currentStock: number, delta: number) => {
                       <span class="font-medium text-[#211f1d] min-w-[20px] text-center">{{ product.stock }}</span>
                       <button
                         type="button"
-                        class="h-5 w-5 rounded-full bg-[#ded6cc] text-[#211f1d] hover:bg-[#806344] hover:text-white"
+                        aria-label="Increase stock"
+                        class="flex h-7 w-7 items-center justify-center rounded-full bg-[#ded6cc] text-[#211f1d] transition hover:bg-[#806344] hover:text-white"
                         @click="adjustStock(product.id, product.stock, 1)"
                       >
                         +
@@ -214,31 +217,19 @@ const adjustStock = (id: number, currentStock: number, delta: number) => {
 
           <p
             v-else
-            class="mt-6 rounded-[8px] border border-[#ded6cc] bg-[#f5f1e9] p-8 text-center text-sm text-[#756a60]"
+            class="mt-6 rounded-lg border border-[#ded6cc] bg-[#f5f1e9] p-8 text-center text-sm text-[#756a60]"
           >
             No products match the selected filters.
           </p>
-        </section>
+        </UiAppCard>
 
-        <section
+        <UiAppEmptyState
           v-else
-          class="rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-8 shadow-[0_20px_70px_rgba(33,31,29,0.06)]"
-        >
-          <h2 class="font-serif text-3xl text-[#211f1d]">
-            Create a shop first
-          </h2>
-
-          <p class="mt-3 text-sm leading-6 text-[#756a60]">
-            Product management appears after your seller shop is created.
-          </p>
-
-          <NuxtLink
-            to="/shop"
-            class="mt-6 inline-flex h-12 items-center justify-center rounded-full border border-[#806344] px-6 text-sm font-medium uppercase tracking-[0.14em] text-[#5d4b37] transition hover:bg-[#806344] hover:text-white"
-          >
-            Start selling
-          </NuxtLink>
-        </section>
+          title="Create a shop first"
+          description="Product management appears after your seller shop is created."
+          action-label="Start selling"
+          action-to="/shop"
+        />
 
         <EditProductModal
           :is-open="isEditProductOpen"

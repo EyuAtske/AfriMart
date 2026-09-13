@@ -37,8 +37,8 @@ const submitRegister = async () => {
     return
   }
 
-  if (registerForm.password.length < 6) {
-    registerError.value = 'Password must be at least 6 characters long.'
+  if (registerForm.password.length < 8) {
+    registerError.value = 'Password must be at least 8 characters long.'
     return
   }
 
@@ -140,22 +140,18 @@ const submitRegister = async () => {
     />
 
     <!-- Error -->
-    <p
-      v-if="registerError"
-      class="text-sm font-medium text-red-600"
-    >
+    <UiAppAlert v-if="registerError">
       {{ registerError }}
-    </p>
+    </UiAppAlert>
 
-    
     <!-- Submit -->
-    <button
+    <UiAppButton
       type="submit"
       :disabled="isLoading"
-      class="h-14 w-full rounded-full border border-[#806344] text-sm font-medium uppercase tracking-[0.14em] text-[#5d4b37] transition-all duration-300 hover:bg-[#806344] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#806344] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+      class="w-full"
     >
       {{ isLoading ? 'Creating account...' : 'Create account' }}
-    </button>
+    </UiAppButton>
 
     <!-- Login -->
     <p class="pt-2 text-center text-sm text-[#756a60]">

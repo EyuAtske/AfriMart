@@ -2,7 +2,7 @@
 const route = useRoute()
 const { products } = useMarketplace()
 const { shopRepo } = useRepositories()
-
+const { gtag } = useGtag()
 const selectedCategory = ref('All')
 
 const slugify = (value: string) =>
@@ -17,19 +17,26 @@ const { data: shopData, error } = await useAsyncData(
     if (!found) {
       throw createError({ statusCode: 404, statusMessage: 'Shop not found', fatal: true })
     }
+ 
     return found
   }
 )
 
-if (error.value || !shopData.value) {
-  throw createError({ statusCode: 404, statusMessage: 'Shop not found', fatal: true })
-}
-
-useSeoMeta({
-  title: computed(() => shopData.value ? `${shopData.value.name} — Seller Storefront` : 'Shop Profile'),
-  description: computed(() => shopData.value?.description || 'Browse storefront products on Afrimart.'),
-  ogTitle: computed(() => shopData.value ? `${shopData.value.name} Storefront` : 'Shop Profile'),
-  ogDescription: computed(() => shopData.value?.description || 'Browse storefront products on Afrimart.')
+  if (error.value || !shopData.value) {
+   throw createError({ statusCode: 404, statusMessage: 'Shop not found', fatal: true })
+  }
+  onMounted(() => {
+    if (shopData.value) {
+       gtag('event', 'view_shop', {
+        shop_name: shopData.value.name
+      })
+   }
+   })
+  useSeoMeta({
+    title: computed(() => shopData.value ? `${shopData.value.name} — Seller Storefront` : 'Shop Profile'),
+    description: computed(() => shopData.value?.description || 'Browse storefront products on Afrimart.'),
+    ogTitle: computed(() => shopData.value ? `${shopData.value.name} Storefront` : 'Shop Profile'),
+    ogDescription: computed(() => shopData.value?.description || 'Browse storefront products on Afrimart.')
 })
 
 const shopName = computed(() => shopData.value?.name || currentSlug.value.replace(/-/g, ' '))
@@ -60,7 +67,7 @@ const totalStock = computed(() =>
   <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-12">
     <section class="mx-auto max-w-7xl">
       <!-- Shop Header Banner -->
-      <div class="mb-8 overflow-hidden rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8">
+      <UiAppCard padding="large" class="mb-8 overflow-hidden">
         <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div class="flex items-center gap-5">
             <div class="flex h-16 w-16 items-center justify-center rounded-full bg-[#806344] font-serif text-2xl uppercase text-white shadow-md">
@@ -83,7 +90,7 @@ const totalStock = computed(() =>
           </div>
 
           <!-- Shop Metadata Badge -->
-          <div class="flex flex-wrap items-center gap-3 rounded-[10px] border border-[#ded6cc] bg-[#f5f1e9] p-4 text-xs">
+          <div class="flex flex-wrap items-center gap-3 rounded-lg border border-[#ded6cc] bg-[#f5f1e9] p-4 text-xs">
             <div>
               <p class="font-medium text-[#756a60] uppercase tracking-wider">Listings</p>
               <p class="font-serif text-xl text-[#211f1d]">{{ allShopProducts.length }} items</p>
@@ -104,7 +111,7 @@ const totalStock = computed(() =>
             v-for="cat in shopCategories"
             :key="cat"
             type="button"
-            class="rounded-full px-4 py-2 text-xs font-medium uppercase tracking-[0.12em] transition-all"
+            class="rounded-full px-4 py-2 text-xs font-medium uppercase tracking-[0.12em] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#806344]"
             :class="
               selectedCategory === cat
                 ? 'bg-[#806344] text-white shadow-sm'
@@ -115,7 +122,7 @@ const totalStock = computed(() =>
             {{ cat }}
           </button>
         </div>
-      </div>
+      </UiAppCard>
 
       <!-- Shop Products Grid -->
       <MarketplaceProductGrid
@@ -123,18 +130,11 @@ const totalStock = computed(() =>
         :products="filteredShopProducts"
       />
 
-      <section
+      <UiAppEmptyState
         v-else
-        class="rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-10 text-center"
-      >
-        <h2 class="font-serif text-3xl text-[#211f1d]">
-          No active products
-        </h2>
-
-        <p class="mt-3 text-sm leading-6 text-[#756a60]">
-          No products match this category filter in {{ shopName }}.
-        </p>
-      </section>
+        title="No active products"
+        :description="`No products match this category filter in ${shopName}.`"
+      />
     </section>
   </main>
 </template>

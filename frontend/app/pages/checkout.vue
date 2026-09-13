@@ -3,6 +3,11 @@ const router = useRouter()
 const { user, isLoggedIn } = useAuth()
 const { cartProducts, cartSubtotal, createOrder } = useMarketplace()
 const { mockRequest } = useApiClient()
+const { gtag } = useGtag()
+const { track, isFeatureEnabled } = useAnalytics()
+const newCheckoutEnabled = computed(() =>
+  isFeatureEnabled('new-checkout')
+)
 
 const checkoutForm = reactive({
   fullName: '',
@@ -17,6 +22,19 @@ const isSubmitting = ref(false)
 
 const deliveryFee = computed(() => (cartSubtotal.value > 0 ? 250 : 0))
 const orderTotal = computed(() => cartSubtotal.value + deliveryFee.value)
+if (import.meta.client && cartProducts.value.length) {
+  gtag('event', 'begin_checkout', {
+    currency: 'ETB',
+    value: orderTotal.value,
+    items: cartProducts.value.map(item => ({
+      item_id: String(item.product.id),
+      item_name: item.product.name,
+      item_category: item.product.category,
+      price: Number(item.product.price),
+      quantity: item.quantity
+    }))
+  })
+}
 
 watch(
   user,
@@ -47,6 +65,15 @@ const submitCheckout = async () => {
     return
   }
 
+  const rawPhone = checkoutForm.phone.trim()
+  const cleanPhone = rawPhone.replace(/[\s\-()]/g, '')
+  const ethiopianPhoneRegex = /^\+251[79]\d{8}$/
+
+  if (!ethiopianPhoneRegex.test(cleanPhone)) {
+    errorMessage.value = 'Please enter a valid Ethiopian phone number: +251 followed by 7 or 9 and 8 digits (e.g. +251911234567 or +251711234567).'
+    return
+  }
+
   isSubmitting.value = true
 
   try {
@@ -61,18 +88,29 @@ const submitCheckout = async () => {
     const order = await createOrder({
       buyerName: checkoutForm.fullName.trim(),
       deliveryAddress: `${checkoutForm.address.trim()}, ${checkoutForm.city.trim()}`,
-      phone: checkoutForm.phone.trim(),
+      phone: cleanPhone,
       paymentMethod: checkoutForm.paymentMethod,
       deliveryFee: deliveryFee.value
     })
+if (!order) {
+  errorMessage.value = 'Could not create the mock order.'
+  return
+}
 
-    if (!order) {
-      errorMessage.value = 'Could not create the mock order.'
-      return
-    }
+gtag('event', 'purchase', {
+  transaction_id: String(order.id),
+  value: orderTotal.value,
+  currency: 'ETB',
+  items: cartProducts.value.map(item => ({
+    item_id: String(item.product.id),
+    item_name: item.product.name,
+    price: item.product.price,
+    quantity: item.quantity
+  }))
+})
 
-    isLoggedIn.value = true
-    router.push(`/payment/success?order=${order.id}`)
+isLoggedIn.value = true
+router.push(`/payment/success?order=${order.id}`)
   } catch (error) {
     router.push('/payment/failure')
   } finally {
@@ -107,7 +145,7 @@ const submitCheckout = async () => {
       >
         <form
           action="javascript:void(0)"
-          class="rounded-[10px] border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8"
+          class="rounded-xl border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8"
           @submit.prevent="submitCheckout"
         >
           <h2 class="font-serif text-3xl text-[#211f1d]">
@@ -125,7 +163,8 @@ const submitCheckout = async () => {
             <AuthInput
               v-model="checkoutForm.phone"
               label="Phone"
-              placeholder="+251 ..."
+              type="tel"
+              placeholder="+251911234567"
               name="checkout-phone"
             />
           </div>
@@ -151,11 +190,18 @@ const submitCheckout = async () => {
               Payment method
             </h2>
 
+            <p
+              v-if="newCheckoutEnabled"
+              class="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-[#806344]"
+            >
+              New checkout experience
+            </p>
+            
             <div class="mt-5 grid gap-3 sm:grid-cols-3">
               <label
                 v-for="method in ['Cash on delivery', 'Telebirr', 'CBE']"
                 :key="method"
-                class="cursor-pointer rounded-[8px] border p-4 transition"
+                class="cursor-pointer rounded-lg border p-4 transition"
                 :class="
                   checkoutForm.paymentMethod === method
                     ? 'border-[#806344] bg-[#eee8df]'
@@ -168,7 +214,10 @@ const submitCheckout = async () => {
                   name="payment-method"
                   :value="method"
                   class="sr-only"
-                />
+                  @change="track('payment_method_selected', {
+    payment_method: method
+  })"
+/>
 
                 <span class="block text-sm font-medium text-[#211f1d]">
                   {{ method }}
@@ -185,23 +234,26 @@ const submitCheckout = async () => {
             </div>
           </section>
 
-          <p
+          <UiAppAlert
             v-if="errorMessage"
-            class="mt-5 rounded-[8px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+            class="mt-5"
           >
             {{ errorMessage }}
-          </p>
+          </UiAppAlert>
 
-          <button
-            type="submit"
-            :disabled="isSubmitting"
-            class="mt-8 h-12 w-full rounded-full bg-[#211f1d] px-6 text-sm font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#3b3733] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-          >
-            {{ isSubmitting ? 'Creating order...' : 'Place order' }}
-          </button>
+          <div class="mt-8">
+            <UiAppButton
+              type="submit"
+              variant="secondary"
+              :disabled="isSubmitting"
+              class="w-full sm:w-auto"
+            >
+              {{ isSubmitting ? 'Creating order...' : 'Place order' }}
+            </UiAppButton>
+          </div>
         </form>
 
-        <aside class="h-fit rounded-[10px] border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)]">
+        <UiAppCard as="aside" class="h-fit">
           <h2 class="font-serif text-3xl text-[#211f1d]">
             Order summary
           </h2>
@@ -216,7 +268,7 @@ const submitCheckout = async () => {
                 v-if="item"
                 :src="item.product.image"
                 :alt="item.product.name"
-                class="h-16 w-14 rounded-[6px] object-cover object-top"
+                class="h-16 w-14 rounded-md object-cover object-top"
               />
 
               <div
@@ -257,24 +309,16 @@ const submitCheckout = async () => {
               <span>{{ formatPrice(orderTotal) }}</span>
             </div>
           </div>
-        </aside>
+        </UiAppCard>
       </div>
 
-      <section
+      <UiAppEmptyState
         v-else
-        class="rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-10 text-center"
-      >
-        <h2 class="font-serif text-3xl text-[#211f1d]">
-          Nothing to checkout
-        </h2>
-
-        <NuxtLink
-          to="/products"
-          class="mt-6 inline-flex h-12 items-center justify-center rounded-full border border-[#806344] px-6 text-sm font-medium uppercase tracking-[0.14em] text-[#5d4b37] transition hover:bg-[#806344] hover:text-white"
-        >
-          Browse products
-        </NuxtLink>
-      </section>
+        title="Nothing to checkout"
+        description="Add some items to your cart before proceeding to checkout."
+        action-label="Browse products"
+        action-to="/products"
+      />
     </section>
   </main>
 </template>

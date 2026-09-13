@@ -3,6 +3,7 @@ const route = useRoute()
 const router = useRouter()
 const { addToCart, getProductReviews } = useMarketplace()
 const { productRepo } = useRepositories()
+const { gtag } = useGtag()
 
 const productId = computed(() => Number(route.params.id))
 const quantity = ref(1)
@@ -44,7 +45,21 @@ const { data: product, error } = await useAsyncData(
 if (error.value || !product.value) {
   throw createError({ statusCode: 404, statusMessage: 'Product not found', fatal: true })
 }
-
+if (import.meta.client && product.value) {
+  gtag('event', 'view_item', {
+    currency: 'ETB',
+    value: Number(product.value.price),
+    items: [
+      {
+        item_id: String(product.value.id),
+        item_name: product.value.name,
+        item_category: product.value.category,
+        price: Number(product.value.price),
+        quantity: 1
+      }
+    ]
+  })
+}
 useSeoMeta({
   title: computed(() => product.value ? `${product.value.name} — ${product.value.shop}` : 'Product Details'),
   description: computed(() => product.value?.description || 'Product details on Afrimart.'),
@@ -62,8 +77,13 @@ const { data: relatedProducts } = await useAsyncData(
   }
 )
 
+const { flyToCart } = useFlyToCart()
+const galleryContainerEl = ref<HTMLElement | null>(null)
+
 const addSelectedQuantity = () => {
   if (!product.value) return
+
+  flyToCart(galleryContainerEl.value, product.value.image)
 
   for (let index = 0; index < quantity.value; index += 1) {
     addToCart(product.value.id)
@@ -74,131 +94,136 @@ const addSelectedQuantity = () => {
 </script>
 
 <template>
-  <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-12">
+  <main class="min-h-screen bg-[#f5f1e9] px-3 py-8 sm:px-6 sm:py-16 lg:px-12 lg:py-20">
     <section
       v-if="product"
       class="mx-auto max-w-7xl"
     >
       <button
         type="button"
-        class="mb-6 text-sm font-medium text-[#806344] underline-offset-4 transition hover:text-[#211f1d] hover:underline"
+        class="mb-4 sm:mb-6 text-xs sm:text-sm font-medium text-[#806344] underline-offset-4 transition hover:text-[#211f1d] hover:underline"
         @click="router.back()"
       >
-        Back to browsing
+        ← Back to browsing
       </button>
 
-      <div class="grid gap-8 lg:grid-cols-[1fr_0.85fr] lg:gap-12">
-        <div class="overflow-hidden rounded-[8px] border border-[#d9d0c4] bg-[#eee8df]">
-          <img
-            :src="product.image"
-            :alt="product.name"
-            class="h-full max-h-[760px] min-h-[420px] w-full object-cover object-top"
+      <!-- Side-by-side product view on mobile & desktop -->
+      <div class="grid grid-cols-2 gap-3 sm:gap-8 lg:grid-cols-[1fr_0.85fr] lg:gap-12 items-start">
+        <div ref="galleryContainerEl" class="min-w-0">
+          <MarketplaceMediaGallery
+            :media="product.media"
+            :fallback-image="product.image"
           />
         </div>
 
-        <div class="flex flex-col justify-center">
-          <p class="text-xs font-medium uppercase tracking-[0.18em] text-[#806344]">
+        <div class="flex flex-col justify-start min-w-0">
+          <p class="text-[10px] sm:text-xs font-medium uppercase tracking-[0.18em] text-[#806344]">
             {{ product.shop }}
           </p>
 
-          <h1 class="mt-3 font-serif text-4xl leading-tight tracking-[-0.025em] text-[#211f1d] sm:text-5xl">
+          <h1 class="mt-1 sm:mt-3 font-serif text-sm sm:text-3xl lg:text-4xl leading-tight tracking-[-0.025em] text-[#211f1d]">
             {{ product.name }}
           </h1>
 
-          <div class="mt-5 flex flex-wrap items-center gap-3">
-            <span class="rounded-full bg-[#211f1d] px-4 py-2 text-sm font-semibold text-white">
+          <div class="mt-2 sm:mt-5 flex flex-wrap items-center gap-1.5 sm:gap-3">
+            <UiAppBadge variant="dark" class="text-[11px] sm:text-xs">
               {{ formatPrice(product.price) }}
-            </span>
+            </UiAppBadge>
 
-            <span class="rounded-full border border-[#d9d0c4] px-4 py-2 text-sm text-[#665c53]">
+            <span class="rounded-full border border-[#d9d0c4] px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-xs text-[#665c53]">
               ★ {{ calculatedRating }} Rating
             </span>
 
-            <span class="rounded-full border border-[#d9d0c4] px-4 py-2 text-sm text-[#665c53]">
+            <span class="rounded-full border border-[#d9d0c4] px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-xs text-[#665c53]">
               {{ product.stock }} in stock
             </span>
           </div>
 
-          <p class="mt-7 max-w-2xl text-base leading-8 text-[#665c53]">
+          <p class="mt-2 sm:mt-6 max-w-2xl text-[11px] sm:text-base leading-relaxed sm:leading-8 text-[#665c53] line-clamp-3 sm:line-clamp-none">
             {{ product.description }}
           </p>
 
-          <div class="mt-8 grid gap-4 rounded-[8px] border border-[#d9d0c4] bg-[#faf8f4] p-5 sm:grid-cols-[160px_1fr]">
-            <label class="space-y-2">
-              <span class="block text-[11px] font-medium uppercase tracking-[0.16em] text-[#4d4035]">
-                Quantity
-              </span>
+          <UiAppCard class="mt-3 sm:mt-8 p-2.5 sm:p-5">
+            <div class="flex flex-col gap-2.5 sm:flex-row sm:items-end">
+              <label class="space-y-1 sm:space-y-2 sm:w-28">
+                <span class="block text-[10px] sm:text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]">
+                  Quantity
+                </span>
 
-              <input
-                v-model="quantity"
-                type="number"
-                min="1"
-                :max="product.stock"
-                class="h-12 w-full rounded-[5px] border border-[#cfc4b5] bg-[#f5f1e9] px-4 text-sm text-[#211f1d] outline-none transition focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
-              />
-            </label>
+                <input
+                  v-model="quantity"
+                  type="number"
+                  min="1"
+                  :max="product.stock"
+                  class="h-8 sm:h-12 w-full rounded-md border border-[#cfc4b5] bg-[#f5f1e9] px-2 text-xs sm:text-sm text-[#211f1d] outline-none transition hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
+                />
+              </label>
 
-            <div class="flex items-end gap-3">
-              <button
-                type="button"
-                class="h-12 flex-1 rounded-full border border-[#806344] px-6 text-sm font-medium uppercase tracking-[0.14em] text-[#5d4b37] transition-all duration-300 hover:bg-[#806344] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#806344] focus:ring-offset-2"
-                @click="addSelectedQuantity"
-              >
-                Add to cart
-              </button>
+              <div class="flex flex-1 items-center gap-2">
+                <UiAppButton
+                  class="flex-1 text-xs sm:text-sm h-8 sm:h-12"
+                  variant="secondary"
+                  @click="addSelectedQuantity"
+                >
+                  Add to cart
+                </UiAppButton>
 
-              <NuxtLink
-                to="/cart"
-                class="inline-flex h-12 items-center justify-center rounded-full bg-[#211f1d] px-6 text-sm font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#3b3733]"
-              >
-                View cart
-              </NuxtLink>
+                <UiAppButton
+                  to="/cart"
+                  variant="ghost"
+                  class="text-xs sm:text-sm h-8 sm:h-12"
+                >
+                  Cart
+                </UiAppButton>
+              </div>
             </div>
-          </div>
+          </UiAppCard>
 
-          <p
+          <UiAppAlert
             v-if="added"
-            class="mt-4 rounded-[8px] border border-[#cfe0cc] bg-[#eef7ec] px-4 py-3 text-sm font-medium text-[#3f6a3f]"
+            variant="success"
+            class="mt-3 text-xs sm:text-sm"
           >
-            Added to cart. You can keep browsing or continue to checkout.
-          </p>
+            Added to cart. You can continue browsing or view cart.
+          </UiAppAlert>
         </div>
       </div>
 
       <!-- Customer Reviews & Ratings Section -->
-      <section class="mt-16 rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-[#ded6cc] pb-6">
+      <UiAppCard padding="large" class="mt-10 sm:mt-16 p-4 sm:p-8">
+        <div class="flex flex-row items-center justify-between border-b border-[#ded6cc] pb-4 sm:pb-6 gap-2">
           <div>
-            <p class="text-xs font-medium uppercase tracking-[0.18em] text-[#806344]">
+            <p class="text-[10px] sm:text-xs font-medium uppercase tracking-[0.18em] text-[#806344]">
               Feedback & Ratings
             </p>
-            <h2 class="mt-1 font-serif text-3xl text-[#211f1d]">
+            <h2 class="mt-0.5 sm:mt-1 font-serif text-lg sm:text-3xl text-[#211f1d]">
               Customer Reviews
             </h2>
           </div>
 
-          <div class="flex items-center gap-3 rounded-full bg-[#eee8df] px-5 py-2.5">
-            <span class="font-serif text-3xl font-bold text-[#211f1d]">{{ calculatedRating }}</span>
+          <div class="flex items-center gap-2 sm:gap-3 rounded-full bg-[#eee8df] px-3 py-1.5 sm:px-5 sm:py-2.5 shrink-0">
+            <span class="font-serif text-lg sm:text-3xl font-bold text-[#211f1d]">{{ calculatedRating }}</span>
             <div>
-              <div class="flex text-amber-500 text-sm">
+              <div class="flex text-amber-500 text-xs sm:text-sm">
                 <span v-for="star in 5" :key="star">{{ star <= Math.round(Number(calculatedRating)) ? '★' : '☆' }}</span>
               </div>
-              <p class="text-xs text-[#756a60] mt-0.5">Based on {{ approvedReviews.length }} reviews</p>
+              <p class="text-[10px] sm:text-xs text-[#756a60] mt-0.5">{{ approvedReviews.length }} reviews</p>
             </div>
           </div>
         </div>
 
         <!-- Pending Admin Approval Notice -->
-        <div
+        <UiAppAlert
           v-if="pendingReviews.length"
-          class="mt-6 rounded-[8px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 flex items-center justify-between"
+          variant="warning"
+          class="mt-6 flex items-center justify-between"
         >
           <div class="flex items-center gap-2">
             <span>⏳</span>
             <span>You have <strong>{{ pendingReviews.length }} review(s)</strong> pending admin approval.</span>
           </div>
           <span class="text-xs font-semibold uppercase tracking-wider text-amber-700">Under Review</span>
-        </div>
+        </UiAppAlert>
 
         <!-- Approved Reviews List -->
         <div v-if="approvedReviews.length" class="mt-6 divide-y divide-[#ded6cc]">
@@ -232,7 +257,7 @@ const addSelectedQuantity = () => {
         <div v-else-if="!pendingReviews.length" class="mt-6 text-center py-6 text-sm text-[#756a60]">
           No customer reviews for this product yet. Be the first to leave a review after your delivery!
         </div>
-      </section>
+      </UiAppCard>
 
       <section
         v-if="relatedProducts && relatedProducts.length"
@@ -245,7 +270,7 @@ const addSelectedQuantity = () => {
 
           <NuxtLink
             :to="`/products?category=${product.category}`"
-            class="text-xs font-medium uppercase tracking-[0.14em] text-[#806344]"
+            class="text-xs font-medium uppercase tracking-[0.14em] text-[#806344] hover:underline"
           >
             View all
           </NuxtLink>
@@ -255,24 +280,13 @@ const addSelectedQuantity = () => {
       </section>
     </section>
 
-    <section
+    <UiAppEmptyState
       v-else
-      class="mx-auto max-w-xl rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-8 text-center"
-    >
-      <h1 class="font-serif text-3xl text-[#211f1d]">
-        Product not found
-      </h1>
-
-      <p class="mt-3 text-sm leading-6 text-[#756a60]">
-        This mocked product is not in the current marketplace data.
-      </p>
-
-      <NuxtLink
-        to="/products"
-        class="mt-6 inline-flex h-12 items-center justify-center rounded-full border border-[#806344] px-6 text-sm font-medium uppercase tracking-[0.14em] text-[#5d4b37] transition hover:bg-[#806344] hover:text-white"
-      >
-        Browse products
-      </NuxtLink>
-    </section>
+      title="Product not found"
+      description="This mocked product is not in the current marketplace data."
+      action-label="Browse products"
+      action-to="/products"
+      class="mx-auto max-w-xl"
+    />
   </main>
 </template>

@@ -8,7 +8,11 @@ const orderId = computed(() =>
 
 <template>
   <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-12">
-    <section class="mx-auto max-w-2xl rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-8 text-center shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-10">
+    <UiAppCard
+      as="section"
+      padding="large"
+      class="mx-auto max-w-2xl text-center"
+    >
       <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#e6eee5] text-3xl text-[#536653]">
         OK
       </div>
@@ -26,20 +30,20 @@ const orderId = computed(() =>
       </p>
 
       <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-        <NuxtLink
+        <UiAppButton
           to="/orders"
-          class="inline-flex h-12 items-center justify-center rounded-full bg-[#211f1d] px-6 text-sm font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#3b3733]"
+          variant="primary"
         >
           View orders
-        </NuxtLink>
+        </UiAppButton>
 
-        <NuxtLink
+        <UiAppButton
           to="/products"
-          class="inline-flex h-12 items-center justify-center rounded-full border border-[#806344] px-6 text-sm font-medium uppercase tracking-[0.14em] text-[#5d4b37] transition hover:bg-[#806344] hover:text-white"
+          variant="secondary"
         >
           Keep shopping
-        </NuxtLink>
+        </UiAppButton>
       </div>
-    </section>
+    </UiAppCard>
   </main>
 </template>

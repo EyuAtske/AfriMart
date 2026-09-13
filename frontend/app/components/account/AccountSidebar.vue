@@ -40,7 +40,7 @@ const items = computed(() =>
 
       <button
         type="button"
-        class="w-full rounded-lg px-3 py-3 text-left text-base text-red-600 transition hover:bg-red-50"
+        class="w-full rounded-lg px-3 py-3 text-left text-base text-[#665c53] transition hover:bg-[#eee8df] hover:text-[#211f1d]"
         @click="logout"
       >
         Logout

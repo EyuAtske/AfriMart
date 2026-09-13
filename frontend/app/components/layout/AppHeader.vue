@@ -3,20 +3,61 @@ const isMenuOpen = ref(false)
 const searchQuery = ref('')
 const router = useRouter()
 const { cartProducts } = useMarketplace()
+const { isCartBouncing } = useFlyToCart()
 
 const cartCount = computed(() =>
   cartProducts.value.reduce((total, item) => total + (item?.quantity || 0), 0)
 )
 
+const isAiQuery = (text: string) => {
+  const query = text.toLowerCase()
+  const aiKeywords = [
+    'i want', 'i need', 'find me', 'looking for', 'show me',
+    'recommend', 'suggest', 'outfit', 'under', 'cheap', 'what', 'style'
+  ]
+  return aiKeywords.some(kw => query.includes(kw))
+}
+
+const handleAiSearch = async () => {
+  const search = searchQuery.value.trim()
+  if (search) {
+    await router.push({
+      path: '/ai',
+      query: { prompt: search }
+    })
+  } else {
+    await router.push('/ai')
+  }
+  isMenuOpen.value = false
+}
+
 const submitSearch = async () => {
   const search = searchQuery.value.trim()
+  if (!search) return
 
-  await router.push({
-    path: '/products',
-    query: search ? { search } : undefined
-  })
+  if (isAiQuery(search)) {
+    await router.push({
+      path: '/ai',
+      query: { prompt: search }
+    })
+  } else {
+    await router.push({
+      path: '/products',
+      query: { search }
+    })
+  }
 
   isMenuOpen.value = false
+}
+
+const openCategories = ref<Record<string, boolean>>({
+  MEN: true,
+  WOMEN: false,
+  KIDS: false
+})
+
+const toggleCategory = (name: string) => {
+  openCategories.value[name] = !openCategories.value[name]
 }
 
 const categories = [
@@ -296,7 +337,7 @@ const categories = [
 
       <!-- Right actions -->
       <div class="ml-auto flex items-center gap-2.5 sm:gap-4 lg:gap-5">
-        <!--z Search Input -->
+        <!-- Search Input with AI support -->
         <form
           class="relative flex items-center"
           @submit.prevent="submitSearch"
@@ -317,9 +358,17 @@ const categories = [
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Search products"
-            class="w-36 sm:w-56 lg:w-64 h-9 sm:h-10 pl-9 pr-3.5 text-xs sm:text-sm bg-transparent rounded-full border border-[#d7d0c4] text-[#302d29] placeholder-[#8c857b] focus:outline-none focus:border-[#806344] transition-all"
+            placeholder="Search or ask AI..."
+            class="w-36 sm:w-60 lg:w-72 h-9 sm:h-10 pl-9 pr-9 text-xs sm:text-sm bg-transparent rounded-full border border-[#d9d0c4] text-[#302d29] placeholder-[#92877b] focus:outline-none focus:border-[#806344] transition-all"
           />
+          <button
+            type="button"
+            title="Ask AI Assistant"
+            class="absolute right-1.5 flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-full bg-[#806344]/15 hover:bg-[#806344] hover:text-white text-[#806344] text-[10px] sm:text-xs font-bold transition-all"
+            @click="handleAiSearch"
+          >
+            AI
+          </button>
         </form>
 
         <!-- Account -->
@@ -344,9 +393,11 @@ const categories = [
 
         <!-- Cart -->
         <NuxtLink
+          id="header-cart-icon"
           to="/cart"
           aria-label="Shopping cart"
-          class="relative text-[#302d29] transition-opacity hover:opacity-60"
+          class="relative text-[#302d29] transition-all duration-200 hover:opacity-60"
+          :class="{ 'scale-125 text-[#806344]': isCartBouncing }"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -356,6 +407,8 @@ const categories = [
             fill="none"
             stroke="currentColor"
             stroke-width="1.6"
+            class="transition-transform duration-200"
+            :class="{ 'scale-110 rotate-6': isCartBouncing }"
           >
             <path d="M5 8h14l-1 12H6L5 8Z" />
             <path d="M9 8a3 3 0 0 1 6 0" />
@@ -363,7 +416,8 @@ const categories = [
 
           <span
             v-if="cartCount"
-            class="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#806344] px-1 text-[10px] font-semibold leading-none text-white"
+            class="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#806344] px-1 text-[10px] font-semibold leading-none text-white transition-transform duration-200"
+            :class="{ 'scale-130 bg-[#211f1d]': isCartBouncing }"
           >
             {{ cartCount }}
           </span>
@@ -374,57 +428,90 @@ const categories = [
     <!-- Mobile menu -->
     <div
       v-if="isMenuOpen"
-      class="border-t border-[#ded8ce] bg-[#f5f1e9] lg:hidden"
+      class="border-t border-[#ded8ce] bg-[#f5f1e9] shadow-xl max-h-[calc(100vh-3.5rem)] overflow-y-auto lg:hidden"
     >
-      <div class="px-6 py-4">
+      <div class="px-5 py-3 divide-y divide-[#ded8ce]">
         <!-- New In -->
         <NuxtLink
           to="/"
-          class="block border-b border-[#ded8ce] py-4 text-sm tracking-[0.12em] text-[#302d29]"
+          class="flex items-center justify-between py-3 text-sm font-medium tracking-[0.14em] text-[#302d29] hover:text-[#806344]"
           @click="isMenuOpen = false"
         >
-          NEW IN
+          <span>NEW IN</span>
+          <span class="text-xs text-[#806344]">EXPLORE →</span>
         </NuxtLink>
 
-        <!-- Mobile categories -->
+        <!-- Mobile categories accordion -->
         <div
           v-for="category in categories"
           :key="category.name"
-          class="border-b border-[#ded8ce] py-4"
+          class="py-3"
         >
-          <!-- Main category -->
-          <NuxtLink
-            :to="category.to"
-            class="block text-sm tracking-[0.12em] text-[#302d29]"
-            @click="isMenuOpen = false"
-          >
-            {{ category.name }}
-          </NuxtLink>
+          <!-- Category header toggle -->
+          <div class="flex items-center justify-between">
+            <NuxtLink
+              :to="category.to"
+              class="text-sm font-medium tracking-[0.14em] text-[#302d29] hover:text-[#806344]"
+              @click="isMenuOpen = false"
+            >
+              {{ category.name }}
+            </NuxtLink>
 
-          <!-- Sections -->
-          <div class="mt-3 grid grid-cols-3 gap-4">
+            <button
+              type="button"
+              class="flex h-8 w-8 items-center justify-center rounded-full text-[#756a60] hover:bg-[#ded8ce]/60"
+              :aria-label="`Toggle ${category.name} menu`"
+              @click="toggleCategory(category.name)"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                class="transition-transform duration-200"
+                :class="{ 'rotate-180': openCategories[category.name] }"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Category items: responsive 2-column grid -->
+          <div
+            v-if="openCategories[category.name]"
+            class="mt-3 space-y-3.5 rounded-lg bg-[#eee8df]/60 p-3.5"
+          >
             <div
               v-for="section in category.sections"
               :key="section.title"
             >
-              <p
-                class="mb-2 text-[10px] tracking-[0.12em] text-[#806344]"
-              >
+              <p class="mb-1.5 text-[10px] font-semibold tracking-[0.14em] text-[#806344] uppercase">
                 {{ section.title }}
               </p>
 
-              <div class="flex flex-col gap-1.5">
+              <div class="grid grid-cols-2 gap-x-2 gap-y-1.5">
                 <NuxtLink
                   v-for="item in section.items"
                   :key="item.name"
                   :to="item.to"
-                  class="text-xs text-[#5d574f]"
+                  class="rounded px-1.5 py-1 text-xs text-[#5d574f] hover:bg-[#ded8ce]/60 hover:text-[#211f1d] truncate"
                   @click="isMenuOpen = false"
                 >
                   {{ item.name }}
                 </NuxtLink>
               </div>
             </div>
+
+            <NuxtLink
+              :to="category.to"
+              class="inline-flex items-center gap-1.5 pt-1 text-xs font-semibold tracking-[0.12em] text-[#806344] hover:underline"
+              @click="isMenuOpen = false"
+            >
+              VIEW ALL {{ category.name }} →
+            </NuxtLink>
           </div>
         </div>
       </div>

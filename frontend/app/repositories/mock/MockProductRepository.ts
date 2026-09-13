@@ -8,6 +8,7 @@ export class MockProductRepository implements IProductRepository {
     const { products } = useMockDataStore()
     const search = params.search?.trim().toLowerCase() || ''
     const category = params.category || 'All'
+    const subCategory = params.subCategory || 'All'
     const shop = params.shop?.trim().toLowerCase()
     const status = params.status
     const page = params.page || 1
@@ -17,13 +18,15 @@ export class MockProductRepository implements IProductRepository {
       const matchesSearch = !search ||
         p.name.toLowerCase().includes(search) ||
         p.shop.toLowerCase().includes(search) ||
-        p.description.toLowerCase().includes(search)
+        p.description.toLowerCase().includes(search) ||
+        (p.subCategory && p.subCategory.toLowerCase().includes(search))
 
       const matchesCategory = category === 'All' || p.category === category
+      const matchesSubCategory = subCategory === 'All' || p.subCategory === subCategory
       const matchesShop = !shop || p.shop.toLowerCase() === shop
       const matchesStatus = !status ? p.status === 'Active' : p.status === status
 
-      return matchesSearch && matchesCategory && matchesShop && matchesStatus
+      return matchesSearch && matchesCategory && matchesSubCategory && matchesShop && matchesStatus
     })
 
     const total = filtered.length
@@ -56,11 +59,13 @@ export class MockProductRepository implements IProductRepository {
       name: dto.name.trim(),
       description: dto.description.trim(),
       category: dto.category,
+      subCategory: dto.subCategory,
       price: dto.price,
       stock: dto.stock,
       rating: 'New',
       image: dto.image,
-      status: dto.status || 'Active'
+      status: dto.status || 'Active',
+      media: dto.media
     }
 
     products.value.unshift(newProduct)
