@@ -9,7 +9,7 @@ import (
 	"net/mail"
 	"strings"
 
-	"github.com/EyuAtske/AfriMart/backend/internal/commErr"
+	comm "github.com/EyuAtske/AfriMart/backend/internal/comm"
 	database "github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/google/uuid"
 )
@@ -84,7 +84,7 @@ func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 func getUserID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	userID, ok := UserIDFromContext(r.Context())
 	if !ok {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusUnauthorized,

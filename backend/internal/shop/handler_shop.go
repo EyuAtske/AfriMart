@@ -9,7 +9,7 @@ import (
 
 	"github.com/EyuAtske/AfriMart/backend/config"
 	"github.com/EyuAtske/AfriMart/backend/internal/auth"
-	"github.com/EyuAtske/AfriMart/backend/internal/commErr"
+	comm "github.com/EyuAtske/AfriMart/backend/internal/comm"
 	"github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/google/uuid"
 )
@@ -35,19 +35,19 @@ type updateShopDescriptionRequest struct {
 func (apiCfg *ShopHandler) HandleCreateShop(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
-		commErr.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Error getting user id", nil)
+		comm.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Error getting user id", nil)
 		return
 	}
 
 	var params createShopRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-		commErr.RespondErrorWithJson(w, r, http.StatusBadRequest, "Error decoding params", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Error decoding params", err)
 		return
 	}
 
 	if err := validateCreateShopRequest(&params); err != nil {
-		commErr.RespondErrorWithJson(w, r, http.StatusBadRequest, err.Error(), err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, err.Error(), err)
 		return
 	}
 
@@ -64,7 +64,7 @@ func (apiCfg *ShopHandler) HandleCreateShop(w http.ResponseWriter, r *http.Reque
 		},
 	)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, http.StatusInternalServerError, "could not create shop", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "could not create shop", err)
 		return
 	}
 
@@ -77,7 +77,7 @@ func (apiCfg *ShopHandler) HandleCreateShop(w http.ResponseWriter, r *http.Reque
 func (apiCfg *ShopHandler) HandleGetMyShop(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusUnauthorized,
@@ -94,7 +94,7 @@ func (apiCfg *ShopHandler) HandleGetMyShop(w http.ResponseWriter, r *http.Reques
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusNotFound,
@@ -104,7 +104,7 @@ func (apiCfg *ShopHandler) HandleGetMyShop(w http.ResponseWriter, r *http.Reques
 			return
 		}
 
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -125,7 +125,7 @@ func (apiCfg *ShopHandler) HandleGetMyShop(w http.ResponseWriter, r *http.Reques
 func (apiCfg *ShopHandler) HandleUpdateShopName(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusUnauthorized,
@@ -137,7 +137,7 @@ func (apiCfg *ShopHandler) HandleUpdateShopName(w http.ResponseWriter, r *http.R
 
 	shopID, err := uuid.Parse(r.PathValue("shopID"))
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -150,7 +150,7 @@ func (apiCfg *ShopHandler) HandleUpdateShopName(w http.ResponseWriter, r *http.R
 	var params updateShopNameRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -163,7 +163,7 @@ func (apiCfg *ShopHandler) HandleUpdateShopName(w http.ResponseWriter, r *http.R
 	params.Name = strings.TrimSpace(params.Name)
 
 	if params.Name == "" {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -184,7 +184,7 @@ func (apiCfg *ShopHandler) HandleUpdateShopName(w http.ResponseWriter, r *http.R
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusNotFound,
@@ -194,7 +194,7 @@ func (apiCfg *ShopHandler) HandleUpdateShopName(w http.ResponseWriter, r *http.R
 			return
 		}
 
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -215,7 +215,7 @@ func (apiCfg *ShopHandler) HandleUpdateShopName(w http.ResponseWriter, r *http.R
 func (apiCfg *ShopHandler) HandleUpdateShopDescription(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusUnauthorized,
@@ -227,7 +227,7 @@ func (apiCfg *ShopHandler) HandleUpdateShopDescription(w http.ResponseWriter, r 
 
 	shopID, err := uuid.Parse(r.PathValue("shopID"))
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -240,7 +240,7 @@ func (apiCfg *ShopHandler) HandleUpdateShopDescription(w http.ResponseWriter, r 
 	var params updateShopDescriptionRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -266,7 +266,7 @@ func (apiCfg *ShopHandler) HandleUpdateShopDescription(w http.ResponseWriter, r 
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusNotFound,
@@ -276,7 +276,7 @@ func (apiCfg *ShopHandler) HandleUpdateShopDescription(w http.ResponseWriter, r 
 			return
 		}
 
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -297,7 +297,7 @@ func (apiCfg *ShopHandler) HandleUpdateShopDescription(w http.ResponseWriter, r 
 func (apiCfg *ShopHandler) HandleDeactivateShop(w http.ResponseWriter, r *http.Request) {
 	userId, ok := auth.UserIDFromContext(r.Context())
 	if !ok{
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusUnauthorized,
@@ -309,7 +309,7 @@ func (apiCfg *ShopHandler) HandleDeactivateShop(w http.ResponseWriter, r *http.R
 
 	shopId, err := uuid.Parse(r.PathValue("shopID"))
 	if err != nil{
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -328,7 +328,7 @@ func (apiCfg *ShopHandler) HandleDeactivateShop(w http.ResponseWriter, r *http.R
 	)
 	if err != nil{
 		if errors.Is(err, sql.ErrNoRows){
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusNotFound,
@@ -338,7 +338,7 @@ func (apiCfg *ShopHandler) HandleDeactivateShop(w http.ResponseWriter, r *http.R
 			return
 		}
 
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -359,7 +359,7 @@ func (apiCfg *ShopHandler) HandleDeactivateShop(w http.ResponseWriter, r *http.R
 func (apiCfg *ShopHandler) HandleActivateShop(w http.ResponseWriter, r *http.Request) {
 	userId, ok := auth.UserIDFromContext(r.Context())
 	if !ok{
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusUnauthorized,
@@ -371,7 +371,7 @@ func (apiCfg *ShopHandler) HandleActivateShop(w http.ResponseWriter, r *http.Req
 
 	shopId, err := uuid.Parse(r.PathValue("shopID"))
 	if err != nil{
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -390,7 +390,7 @@ func (apiCfg *ShopHandler) HandleActivateShop(w http.ResponseWriter, r *http.Req
 	)
 	if err != nil{
 		if errors.Is(err, sql.ErrNoRows){
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusNotFound,
@@ -400,7 +400,7 @@ func (apiCfg *ShopHandler) HandleActivateShop(w http.ResponseWriter, r *http.Req
 			return
 		}
 
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,

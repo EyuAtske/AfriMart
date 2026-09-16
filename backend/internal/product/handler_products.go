@@ -10,7 +10,7 @@ import (
 
 	"github.com/EyuAtske/AfriMart/backend/config"
 	"github.com/EyuAtske/AfriMart/backend/internal/auth"
-	"github.com/EyuAtske/AfriMart/backend/internal/commErr"
+	comm "github.com/EyuAtske/AfriMart/backend/internal/comm"
 	"github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/google/uuid"
 )
@@ -53,7 +53,7 @@ type updateProductRequest struct {
 func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusUnauthorized,
@@ -66,7 +66,7 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 	var params createProductRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -92,7 +92,7 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 		params.Status = "active"
 	}
 	if params.Status != "active" && params.Status != "inactive" {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -103,7 +103,7 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 	}
 
 	if params.Name == "" {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -115,7 +115,7 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 
 	price, err := strconv.ParseFloat(params.Price, 64)
 	if err != nil || price < 0 {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -126,7 +126,7 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 	}
 
 	if params.Stock < 0 {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -138,7 +138,7 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 
 	shopID, err := uuid.Parse(params.ShopID)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -150,7 +150,7 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 
 	categoryID, err := uuid.Parse(params.CategoryID)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -162,7 +162,7 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 
 	subcategoryID, err := uuid.Parse(params.SubcategoryID)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -181,7 +181,7 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusForbidden,
@@ -191,7 +191,7 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 			return
 		}
 
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -233,7 +233,7 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 		},
 	)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -255,7 +255,7 @@ func (apiCfg *ProductHandler) HandleGetProduct(w http.ResponseWriter, r *http.Re
 
 	productID, err := uuid.Parse(productIDString)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -271,7 +271,7 @@ func (apiCfg *ProductHandler) HandleGetProduct(w http.ResponseWriter, r *http.Re
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusNotFound,
@@ -281,7 +281,7 @@ func (apiCfg *ProductHandler) HandleGetProduct(w http.ResponseWriter, r *http.Re
 			return
 		}
 
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -302,7 +302,7 @@ func (apiCfg *ProductHandler) HandleGetProduct(w http.ResponseWriter, r *http.Re
 func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusUnauthorized,
@@ -316,7 +316,7 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 
 	productID, err := uuid.Parse(productIDString)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -332,7 +332,7 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusNotFound,
@@ -342,7 +342,7 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 			return
 		}
 
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -362,7 +362,7 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusForbidden,
@@ -372,7 +372,7 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 			return
 		}
 
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -385,7 +385,7 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 	var params updateProductRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -411,7 +411,7 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 	}
 
 	if params.Status != "active" && params.Status != "inactive" {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -422,7 +422,7 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 	}
 
 	if params.Name == "" {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -434,7 +434,7 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 
 	price, err := strconv.ParseFloat(params.Price, 64)
 	if err != nil || price < 0 {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -445,7 +445,7 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 	}
 
 	if params.Stock < 0 {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -457,7 +457,7 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 
 	categoryID, err := uuid.Parse(params.CategoryID)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -469,7 +469,7 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 
 	subcategoryID, err := uuid.Parse(params.SubcategoryID)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -513,7 +513,7 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 	)
 
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -534,7 +534,7 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 func (apiCfg *ProductHandler) HandleDeleteProduct(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusUnauthorized,
@@ -548,7 +548,7 @@ func (apiCfg *ProductHandler) HandleDeleteProduct(w http.ResponseWriter, r *http
 
 	productID, err := uuid.Parse(productIDString)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -564,7 +564,7 @@ func (apiCfg *ProductHandler) HandleDeleteProduct(w http.ResponseWriter, r *http
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusNotFound,
@@ -574,7 +574,7 @@ func (apiCfg *ProductHandler) HandleDeleteProduct(w http.ResponseWriter, r *http
 			return
 		}
 
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -594,7 +594,7 @@ func (apiCfg *ProductHandler) HandleDeleteProduct(w http.ResponseWriter, r *http
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusForbidden,
@@ -604,7 +604,7 @@ func (apiCfg *ProductHandler) HandleDeleteProduct(w http.ResponseWriter, r *http
 			return
 		}
 
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -619,7 +619,7 @@ func (apiCfg *ProductHandler) HandleDeleteProduct(w http.ResponseWriter, r *http
 		productID,
 	)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -642,7 +642,7 @@ func (h *ProductHandler) HandleListProducts(w http.ResponseWriter, r *http.Reque
 	if category := query.Get("category_id"); category != "" {
 		id, err := uuid.Parse(category)
 		if err != nil {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusBadRequest,
@@ -663,7 +663,7 @@ func (h *ProductHandler) HandleListProducts(w http.ResponseWriter, r *http.Reque
 	if subcategory := query.Get("subcategory_id"); subcategory != "" {
 		id, err := uuid.Parse(subcategory)
 		if err != nil {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusBadRequest,
@@ -683,7 +683,7 @@ func (h *ProductHandler) HandleListProducts(w http.ResponseWriter, r *http.Reque
 	var minPrice sql.NullString
 	if value := query.Get("min_price"); value != "" {
 		if _, err := strconv.ParseFloat(value, 64); err != nil {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusBadRequest,
@@ -703,7 +703,7 @@ func (h *ProductHandler) HandleListProducts(w http.ResponseWriter, r *http.Reque
 	var maxPrice sql.NullString
 	if value := query.Get("max_price"); value != "" {
 		if _, err := strconv.ParseFloat(value, 64); err != nil {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusBadRequest,
@@ -726,7 +726,7 @@ func (h *ProductHandler) HandleListProducts(w http.ResponseWriter, r *http.Reque
 	if value := query.Get("limit"); value != "" {
 		parsed, err := strconv.Atoi(value)
 		if err != nil || parsed <= 0 {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusBadRequest,
@@ -742,7 +742,7 @@ func (h *ProductHandler) HandleListProducts(w http.ResponseWriter, r *http.Reque
 	if value := query.Get("offset"); value != "" {
 		parsed, err := strconv.Atoi(value)
 		if err != nil || parsed < 0 {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusBadRequest,
@@ -771,7 +771,7 @@ func (h *ProductHandler) HandleListProducts(w http.ResponseWriter, r *http.Reque
 		},
 	)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -791,7 +791,7 @@ func (h *ProductHandler) HandleListProducts(w http.ResponseWriter, r *http.Reque
 func (apiCfg *ProductHandler) HandleListProductsByShop(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusUnauthorized,
@@ -805,7 +805,7 @@ func (apiCfg *ProductHandler) HandleListProductsByShop(w http.ResponseWriter, r 
 
 	shopID, err := uuid.Parse(shopIDString)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -824,7 +824,7 @@ func (apiCfg *ProductHandler) HandleListProductsByShop(w http.ResponseWriter, r 
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusForbidden,
@@ -834,7 +834,7 @@ func (apiCfg *ProductHandler) HandleListProductsByShop(w http.ResponseWriter, r 
 			return
 		}
 
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -850,7 +850,7 @@ func (apiCfg *ProductHandler) HandleListProductsByShop(w http.ResponseWriter, r 
 	if value := strings.TrimSpace(r.URL.Query().Get("limit")); value != "" {
 		parsedLimit, err := strconv.Atoi(value)
 		if err != nil || parsedLimit <= 0 {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusBadRequest,
@@ -866,7 +866,7 @@ func (apiCfg *ProductHandler) HandleListProductsByShop(w http.ResponseWriter, r 
 	if value := strings.TrimSpace(r.URL.Query().Get("offset")); value != "" {
 		parsedOffset, err := strconv.Atoi(value)
 		if err != nil || parsedOffset < 0 {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusBadRequest,
@@ -888,7 +888,7 @@ func (apiCfg *ProductHandler) HandleListProductsByShop(w http.ResponseWriter, r 
 		},
 	)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -910,7 +910,7 @@ func (apiCfg *ProductHandler) HandleListProductsByCategory(w http.ResponseWriter
 
 	categoryID, err := uuid.Parse(categoryIDString)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -926,7 +926,7 @@ func (apiCfg *ProductHandler) HandleListProductsByCategory(w http.ResponseWriter
 	if value := strings.TrimSpace(r.URL.Query().Get("limit")); value != "" {
 		parsedLimit, err := strconv.Atoi(value)
 		if err != nil || parsedLimit <= 0 {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusBadRequest,
@@ -942,7 +942,7 @@ func (apiCfg *ProductHandler) HandleListProductsByCategory(w http.ResponseWriter
 	if value := strings.TrimSpace(r.URL.Query().Get("offset")); value != "" {
 		parsedOffset, err := strconv.Atoi(value)
 		if err != nil || parsedOffset < 0 {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusBadRequest,
@@ -964,7 +964,7 @@ func (apiCfg *ProductHandler) HandleListProductsByCategory(w http.ResponseWriter
 		},
 	)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -986,7 +986,7 @@ func (apiCfg *ProductHandler) HandleListProductsBySubcategory(w http.ResponseWri
 
 	subcategoryID, err := uuid.Parse(subcategoryIDString)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -1002,7 +1002,7 @@ func (apiCfg *ProductHandler) HandleListProductsBySubcategory(w http.ResponseWri
 	if value := strings.TrimSpace(r.URL.Query().Get("limit")); value != "" {
 		parsedLimit, err := strconv.Atoi(value)
 		if err != nil || parsedLimit <= 0 {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusBadRequest,
@@ -1018,7 +1018,7 @@ func (apiCfg *ProductHandler) HandleListProductsBySubcategory(w http.ResponseWri
 	if value := strings.TrimSpace(r.URL.Query().Get("offset")); value != "" {
 		parsedOffset, err := strconv.Atoi(value)
 		if err != nil || parsedOffset < 0 {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusBadRequest,
@@ -1040,7 +1040,7 @@ func (apiCfg *ProductHandler) HandleListProductsBySubcategory(w http.ResponseWri
 		},
 	)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,

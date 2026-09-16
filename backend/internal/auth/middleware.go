@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/EyuAtske/AfriMart/backend/internal/commErr"
+	comm "github.com/EyuAtske/AfriMart/backend/internal/comm"
 )
 
 type contextKey string
@@ -16,7 +16,7 @@ func AuthMiddleware(secret string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, err := GetBearerToken(r.Header)
 			if err != nil {
-				commErr.RespondErrorWithJson(
+				comm.RespondErrorWithJson(
 					w,
 					r,
 					http.StatusUnauthorized,
@@ -28,7 +28,7 @@ func AuthMiddleware(secret string) func(http.Handler) http.Handler {
 
 			userID, err := ValidateJWT(token, secret)
 			if err != nil {
-				commErr.RespondErrorWithJson(
+				comm.RespondErrorWithJson(
 					w,
 					r,
 					http.StatusUnauthorized,
