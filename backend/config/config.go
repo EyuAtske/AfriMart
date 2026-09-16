@@ -1,4 +1,4 @@
-package handlers
+package config
 
 import (
 	"database/sql"

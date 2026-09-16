@@ -24,13 +24,16 @@ func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (str
 }
 
 func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &jwt.RegisteredClaims{}, func(token *jwt.Token) (any, error) {
-		_, ok := token.Method.(*jwt.SigningMethodHMAC)
-		if !ok {
-			return nil, fmt.Errorf("unexpected signing method")
-		}
-		return []byte(tokenSecret), nil
-	})
+	token, err := jwt.ParseWithClaims(
+		tokenString,
+		&jwt.RegisteredClaims{},
+		func(token *jwt.Token) (any, error) {
+			if token.Method != jwt.SigningMethodHS256 {
+				return nil, fmt.Errorf("unexpected signing method: %s", token.Method.Alg())
+			}
+			return []byte(tokenSecret), nil
+		},
+	)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -55,11 +58,14 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 func GetBearerToken(headers http.Header) (string, error) {
 	authHeader := headers.Get("Authorization")
 	if authHeader == "" {
-		return "", errors.New("missing Authorized header")
+		return "", errors.New("missing Authorization header")
 	}
 	splitAuth := strings.Split(authHeader, " ")
-	if len(splitAuth) < 2 || splitAuth[0] != "Bearer" {
+	if len(splitAuth) < 2 || !strings.EqualFold(splitAuth[0], "Bearer") {
 		return "", errors.New("malformed authorization header")
+	}
+	if splitAuth[1] == "" {
+		return "", errors.New("missing bearer token")
 	}
 	return splitAuth[1], nil
 }

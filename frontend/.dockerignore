@@ -1,0 +1,22 @@
+.env
+.env.*
+.git
+.gitignore
+.nuxt
+.output
+.data
+.nitro
+.cache
+dist
+node_modules
+Dockerfile
+README.md
+
+# Test artifacts
+playwright-report
+test-results
+
+# IDE
+.idea
+.fleet
+.vscode
