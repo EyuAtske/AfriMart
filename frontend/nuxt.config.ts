@@ -23,7 +23,7 @@ export default defineNuxtConfig({
   ssr: true,
 
   routeRules: {
-    '/api/**': { proxy: 'http://localhost:8080/api/**' }
+    '/api/**': { proxy: `${process.env.API_PROXY_TARGET || 'http://localhost:8080'}/api/**` }
   },
 
   vite: {
