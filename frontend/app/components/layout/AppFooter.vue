@@ -1,67 +1,50 @@
 <template>
-  <footer class="bg-[#1d1a18] text-white">
-    <div class="mx-auto max-w-[1800px] px-6 py-16 lg:px-12 lg:py-24">
+  <footer class="w-full bg-[#1d1a18] text-white">
+    <div class="mx-auto w-full max-w-[1800px] px-4 py-10 sm:px-6 sm:py-16 lg:px-12 lg:py-20">
 
-      <!-- Main footer -->
-      <div class="grid gap-12 sm:grid-cols-2 lg:grid-cols-4 lg:gap-16">
-
-        <!-- Brand -->
-        <div>
-          <NuxtLink
-            to="/"
-            class="font-serif text-3xl tracking-[0.3em] text-[#f5f1e9]"
-          >
-            AFRIMART
-          </NuxtLink>
-
-          <p
-            class="mt-7 max-w-xs text-base leading-8 text-[#998d82]"
-          >
-            Discover clothing from independent sellers.
-            Buy, sell, and find your style in one marketplace.
-          </p>
-        </div>
+      <!-- Main footer: 3 equal columns covering the full span -->
+      <div class="grid w-full grid-cols-3 gap-4 sm:gap-10 lg:gap-16">
 
         <!-- Shop -->
-        <div>
+        <div class="min-w-0">
           <h3
-            class="text-sm font-semibold tracking-[0.16em] text-[#f5f1e9]"
+            class="text-[11px] sm:text-xs md:text-sm font-semibold tracking-[0.12em] sm:tracking-[0.16em] text-[#f5f1e9]"
           >
             SHOP
           </h3>
 
-          <nav class="mt-7 flex flex-col gap-5">
+          <nav class="mt-2 sm:mt-4 lg:mt-6 flex flex-col gap-1.5 sm:gap-3 lg:gap-4">
             <NuxtLink
               to="/products"
-              class="text-base text-[#998d82] transition-colors hover:text-white"
+              class="text-[10px] sm:text-xs md:text-sm lg:text-base text-[#998d82] transition-colors hover:text-white truncate"
             >
               New Arrivals
             </NuxtLink>
 
             <NuxtLink
               to="/products?category=Men"
-              class="text-base text-[#998d82] transition-colors hover:text-white"
+              class="text-[10px] sm:text-xs md:text-sm lg:text-base text-[#998d82] transition-colors hover:text-white truncate"
             >
               Men
             </NuxtLink>
 
             <NuxtLink
               to="/products?category=Women"
-              class="text-base text-[#998d82] transition-colors hover:text-white"
+              class="text-[10px] sm:text-xs md:text-sm lg:text-base text-[#998d82] transition-colors hover:text-white truncate"
             >
               Women
             </NuxtLink>
 
             <NuxtLink
               to="/products?category=Kids"
-              class="text-base text-[#998d82] transition-colors hover:text-white"
+              class="text-[10px] sm:text-xs md:text-sm lg:text-base text-[#998d82] transition-colors hover:text-white truncate"
             >
               Kids
             </NuxtLink>
 
             <NuxtLink
               to="/cart"
-              class="text-base text-[#998d82] transition-colors hover:text-white"
+              class="text-[10px] sm:text-xs md:text-sm lg:text-base text-[#998d82] transition-colors hover:text-white truncate"
             >
               Shopping Cart
             </NuxtLink>
@@ -69,38 +52,38 @@
         </div>
 
         <!-- Sell -->
-        <div>
+        <div class="min-w-0">
           <h3
-            class="text-sm font-semibold tracking-[0.16em] text-[#f5f1e9]"
+            class="text-[11px] sm:text-xs md:text-sm font-semibold tracking-[0.12em] sm:tracking-[0.16em] text-[#f5f1e9]"
           >
             SELL
           </h3>
 
-          <nav class="mt-7 flex flex-col gap-5">
+          <nav class="mt-2 sm:mt-4 lg:mt-6 flex flex-col gap-1.5 sm:gap-3 lg:gap-4">
             <NuxtLink
               to="/sell"
-              class="text-base text-[#998d82] transition-colors hover:text-white"
+              class="text-[10px] sm:text-xs md:text-sm lg:text-base text-[#998d82] transition-colors hover:text-white truncate"
             >
               Start Selling
             </NuxtLink>
 
             <NuxtLink
               to="/shop"
-              class="text-base text-[#998d82] transition-colors hover:text-white"
+              class="text-[10px] sm:text-xs md:text-sm lg:text-base text-[#998d82] transition-colors hover:text-white truncate"
             >
               My Shop
             </NuxtLink>
 
             <NuxtLink
               to="/seller/products"
-              class="text-base text-[#998d82] transition-colors hover:text-white"
+              class="text-[10px] sm:text-xs md:text-sm lg:text-base text-[#998d82] transition-colors hover:text-white truncate"
             >
               My Products
             </NuxtLink>
 
             <NuxtLink
               to="/seller/orders"
-              class="text-base text-[#998d82] transition-colors hover:text-white"
+              class="text-[10px] sm:text-xs md:text-sm lg:text-base text-[#998d82] transition-colors hover:text-white truncate"
             >
               Seller Orders
             </NuxtLink>
@@ -108,33 +91,33 @@
         </div>
 
         <!-- Account -->
-        <div>
+        <div class="min-w-0">
           <h3
-            class="text-sm font-semibold tracking-[0.16em] text-[#f5f1e9]"
+            class="text-[11px] sm:text-xs md:text-sm font-semibold tracking-[0.12em] sm:tracking-[0.16em] text-[#f5f1e9]"
           >
             ACCOUNT
           </h3>
 
-          <nav class="mt-7 flex flex-col gap-5">
+          <nav class="mt-2 sm:mt-4 lg:mt-6 flex flex-col gap-1.5 sm:gap-3 lg:gap-4">
             <NuxtLink
               to="/profile"
-              class="text-base text-[#998d82] transition-colors hover:text-white"
+              class="text-[10px] sm:text-xs md:text-sm lg:text-base text-[#998d82] transition-colors hover:text-white truncate"
             >
               My Profile
             </NuxtLink>
 
             <NuxtLink
               to="/orders"
-              class="text-base text-[#998d82] transition-colors hover:text-white"
+              class="text-[10px] sm:text-xs md:text-sm lg:text-base text-[#998d82] transition-colors hover:text-white truncate"
             >
               My Orders
             </NuxtLink>
 
             <NuxtLink
               to="/ai"
-              class="text-base text-[#998d82] transition-colors hover:text-white"
+              class="text-[10px] sm:text-xs md:text-sm lg:text-base text-[#998d82] transition-colors hover:text-white truncate"
             >
-              AI Shopping Assistant
+              AI Assistant
             </NuxtLink>
           </nav>
         </div>

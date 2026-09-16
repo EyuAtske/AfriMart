@@ -90,4 +90,21 @@ export class MockShopRepository implements IShopRepository {
 
     return { ...shop.value }
   }
+
+  async getMyShop(): Promise<Shop | null> {
+    const { shop } = useMockDataStore()
+    return shop.value ? { ...shop.value } : null
+  }
+
+  async deactivateShop(_shopId: string): Promise<Shop | null> {
+    const { shop } = useMockDataStore()
+    if (!shop.value) return null
+    return { ...shop.value }
+  }
+
+  async activateShop(_shopId: string): Promise<Shop | null> {
+    const { shop } = useMockDataStore()
+    if (!shop.value) return null
+    return { ...shop.value }
+  }
 }

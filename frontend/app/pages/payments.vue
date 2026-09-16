@@ -15,8 +15,6 @@ const paymentForm = reactive({
 
 const paymentError = ref('')
 
-const buttonClass = 'h-12 rounded-full border border-[#806344] px-6 text-sm font-medium uppercase tracking-[0.14em] text-[#5d4b37] transition-all duration-300 hover:bg-[#806344] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#806344] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
-
 const submitPaymentMethod = () => {
   paymentError.value = ''
 
@@ -34,7 +32,7 @@ const submitPaymentMethod = () => {
 </script>
 
 <template>
-  <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-8">
+  <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-12">
     <div class="mx-auto flex max-w-6xl flex-col gap-10 lg:flex-row">
       <AccountSidebar active="payments" />
 
@@ -49,9 +47,9 @@ const submitPaymentMethod = () => {
           </p>
         </div>
 
-        <div
+        <UiAppCard
           v-if="!hasShop"
-          class="rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8"
+          padding="large"
         >
           <p class="text-xs font-medium uppercase tracking-[0.18em] text-[#806344]">
             Seller account needed
@@ -65,19 +63,21 @@ const submitPaymentMethod = () => {
             Payment methods are only available after you become a seller and create your shop.
           </p>
 
-          <NuxtLink
-            to="/shop"
-            :class="`${buttonClass} mt-8 inline-flex items-center justify-center`"
-          >
-            Go to my shop
-          </NuxtLink>
-        </div>
+          <div class="mt-8">
+            <UiAppButton
+              to="/shop"
+              variant="secondary"
+            >
+              Go to my shop
+            </UiAppButton>
+          </div>
+        </UiAppCard>
 
         <div
           v-else-if="shop"
           class="space-y-6"
         >
-          <section class="rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8">
+          <UiAppCard padding="large">
             <p class="text-xs font-medium uppercase tracking-[0.18em] text-[#806344]">
               {{ shop.name }}
             </p>
@@ -126,23 +126,20 @@ const submitPaymentMethod = () => {
                 />
               </div>
 
-              <p
-                v-if="paymentError"
-                class="text-sm font-medium text-red-600"
-              >
+              <UiAppAlert v-if="paymentError">
                 {{ paymentError }}
-              </p>
+              </UiAppAlert>
 
-              <button
+              <UiAppButton
                 type="submit"
-                :class="buttonClass"
+                variant="secondary"
               >
                 Save method
-              </button>
+              </UiAppButton>
             </form>
-          </section>
+          </UiAppCard>
 
-          <section class="rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8">
+          <UiAppCard padding="large">
             <h2 class="text-xl font-medium text-[#211f1d]">
               Saved methods
             </h2>
@@ -154,7 +151,7 @@ const submitPaymentMethod = () => {
               <article
                 v-for="method in shop.paymentMethods"
                 :key="method.id"
-                class="rounded-[10px] border border-[#ded6cc] bg-[#f5f1e9] p-5"
+                class="rounded-lg border border-[#ded6cc] bg-[#f5f1e9] p-5"
               >
                 <p class="text-xs font-medium uppercase tracking-[0.16em] text-[#806344]">
                   {{ method.type }}
@@ -176,7 +173,7 @@ const submitPaymentMethod = () => {
             >
               No payment methods added yet.
             </p>
-          </section>
+          </UiAppCard>
         </div>
       </section>
     </div>

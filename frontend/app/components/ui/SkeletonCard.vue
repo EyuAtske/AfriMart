@@ -1,5 +1,5 @@
 <template>
-  <div class="animate-pulse overflow-hidden rounded-[10px] border border-[#ded6cc] bg-[#f5f1e9] p-0">
+  <div class="animate-pulse overflow-hidden rounded-xl border border-[#d9d0c4] bg-[#faf8f4] p-0 shadow-[0_20px_70px_rgba(33,31,29,0.06)]">
     <div class="h-64 w-full bg-[#e8dfd2]" />
     <div class="p-4 space-y-3">
       <div class="h-3 w-1/4 rounded bg-[#e8dfd2]" />

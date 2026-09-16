@@ -31,22 +31,15 @@ const submitLogin = async () => {
   isLoading.value = true
 
   try {
-    // Try the current login function.
-    // For now, we are using mock authentication.
     await login({
       email: loginForm.email.trim(),
       password: loginForm.password
     })
-  } catch (error) {
-    // Backend authentication is not connected yet,
-    // so don't stop the frontend login flow.
-    console.log('Mock login:', loginForm.email)
+  } catch (error: any) {
+    loginError.value =
+      error?.message || 'Login failed. Please check your credentials.'
   } finally {
-    // For the frontend/mock stage,
-    // always go to the profile page after pressing Sign in.
     isLoading.value = false
-
-    await router.push('/profile')
   }
 }
 </script>
@@ -77,12 +70,9 @@ const submitLogin = async () => {
     />
 
     <!-- Error -->
-    <p
-      v-if="loginError"
-      class="text-sm font-medium text-red-600"
-    >
+    <UiAppAlert v-if="loginError">
       {{ loginError }}
-    </p>
+    </UiAppAlert>
 
     <!-- Forgot password -->
     <div class="flex items-center justify-end">
@@ -95,13 +85,13 @@ const submitLogin = async () => {
     </div>
 
     <!-- Sign In -->
-    <button
+    <UiAppButton
       type="submit"
       :disabled="isLoading"
-      class="h-12 w-full rounded-full border border-[#806344] text-sm font-medium uppercase tracking-[0.14em] text-[#5d4b37] transition-all duration-300 hover:bg-[#806344] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#806344] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+      class="w-full"
     >
       {{ isLoading ? 'Signing in...' : 'Sign in' }}
-    </button>
+    </UiAppButton>
 
     <!-- Register -->
     <p class="pt-3 text-center text-sm text-[#756a60]">

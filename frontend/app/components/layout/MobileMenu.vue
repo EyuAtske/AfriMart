@@ -31,13 +31,6 @@ const emit = defineEmits(['close'])
           </div>
         </div>
       </div>
-
-      <NuxtLink to="/account" class="block border-b border-[#ded8ce] py-4 text-sm text-[#302d29]" @click="emit('close')">
-        ACCOUNT
-      </NuxtLink>
-      <NuxtLink to="/cart" class="block py-4 text-sm text-[#302d29]" @click="emit('close')">
-        CART
-      </NuxtLink>
     </div>
   </div>
 </template>

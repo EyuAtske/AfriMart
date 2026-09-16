@@ -11,7 +11,7 @@ const { addToCart } = useMarketplace()
 </script>
 
 <template>
-  <div class="columns-1 gap-3 sm:columns-2 sm:gap-4 md:columns-3 lg:columns-4 lg:gap-5">
+  <div class="columns-2 gap-3 sm:columns-2 sm:gap-4 md:columns-3 lg:columns-4 lg:gap-5">
     <div
       v-for="product in products"
       :key="product.id"
@@ -25,6 +25,7 @@ const { addToCart } = useMarketplace()
         :rating="product.rating"
         :image="product.image"
         :stock="product.stock"
+        :media="product.media"
         @add-to-cart="addToCart"
       />
     </div>

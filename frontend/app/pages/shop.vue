@@ -2,13 +2,14 @@
 import AccountSidebar from '~/components/account/AccountSidebar.vue'
 import EditShopModal from '~/components/marketplace/EditShopModal.vue'
 import EditProductModal from '~/components/marketplace/EditProductModal.vue'
+import MediaUploader from '~/components/marketplace/MediaUploader.vue'
 import type { SellerProduct } from '~/composables/useSellerShop'
-import type { ProductCategory } from '~/types/product'
+import { CATEGORY_SUBCATEGORIES, type ProductCategory, type ProductSubCategory, type ProductMedia } from '~/types/product'
 
 definePageMeta({
   middleware: 'auth'
 })
-
+const { gtag } = useGtag()
 const { shop, hasShop, createShop, addProduct, deleteSellerProduct, toggleProductStatus } = useSellerShop()
 const { showToast } = useToast()
 
@@ -19,14 +20,37 @@ const shopForm = reactive({
   description: ''
 })
 
-const productForm = reactive({
+const productForm = reactive<{
+  name: string
+  description: string
+  category: ProductCategory
+  subCategory: ProductSubCategory
+  price: number
+  stock: number
+  image: string
+}>({
   name: '',
   description: '',
   category: categories[0] as ProductCategory,
+  subCategory: CATEGORY_SUBCATEGORIES[categories[0] as ProductCategory][0] as ProductSubCategory,
   price: 1500,
   stock: 1,
   image: ''
 })
+
+const availableSubCategories = computed(() => {
+  if (!productForm.category) return []
+  return CATEGORY_SUBCATEGORIES[productForm.category] || []
+})
+
+watch(() => productForm.category, (newCat) => {
+  const subs = CATEGORY_SUBCATEGORIES[newCat] || []
+  if (!subs.includes(productForm.subCategory)) {
+    productForm.subCategory = subs[0] as ProductSubCategory
+  }
+})
+
+const productMedia = ref<ProductMedia[]>([])
 
 const showShopForm = ref(false)
 const isEditShopOpen = ref(false)
@@ -35,9 +59,6 @@ const editingProduct = ref<SellerProduct | null>(null)
 
 const shopError = ref('')
 const productError = ref('')
-const uploadedFileName = ref('')
-
-const buttonClass = 'h-12 rounded-full border border-[#806344] px-6 text-sm font-medium uppercase tracking-[0.14em] text-[#5d4b37] transition-all duration-300 hover:bg-[#806344] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#806344] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
 
 const submitShop = () => {
   shopError.value = ''
@@ -48,22 +69,21 @@ const submitShop = () => {
   }
 
   createShop(shopForm)
+
+  gtag('event', 'shop_created', {
+    shop_name: shopForm.name
+  })
+
   showShopForm.value = false
   showToast('Shop created successfully!')
 }
 
-const handleImageUpload = (event: Event) => {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-
-  if (!file) return
-
-  uploadedFileName.value = file.name
-  productForm.image = URL.createObjectURL(file)
-}
-
 const submitProduct = () => {
   productError.value = ''
+
+  const hasMedia = productMedia.value.length > 0
+  const primaryImage = productMedia.value.find(m => m.isPrimary)
+  const coverUrl = primaryImage?.url || productMedia.value[0]?.url || productForm.image
 
   if (
     !productForm.name.trim() ||
@@ -71,9 +91,9 @@ const submitProduct = () => {
     !productForm.category ||
     productForm.price < 1 ||
     productForm.stock < 1 ||
-    !productForm.image
+    (!hasMedia && !productForm.image)
   ) {
-    productError.value = 'Please upload a picture and complete every product field.'
+    productError.value = 'Please upload at least one image and complete every product field.'
     return
   }
 
@@ -81,19 +101,29 @@ const submitProduct = () => {
     name: productForm.name,
     description: productForm.description,
     category: productForm.category as ProductCategory,
+    subCategory: productForm.subCategory,
     price: productForm.price,
     stock: productForm.stock,
-    image: productForm.image
+    image: coverUrl || '',
+    media: hasMedia ? productMedia.value : undefined
   })
+
+  gtag('event', 'product_created', {
+    product_name: productForm.name,
+    category: productForm.category,
+    price: productForm.price
+  })
+
   showToast(`Added product "${productForm.name}" to marketplace!`)
 
   productForm.name = ''
   productForm.description = ''
   productForm.category = categories[0] || 'Men'
+  productForm.subCategory = (CATEGORY_SUBCATEGORIES[categories[0] || 'Men']?.[0] || 'T-Shirts') as ProductSubCategory
   productForm.price = 1500
   productForm.stock = 1
   productForm.image = ''
-  uploadedFileName.value = ''
+  productMedia.value = []
 }
 
 const openProductEdit = (product: SellerProduct) => {
@@ -126,7 +156,7 @@ const totalInventoryValue = computed(() => {
 </script>
 
 <template>
-  <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-8">
+  <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-12">
     <div class="mx-auto flex max-w-6xl flex-col gap-10 lg:flex-row">
       <AccountSidebar active="shop" />
 
@@ -143,26 +173,28 @@ const totalInventoryValue = computed(() => {
           </div>
 
           <div v-if="hasShop && shop" class="flex gap-2">
-            <NuxtLink
+            <UiAppButton
               :to="`/shops/${shop.name.toLowerCase().replace(/\s+/g, '-')}`"
-              class="inline-flex h-10 items-center justify-center rounded-full border border-[#cfc4b5] px-4 text-xs font-medium uppercase tracking-[0.14em] text-[#756a60] transition hover:bg-[#eee8df]"
+              variant="ghost"
+              size="small"
             >
               View Public Shop
-            </NuxtLink>
+            </UiAppButton>
 
-            <button
-              type="button"
-              class="inline-flex h-10 items-center justify-center rounded-full border border-[#806344] px-4 text-xs font-medium uppercase tracking-[0.14em] text-[#5d4b37] transition hover:bg-[#806344] hover:text-white"
+            <UiAppButton
+              variant="secondary"
+              size="small"
               @click="isEditShopOpen = true"
             >
               Edit Shop
-            </button>
+            </UiAppButton>
           </div>
         </div>
 
-        <div
+        <UiAppCard
           v-if="!hasShop"
-          class="overflow-hidden rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] shadow-[0_20px_70px_rgba(33,31,29,0.06)]"
+          padding="none"
+          class="overflow-hidden"
         >
           <div class="grid lg:grid-cols-[1fr_0.85fr]">
             <div class="p-6 sm:p-8">
@@ -178,14 +210,14 @@ const totalInventoryValue = computed(() => {
                 Give your shop a name, add a short description, and your product listing tools will open here.
               </p>
 
-              <button
-                v-if="!showShopForm"
-                type="button"
-                :class="`${buttonClass} mt-8`"
-                @click="showShopForm = true"
-              >
-                Become a seller
-              </button>
+              <div v-if="!showShopForm" class="mt-8">
+                <UiAppButton
+                  variant="secondary"
+                  @click="showShopForm = true"
+                >
+                  Become a seller
+                </UiAppButton>
+              </div>
 
               <form
                 v-else
@@ -202,7 +234,7 @@ const totalInventoryValue = computed(() => {
                 <div class="space-y-2">
                   <label
                     for="shop-description"
-                    class="block text-[11px] font-medium uppercase tracking-[0.16em] text-[#4d4035]"
+                    class="block text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]"
                   >
                     Description
                   </label>
@@ -212,54 +244,59 @@ const totalInventoryValue = computed(() => {
                     v-model="shopForm.description"
                     rows="4"
                     placeholder="Describe what your shop sells"
-                    class="w-full rounded-[5px] border border-[#cfc4b5] bg-[#faf8f4] px-4 py-3 text-sm text-[#211f1d] outline-none transition-all placeholder:text-[#92877b] hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
+                    class="w-full rounded-md border border-[#cfc4b5] bg-[#faf8f4] px-4 py-3 text-sm text-[#211f1d] outline-none transition-all placeholder:text-[#92877b] hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
                   />
                 </div>
 
-                <p
-                  v-if="shopError"
-                  class="text-sm font-medium text-red-600"
-                >
+                <UiAppAlert v-if="shopError">
                   {{ shopError }}
-                </p>
+                </UiAppAlert>
 
                 <div class="flex flex-wrap gap-3">
-                  <button
+                  <UiAppButton
                     type="submit"
-                    :class="buttonClass"
+                    variant="secondary"
                   >
                     Create shop
-                  </button>
+                  </UiAppButton>
 
-                  <button
-                    type="button"
-                    :class="buttonClass"
+                  <UiAppButton
+                    variant="ghost"
                     @click="showShopForm = false"
                   >
                     Cancel
-                  </button>
+                  </UiAppButton>
                 </div>
               </form>
             </div>
 
-            <div class="hidden bg-[#211f1d] p-8 text-[#f5f1e9] lg:flex lg:flex-col lg:justify-end">
-              <p class="font-serif text-5xl leading-none">
-                Sell with style.
-              </p>
+            <div class="relative hidden overflow-hidden bg-[#211f1d] p-8 text-[#f5f1e9] lg:flex lg:flex-col lg:justify-end">
+              <img
+                src="/images/product1.jpg"
+                alt="Sell with style on Afrimart"
+                class="absolute inset-0 h-full w-full object-cover object-center"
+              />
+              <div class="absolute inset-0 bg-gradient-to-t from-[#211f1d]/95 via-[#211f1d]/60 to-[#211f1d]/30" />
 
-              <p class="mt-5 text-sm leading-6 text-[#d8cfc2]">
-                Your shop, products, and payment setup stay together in this account area.
-              </p>
+              <div class="relative z-10">
+                <p class="font-serif text-5xl leading-none text-white">
+                  Sell with style.
+                </p>
+
+                <p class="mt-5 text-sm leading-6 text-[#ded6cc]">
+                  Your shop, products, and payment setup stay together in this account area.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        </UiAppCard>
 
         <div
           v-else-if="shop"
           class="space-y-6"
         >
           <!-- Shop Overview Header & Metrics -->
-          <section class="rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8">
+          <UiAppCard padding="large">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p class="text-xs font-medium uppercase tracking-[0.18em] text-[#806344]">
@@ -275,35 +312,37 @@ const totalInventoryValue = computed(() => {
                 </p>
               </div>
 
-              <NuxtLink
+              <UiAppButton
                 to="/seller/products"
-                class="inline-flex shrink-0 h-10 items-center justify-center rounded-full border border-[#806344] px-5 text-xs font-medium uppercase tracking-[0.14em] text-[#5d4b37] hover:bg-[#806344] hover:text-white transition"
+                variant="secondary"
+                size="small"
+                class="shrink-0"
               >
                 Manage Inventory
-              </NuxtLink>
+              </UiAppButton>
             </div>
 
             <!-- Quick Metrics Grid -->
             <div class="mt-6 grid grid-cols-2 gap-4 border-t border-[#ded6cc] pt-6 sm:grid-cols-3">
-              <div class="rounded-[8px] border border-[#e8e0d5] bg-[#f5f1e9] p-4">
-                <p class="text-[11px] font-medium uppercase tracking-[0.14em] text-[#756a60]">Listed Products</p>
+              <div class="rounded-lg border border-[#e8e0d5] bg-[#f5f1e9] p-4">
+                <p class="text-xs font-medium uppercase tracking-[0.14em] text-[#756a60]">Listed Products</p>
                 <p class="mt-1 font-serif text-2xl text-[#211f1d]">{{ shop.products.length }}</p>
               </div>
 
-              <div class="rounded-[8px] border border-[#e8e0d5] bg-[#f5f1e9] p-4">
-                <p class="text-[11px] font-medium uppercase tracking-[0.14em] text-[#756a60]">Total Items in Stock</p>
+              <div class="rounded-lg border border-[#e8e0d5] bg-[#f5f1e9] p-4">
+                <p class="text-xs font-medium uppercase tracking-[0.14em] text-[#756a60]">Total Items in Stock</p>
                 <p class="mt-1 font-serif text-2xl text-[#211f1d]">{{ totalStockCount }}</p>
               </div>
 
-              <div class="col-span-2 rounded-[8px] border border-[#e8e0d5] bg-[#f5f1e9] p-4 sm:col-span-1">
-                <p class="text-[11px] font-medium uppercase tracking-[0.14em] text-[#756a60]">Stock Value</p>
+              <div class="col-span-2 rounded-lg border border-[#e8e0d5] bg-[#f5f1e9] p-4 sm:col-span-1">
+                <p class="text-xs font-medium uppercase tracking-[0.14em] text-[#756a60]">Stock Value</p>
                 <p class="mt-1 font-serif text-2xl text-[#211f1d]">{{ formatPrice(totalInventoryValue) }}</p>
               </div>
             </div>
-          </section>
+          </UiAppCard>
 
           <!-- Product Creation Form -->
-          <section class="rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8">
+          <UiAppCard padding="large">
             <div class="mb-6">
               <h2 class="text-xl font-medium text-[#211f1d]">
                 List a product
@@ -318,34 +357,7 @@ const totalInventoryValue = computed(() => {
               class="grid gap-6 lg:grid-cols-[0.8fr_1fr]"
               @submit.prevent="submitProduct"
             >
-              <label class="flex min-h-72 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[10px] border border-dashed border-[#b9aa98] bg-[#f5f1e9] text-center transition hover:border-[#806344]">
-                <img
-                  v-if="productForm.image"
-                  :src="productForm.image"
-                  alt="Product preview"
-                  class="h-full max-h-80 w-full object-cover"
-                />
-
-                <span
-                  v-else
-                  class="px-6"
-                >
-                  <span class="block font-serif text-2xl text-[#211f1d]">
-                    Upload picture
-                  </span>
-
-                  <span class="mt-2 block text-sm leading-6 text-[#756a60]">
-                    Choose a clear photo of the product.
-                  </span>
-                </span>
-
-                <input
-                  type="file"
-                  accept="image/*"
-                  class="sr-only"
-                  @change="handleImageUpload"
-                />
-              </label>
+              <MediaUploader v-model="productMedia" />
 
               <div class="space-y-5">
                 <AuthInput
@@ -358,7 +370,7 @@ const totalInventoryValue = computed(() => {
                 <div class="space-y-2">
                   <label
                     for="product-description"
-                    class="block text-[11px] font-medium uppercase tracking-[0.16em] text-[#4d4035]"
+                    class="block text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]"
                   >
                     Description
                   </label>
@@ -368,37 +380,62 @@ const totalInventoryValue = computed(() => {
                     v-model="productForm.description"
                     rows="4"
                     placeholder="Describe size, condition, fabric, and anything buyers should know"
-                    class="w-full rounded-[5px] border border-[#cfc4b5] bg-[#faf8f4] px-4 py-3 text-sm text-[#211f1d] outline-none transition-all placeholder:text-[#92877b] hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
+                    class="w-full rounded-md border border-[#cfc4b5] bg-[#faf8f4] px-4 py-3 text-sm text-[#211f1d] outline-none transition-all placeholder:text-[#92877b] hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
                   />
                 </div>
 
-                <div class="space-y-2">
-                  <label
-                    for="product-category"
-                    class="block text-[11px] font-medium uppercase tracking-[0.16em] text-[#4d4035]"
-                  >
-                    Category
-                  </label>
-
-                  <select
-                    id="product-category"
-                    v-model="productForm.category"
-                    class="h-12 w-full rounded-[5px] border border-[#cfc4b5] bg-[#faf8f4] px-4 text-sm text-[#211f1d] outline-none transition-all hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
-                  >
-                    <option
-                      v-for="category in categories"
-                      :key="category"
-                      :value="category"
+                <div class="grid gap-5 sm:grid-cols-2">
+                  <div class="space-y-2">
+                    <label
+                      for="product-category"
+                      class="block text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]"
                     >
-                      {{ category }}
-                    </option>
-                  </select>
+                      Gender / Category
+                    </label>
+
+                    <select
+                      id="product-category"
+                      v-model="productForm.category"
+                      class="h-12 w-full rounded-md border border-[#cfc4b5] bg-[#faf8f4] px-4 text-sm text-[#211f1d] outline-none transition-all hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
+                    >
+                      <option
+                        v-for="category in categories"
+                        :key="category"
+                        :value="category"
+                      >
+                        {{ category }}
+                      </option>
+                    </select>
+                  </div>
+
+                  <div class="space-y-2">
+                    <label
+                      for="product-subcategory"
+                      class="block text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]"
+                    >
+                      Item Type
+                    </label>
+
+                    <select
+                      id="product-subcategory"
+                      v-model="productForm.subCategory"
+                      class="h-12 w-full rounded-md border border-[#cfc4b5] bg-[#faf8f4] px-4 text-sm text-[#211f1d] outline-none transition-all hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
+                    >
+                      <option
+                        v-for="subCat in availableSubCategories"
+                        :key="subCat"
+                        :value="subCat"
+                      >
+                        {{ subCat }}
+                      </option>
+                    </select>
+                  </div>
                 </div>
 
                 <div class="grid gap-5 sm:grid-cols-2">
                   <label class="space-y-2">
-                    <span class="block text-[11px] font-medium uppercase tracking-[0.16em] text-[#4d4035]">
-                      Price
+                    <span class="block text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]">
+                      Price (ETB)
                     </span>
 
                     <input
@@ -406,12 +443,12 @@ const totalInventoryValue = computed(() => {
                       type="number"
                       min="1"
                       step="50"
-                      class="h-12 w-full rounded-[5px] border border-[#cfc4b5] bg-[#faf8f4] px-4 text-sm text-[#211f1d] outline-none transition-all hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
+                      class="h-12 w-full rounded-md border border-[#cfc4b5] bg-[#faf8f4] px-4 text-sm text-[#211f1d] outline-none transition-all hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
                     />
                   </label>
 
                   <label class="space-y-2">
-                    <span class="block text-[11px] font-medium uppercase tracking-[0.16em] text-[#4d4035]">
+                    <span class="block text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]">
                       Stock
                     </span>
 
@@ -420,41 +457,31 @@ const totalInventoryValue = computed(() => {
                       type="number"
                       min="1"
                       step="1"
-                      class="h-12 w-full rounded-[5px] border border-[#cfc4b5] bg-[#faf8f4] px-4 text-sm text-[#211f1d] outline-none transition-all hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
+                      class="h-12 w-full rounded-md border border-[#cfc4b5] bg-[#faf8f4] px-4 text-sm text-[#211f1d] outline-none transition-all hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
                     />
                   </label>
                 </div>
 
-                <p
-                  v-if="uploadedFileName"
-                  class="text-xs text-[#756a60]"
-                >
-                  Selected: {{ uploadedFileName }}
-                </p>
-
-                <p
-                  v-if="productError"
-                  class="text-sm font-medium text-red-600"
-                >
+                <UiAppAlert v-if="productError">
                   {{ productError }}
-                </p>
+                </UiAppAlert>
 
-                <button
+                <UiAppButton
                   type="submit"
-                  :class="buttonClass"
+                  variant="secondary"
                 >
                   List product
-                </button>
+                </UiAppButton>
               </div>
             </form>
-          </section>
+          </UiAppCard>
 
           <!-- Listed Products Management List -->
-          <section
+          <UiAppCard
             v-if="shop.products.length"
-            class="rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8"
+            padding="large"
           >
-            <div class="mb-6 flex items-center justify-between">
+            <div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <h2 class="text-xl font-medium text-[#211f1d]">
                 Listed Products ({{ shop.products.length }})
               </h2>
@@ -471,7 +498,7 @@ const totalInventoryValue = computed(() => {
               <article
                 v-for="product in shop.products"
                 :key="product.id"
-                class="overflow-hidden rounded-[10px] border border-[#ded6cc] bg-[#f5f1e9] flex flex-col justify-between"
+                class="overflow-hidden rounded-lg border border-[#ded6cc] bg-[#f5f1e9] flex flex-col justify-between"
               >
                 <div>
                   <div class="relative">
@@ -480,17 +507,18 @@ const totalInventoryValue = computed(() => {
                       :alt="product.name"
                       class="h-48 w-full object-cover"
                     />
-                    <span
-                      class="absolute top-3 right-3 rounded-full px-3 py-1 text-[11px] font-semibold tracking-wider text-white uppercase shadow-md"
-                      :class="product.status === 'Active' ? 'bg-[#806344]' : 'bg-gray-500'"
-                    >
-                      {{ product.status }}
-                    </span>
+                    <div class="absolute top-3 right-3">
+                      <UiAppBadge
+                        :variant="product.status === 'Active' ? 'brand' : 'muted'"
+                      >
+                        {{ product.status }}
+                      </UiAppBadge>
+                    </div>
                   </div>
 
                   <div class="p-4">
                     <p class="text-xs font-medium uppercase tracking-[0.14em] text-[#806344]">
-                      {{ product.category }}
+                      {{ product.category }}<span v-if="product.subCategory"> · {{ product.subCategory }}</span>
                     </p>
 
                     <h3 class="mt-1 font-serif text-xl text-[#211f1d]">
@@ -543,7 +571,7 @@ const totalInventoryValue = computed(() => {
                 </div>
               </article>
             </div>
-          </section>
+          </UiAppCard>
         </div>
 
         <EditShopModal

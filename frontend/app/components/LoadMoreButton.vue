@@ -11,7 +11,7 @@ const emit = defineEmits<{
       @click="emit('loadMore')"
       class="group inline-flex items-center gap-4 rounded-full border border-[#806344] px-10 py-4 text-sm tracking-[0.14em] text-[#5d4b37] transition-all duration-300 hover:bg-[#806344] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#806344] focus:ring-offset-2 focus:ring-offset-[#f5f1e9]"
     >
-      <span>LOAD MORE</span>
+      <AppTextSwap text="LOAD MORE" />
 
       <svg
         xmlns="http://www.w3.org/2000/svg"

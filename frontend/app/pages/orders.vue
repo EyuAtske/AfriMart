@@ -31,7 +31,7 @@ const openReviewModal = (product: Product, orderId?: number) => {
 </script>
 
 <template>
-  <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-8">
+  <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-12">
     <div class="mx-auto flex max-w-6xl flex-col gap-10 lg:flex-row">
       <AccountSidebar active="orders" />
 
@@ -50,10 +50,9 @@ const openReviewModal = (product: Product, orderId?: number) => {
           v-if="orders.length"
           class="space-y-5"
         >
-          <article
+          <UiAppCard
             v-for="order in orders"
             :key="order.id"
-            class="rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-5 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-6"
           >
             <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
               <div>
@@ -61,9 +60,9 @@ const openReviewModal = (product: Product, orderId?: number) => {
                   <p class="text-xs font-medium uppercase tracking-[0.18em] text-[#806344]">
                     Order #{{ order.id }}
                   </p>
-                  <span class="rounded-full bg-[#eee8df] px-3 py-0.5 text-[11px] font-semibold text-[#211f1d]">
+                  <UiAppBadge variant="default">
                     {{ order.status }}
-                  </span>
+                  </UiAppBadge>
                 </div>
 
                 <p class="mt-1.5 text-sm text-[#756a60]">
@@ -72,21 +71,21 @@ const openReviewModal = (product: Product, orderId?: number) => {
               </div>
 
               <div class="flex flex-wrap items-center gap-2">
-                <span class="rounded-full bg-[#e6eee5] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[#536653]">
+                <UiAppBadge variant="success">
                   {{ order.paymentStatus }}
-                </span>
+                </UiAppBadge>
 
-                <span class="rounded-full bg-[#211f1d] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-white">
+                <UiAppBadge variant="dark">
                   {{ formatPrice(order.total) }}
-                </span>
+                </UiAppBadge>
 
-                <button
-                  type="button"
-                  class="ml-2 inline-flex h-9 items-center justify-center rounded-full border border-[#806344] px-4 text-xs font-medium uppercase tracking-[0.14em] text-[#5d4b37] transition hover:bg-[#806344] hover:text-white"
+                <UiAppButton
+                  size="small"
+                  class="ml-2"
                   @click="openTrackModal(order)"
                 >
                   Track Shipping
-                </button>
+                </UiAppButton>
               </div>
             </div>
 
@@ -95,14 +94,14 @@ const openReviewModal = (product: Product, orderId?: number) => {
               <div
                 v-for="item in getOrderProducts(order)"
                 :key="item?.productId"
-                class="flex items-center justify-between gap-4 rounded-[8px] border border-[#ded6cc] bg-[#f5f1e9] p-3"
+                class="flex items-center justify-between gap-4 rounded-lg border border-[#ded6cc] bg-[#f5f1e9] p-3"
               >
                 <div class="flex items-center gap-3 min-w-0">
                   <img
                     v-if="item"
                     :src="item.product.image"
                     :alt="item.product.name"
-                    class="h-12 w-10 rounded object-cover object-top shrink-0"
+                    class="h-12 w-10 rounded-md object-cover object-top shrink-0"
                   />
                   <div v-if="item" class="min-w-0">
                     <p class="truncate text-sm font-medium text-[#211f1d]">{{ item.product.name }}</p>
@@ -113,45 +112,41 @@ const openReviewModal = (product: Product, orderId?: number) => {
                 <!-- Review / Under Review Badge for Delivered Items -->
                 <div v-if="order.status === 'Delivered' && item" class="shrink-0">
                   <template v-if="getUserReviewForProduct(item.product.id, order.id)">
-                    <span
+                    <UiAppBadge
                       v-if="getUserReviewForProduct(item.product.id, order.id)?.status === 'pending'"
-                      class="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3.5 py-1 text-xs font-medium text-amber-800 border border-amber-300"
+                      variant="warning"
                     >
                       <span>⏳</span> Under review
-                    </span>
-                    <span
+                    </UiAppBadge>
+                    <UiAppBadge
                       v-else
-                      class="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3.5 py-1 text-xs font-medium text-green-800 border border-green-300"
+                      variant="success"
                     >
                       <span>✓</span> Reviewed
-                    </span>
+                    </UiAppBadge>
                   </template>
-                  <button
+                  <UiAppButton
                     v-else
-                    type="button"
-                    class="inline-flex h-8 items-center justify-center rounded-full bg-[#806344] px-3.5 text-xs font-medium uppercase tracking-[0.12em] text-white transition hover:bg-[#5d4b37]"
+                    variant="primary"
+                    size="small"
+                    class="h-8 px-3.5 text-xs"
                     @click="openReviewModal(item.product, order.id)"
                   >
                     Add Review
-                  </button>
+                  </UiAppButton>
                 </div>
               </div>
             </div>
-          </article>
+          </UiAppCard>
         </div>
 
-        <section
+        <UiAppEmptyState
           v-else
-          class="rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-10 text-center"
-        >
-          <h2 class="font-serif text-3xl text-[#211f1d]">
-            No orders yet
-          </h2>
-
-          <p class="mt-3 text-sm leading-6 text-[#756a60]">
-            Orders created from checkout will show up here.
-          </p>
-        </section>
+          title="No orders yet"
+          description="Orders created from checkout will show up here."
+          action-label="Start shopping"
+          action-to="/products"
+        />
       </section>
 
       <!-- Track Shipping Modal -->

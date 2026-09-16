@@ -17,7 +17,7 @@ const handleStatusChange = (orderId: number, newStatus: OrderStatus) => {
 </script>
 
 <template>
-  <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-8">
+  <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-12">
     <div class="mx-auto flex max-w-6xl flex-col gap-10 lg:flex-row">
       <AccountSidebar active="seller-orders" />
 
@@ -33,10 +33,9 @@ const handleStatusChange = (orderId: number, newStatus: OrderStatus) => {
         </div>
 
         <div class="grid gap-5">
-          <article
+          <UiAppCard
             v-for="order in orders"
             :key="order.id"
-            class="rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-5 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-6"
           >
             <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div>
@@ -54,13 +53,13 @@ const handleStatusChange = (orderId: number, newStatus: OrderStatus) => {
               </div>
 
               <label class="w-full space-y-2 sm:w-60">
-                <span class="block text-[11px] font-medium uppercase tracking-[0.16em] text-[#4d4035]">
+                <span class="block text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]">
                   Order status
                 </span>
 
                 <select
                   :value="order.status"
-                  class="h-12 w-full rounded-[5px] border border-[#cfc4b5] bg-[#f5f1e9] px-4 text-sm text-[#211f1d] outline-none transition focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
+                  class="h-12 w-full rounded-md border border-[#cfc4b5] bg-[#f5f1e9] px-4 text-sm text-[#211f1d] outline-none transition hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
                   @change="handleStatusChange(order.id, ($event.target as HTMLSelectElement).value as OrderStatus)"
                 >
                   <option
@@ -74,57 +73,59 @@ const handleStatusChange = (orderId: number, newStatus: OrderStatus) => {
               </label>
             </div>
 
-            <div class="mt-6 overflow-hidden rounded-[8px] border border-[#ded6cc]">
-              <div class="grid grid-cols-[1fr_90px_110px] bg-[#eee8df] px-4 py-3 text-xs font-medium uppercase tracking-[0.12em] text-[#665c53]">
-                <span>Product</span>
-                <span>Qty</span>
-                <span class="text-right">Total</span>
-              </div>
+            <div class="mt-6 overflow-x-auto rounded-lg border border-[#ded6cc]">
+              <div class="min-w-[320px]">
+                <div class="grid grid-cols-[1fr_90px_110px] bg-[#eee8df] px-4 py-3 text-xs font-medium uppercase tracking-[0.12em] text-[#665c53]">
+                  <span>Product</span>
+                  <span>Qty</span>
+                  <span class="text-right">Total</span>
+                </div>
 
-              <div
-                v-for="item in getOrderProducts(order)"
-                :key="item?.productId"
-                class="grid grid-cols-[1fr_90px_110px] items-center border-t border-[#ded6cc] px-4 py-3 text-sm"
-              >
-                <span
-                  v-if="item"
-                  class="font-medium text-[#211f1d]"
+                <div
+                  v-for="item in getOrderProducts(order)"
+                  :key="item?.productId"
+                  class="grid grid-cols-[1fr_90px_110px] items-center border-t border-[#ded6cc] px-4 py-3 text-sm"
                 >
-                  {{ item.product.name }}
-                </span>
+                  <span
+                    v-if="item"
+                    class="font-medium text-[#211f1d] truncate pr-2"
+                  >
+                    {{ item.product.name }}
+                  </span>
 
-                <span
-                  v-if="item"
-                  class="text-[#756a60]"
-                >
-                  {{ item.quantity }}
-                </span>
+                  <span
+                    v-if="item"
+                    class="text-[#756a60]"
+                  >
+                    {{ item.quantity }}
+                  </span>
 
-                <span
-                  v-if="item"
-                  class="text-right font-semibold text-[#211f1d]"
-                >
-                  {{ formatPrice(item.lineTotal) }}
-                </span>
+                  <span
+                    v-if="item"
+                    class="text-right font-semibold text-[#211f1d]"
+                  >
+                    {{ formatPrice(item.lineTotal) }}
+                  </span>
+                </div>
               </div>
             </div>
 
             <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-b border-[#ded6cc] pb-5">
               <div class="flex flex-wrap gap-2">
-                <span class="rounded-full bg-[#211f1d] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-white">
+                <UiAppBadge variant="dark">
                   {{ formatPrice(order.total) }}
-                </span>
+                </UiAppBadge>
 
-                <span class="rounded-full bg-[#e6eee5] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[#536653]">
+                <UiAppBadge variant="success">
                   {{ order.paymentMethod }}
-                </span>
+                </UiAppBadge>
               </div>
             </div>
 
             <div class="mt-5">
               <OrdersOrderTracker :status="order.status" />
             </div>
-          </article>
+          </UiAppCard>
         </div>
       </section>
     </div>

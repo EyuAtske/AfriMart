@@ -21,7 +21,7 @@ const featuredProducts = computed(() =>
 
 <template>
   <section
-    class="bg-[#f5f1e9] px-3 py-12 sm:px-6 sm:py-16 lg:px-12 lg:py-24"
+    class="bg-[#f5f1e9] px-4 py-12 sm:px-6 sm:py-16 lg:px-12 lg:py-24"
   >
     <!-- Header -->
     <div class="mb-8 flex items-end justify-between sm:mb-10 lg:mb-12">
@@ -38,7 +38,7 @@ const featuredProducts = computed(() =>
       </div>
 
       <NuxtLink to="/products"
-        class="group flex items-center gap-1.5 text-[9px] tracking-[0.1em] text-[#806344] sm:gap-3 sm:text-sm"
+        class="group flex items-center gap-1.5 text-xs tracking-[0.1em] text-[#806344] sm:gap-3 sm:text-sm"
       >
         VIEW ALL
 

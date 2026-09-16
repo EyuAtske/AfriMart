@@ -9,7 +9,7 @@ export const formatPrice = (amount: number) =>
 export const useMarketplace = () => {
   const { products, cart, orders, reviews, addReview: addReviewToStore } = useMockDataStore()
   const { productRepo, orderRepo } = useRepositories()
-
+  const { gtag } = useGtag()
   const categories = computed(() => [
     'All',
     ...Array.from(new Set(products.value.map(product => product.category)))
@@ -39,34 +39,52 @@ export const useMarketplace = () => {
       const matchesSearch = !search ||
         product.name.toLowerCase().includes(search) ||
         product.shop.toLowerCase().includes(search) ||
-        product.description.toLowerCase().includes(search)
+        product.description.toLowerCase().includes(search) ||
+        (product.subCategory && product.subCategory.toLowerCase().includes(search))
 
-      const matchesCategory = category === 'All' || product.category === category
+      const matchesCategory = category === 'All' ||
+        product.category === category ||
+        product.subCategory === category
 
       return product.status === 'Active' && matchesSearch && matchesCategory
     })
   }
 
-  const addToCart = (productId: number) => {
-    const product = getProduct(productId)
-    if (!product || product.stock < 1) return
+ const addToCart = (productId: number) => {
+  const product = getProduct(productId)
+  if (!product || product.stock < 1) return
 
-    const existingIndex = cart.value.findIndex(item => item.productId === productId)
+  const existingIndex = cart.value.findIndex(item => item.productId === productId)
 
-    if (existingIndex !== -1 && cart.value[existingIndex]) {
-      const updatedItem = {
-        productId,
-        quantity: Math.min(cart.value[existingIndex].quantity + 1, product.stock)
-      }
-      const nextCart = [...cart.value]
-      nextCart[existingIndex] = updatedItem
-      cart.value = nextCart
-      return
+  if (existingIndex !== -1 && cart.value[existingIndex]) {
+    const updatedItem = {
+      productId,
+      quantity: Math.min(cart.value[existingIndex].quantity + 1, product.stock)
     }
 
+    const nextCart = [...cart.value]
+    nextCart[existingIndex] = updatedItem
+    cart.value = nextCart
+  } else {
     cart.value = [...cart.value, { productId, quantity: 1 }]
   }
 
+  if (import.meta.client) {
+    gtag('event', 'add_to_cart', {
+      currency: 'ETB',
+      value: Number(product.price),
+      items: [
+        {
+          item_id: String(product.id),
+          item_name: product.name,
+          item_category: product.category,
+          price: Number(product.price),
+          quantity: 1
+        }
+      ]
+    })
+  }
+}
   const updateCartQuantity = (productId: number, quantity: number) => {
     const product = getProduct(productId)
 
@@ -86,9 +104,33 @@ export const useMarketplace = () => {
     }
   }
 
-  const removeFromCart = (productId: number) => {
-    cart.value = cart.value.filter(item => item.productId !== productId)
+ const removeFromCart = (productId: number) => {
+  const product = getProduct(productId)
+
+  if (!product) return
+
+  const existingItem = cart.value.find(item => item.productId === productId)
+
+  if (!existingItem) return
+
+  cart.value = cart.value.filter(item => item.productId !== productId)
+
+  if (import.meta.client) {
+    gtag('event', 'remove_from_cart', {
+      currency: 'ETB',
+      value: Number(product.price) * existingItem.quantity,
+      items: [
+        {
+          item_id: String(product.id),
+          item_name: product.name,
+          item_category: product.category,
+          price: Number(product.price),
+          quantity: existingItem.quantity
+        }
+      ]
+    })
   }
+}
 
   const cartProducts = computed<CartProductItem[]>(() =>
     cart.value

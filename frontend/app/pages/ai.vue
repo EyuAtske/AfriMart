@@ -1,7 +1,13 @@
 <script setup lang="ts">
+import type { Product } from '~/types/product'
+
 const router = useRouter()
+const route = useRoute()
+const { filterProducts } = useMarketplace()
+
 const prompt = ref('')
 const suggestions = ref<string[]>([])
+const matchingProducts = ref<Product[]>([])
 const isThinking = ref(false)
 
 const submitPrompt = async () => {
@@ -12,8 +18,22 @@ const submitPrompt = async () => {
 
   await new Promise(resolve => setTimeout(resolve, 250))
 
+  // Find products matching keywords in prompt
+  const words = value.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+  const results = filterProducts({ search: value })
+  
+  if (results.length) {
+    matchingProducts.value = results
+  } else if (words.length) {
+    // Try matching individual key words
+    const partials = filterProducts({ search: words[0] })
+    matchingProducts.value = partials
+  } else {
+    matchingProducts.value = []
+  }
+
   suggestions.value = [
-    `Search for "${value}"`,
+    `Browse all results for "${value}"`,
     'Compare prices under 3,000 ETB',
     'Check seller stock before checkout'
   ]
@@ -21,20 +41,36 @@ const submitPrompt = async () => {
   isThinking.value = false
 }
 
-const searchSuggestion = async () => {
+const searchSuggestion = async (suggestion: string) => {
   const value = prompt.value.trim()
-  if (!value) return
-
   await router.push({
     path: '/products',
-    query: { search: value }
+    query: { search: value || undefined }
   })
 }
+
+onMounted(() => {
+  if (route.query.prompt) {
+    prompt.value = String(route.query.prompt)
+    submitPrompt()
+  }
+})
+
+watch(() => route.query.prompt, (newPrompt) => {
+  if (newPrompt && String(newPrompt) !== prompt.value) {
+    prompt.value = String(newPrompt)
+    submitPrompt()
+  }
+})
 </script>
 
 <template>
   <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-12">
-    <section class="mx-auto max-w-4xl rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8">
+    <UiAppCard
+      as="section"
+      padding="large"
+      class="mx-auto max-w-4xl"
+    >
       <p class="text-xs font-medium uppercase tracking-[0.18em] text-[#806344]">
         AI shopping assistant
       </p>
@@ -51,32 +87,27 @@ const searchSuggestion = async () => {
           v-model="prompt"
           type="text"
           placeholder="Example: a relaxed denim outfit"
-          class="h-12 min-w-0 flex-1 rounded-full border border-[#cfc4b5] bg-[#f5f1e9] px-5 text-sm text-[#211f1d] outline-none transition focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
+          class="h-12 min-w-0 flex-1 rounded-full border border-[#cfc4b5] bg-[#f5f1e9] px-5 text-sm text-[#211f1d] outline-none transition placeholder:text-[#92877b] hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
         />
 
-        <button
+        <UiAppButton
           type="submit"
+          variant="primary"
           :disabled="isThinking"
-          class="h-12 rounded-full bg-[#211f1d] px-6 text-sm font-medium uppercase tracking-[0.14em] text-white transition hover:bg-[#3b3733] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {{ isThinking ? 'Thinking...' : 'Ask' }}
-        </button>
+        </UiAppButton>
       </form>
 
       <div
-        v-if="suggestions.length"
-        class="mt-8 grid gap-3"
+        v-if="matchingProducts.length"
+        class="mt-10 border-t border-[#ded6cc] pt-8"
       >
-        <button
-          v-for="suggestion in suggestions"
-          :key="suggestion"
-          type="button"
-          class="rounded-[8px] border border-[#ded6cc] bg-[#f5f1e9] px-4 py-4 text-left text-sm text-[#211f1d] transition hover:border-[#806344]"
-          @click="searchSuggestion"
-        >
-          {{ suggestion }}
-        </button>
+        <h3 class="font-serif text-2xl text-[#211f1d] mb-6">
+          Suggested Products ({{ matchingProducts.length }})
+        </h3>
+        <MarketplaceProductGrid :products="matchingProducts" />
       </div>
-    </section>
+    </UiAppCard>
   </main>
 </template>

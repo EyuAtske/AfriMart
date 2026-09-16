@@ -44,7 +44,8 @@ const { toasts, removeToast } = useToast()
 
         <button
           type="button"
-          class="ml-4 text-xs text-[#b0a79d] hover:text-white"
+          aria-label="Close notification"
+          class="ml-4 text-xs text-[#92877b] hover:text-white"
           @click="removeToast(toast.id)"
         >
           ✕

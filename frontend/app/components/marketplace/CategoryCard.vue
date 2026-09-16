@@ -21,7 +21,7 @@ defineProps<{
     </div>
 
     <!-- Card info -->
-    <div class="bg-[#e8dcc9] px-2 py-3 sm:px-4 sm:py-5 lg:px-7 lg:py-7">
+    <div class="bg-[#eee8df] px-2 py-3 sm:px-4 sm:py-5 lg:px-7 lg:py-7">
       <h2
         class="font-serif text-sm text-[#211f1d] sm:text-lg lg:text-2xl"
       >
@@ -29,7 +29,7 @@ defineProps<{
       </h2>
 
       <div
-        class="mt-1 flex items-center gap-1.5 text-[7px] tracking-[0.08em] text-[#806344] sm:mt-2 sm:gap-2 sm:text-[10px] lg:gap-3 lg:text-sm"
+        class="mt-1 flex items-center gap-1.5 text-xs tracking-[0.08em] text-[#806344] sm:mt-2 sm:gap-2 lg:gap-3 lg:text-sm"
       >
         <span>EXPLORE NOW</span>
 

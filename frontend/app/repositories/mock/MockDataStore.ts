@@ -40,6 +40,7 @@ export const initialMockProducts: Product[] = [
     name: 'Shirt for men',
     description: 'A clean everyday shirt with a relaxed fit and soft cotton feel.',
     category: 'Men',
+    subCategory: 'Shirts',
     price: 1400,
     stock: 12,
     rating: '4.8',
@@ -52,6 +53,7 @@ export const initialMockProducts: Product[] = [
     name: 'Tank Tops',
     description: 'Lightweight tank tops made for warm days and easy layering.',
     category: 'Women',
+    subCategory: 'Tops',
     price: 2500,
     stock: 8,
     rating: '4.9',
@@ -64,6 +66,7 @@ export const initialMockProducts: Product[] = [
     name: 'Casual Outfit Set',
     description: 'Matched casual set with a tidy silhouette for daily wear.',
     category: 'Women',
+    subCategory: 'Dresses',
     price: 3500,
     stock: 6,
     rating: '4.6',
@@ -76,6 +79,7 @@ export const initialMockProducts: Product[] = [
     name: 'Everyday fit for kids',
     description: 'Comfortable kids outfit built for school days and weekends.',
     category: 'Kids',
+    subCategory: 'T-Shirts',
     price: 2900,
     stock: 14,
     rating: '4.8',
@@ -88,6 +92,7 @@ export const initialMockProducts: Product[] = [
     name: 'Cute dress for kids',
     description: 'Soft dress with a cheerful cut and easy movement.',
     category: 'Kids',
+    subCategory: 'Dresses',
     price: 3800,
     stock: 5,
     rating: '4.7',
@@ -100,6 +105,7 @@ export const initialMockProducts: Product[] = [
     name: 'Hoodie',
     description: 'Warm hoodie with a soft inner layer and simple streetwear shape.',
     category: 'Men',
+    subCategory: 'Hoodies',
     price: 4700,
     stock: 9,
     rating: '4.8',
@@ -112,6 +118,7 @@ export const initialMockProducts: Product[] = [
     name: 'Classic cotton shirt',
     description: 'Crisp shirt with a polished collar and breathable fabric.',
     category: 'Men',
+    subCategory: 'Shirts',
     price: 1550,
     stock: 11,
     rating: '4.9',
@@ -124,6 +131,7 @@ export const initialMockProducts: Product[] = [
     name: 'Relaxed Denim',
     description: 'Easy denim piece with a flattering relaxed shape.',
     category: 'Women',
+    subCategory: 'Jeans',
     price: 5200,
     stock: 4,
     rating: '4.7',
@@ -136,6 +144,7 @@ export const initialMockProducts: Product[] = [
     name: 'Watch for women',
     description: 'A slim everyday watch with a clean face and subtle finish.',
     category: 'Accessories',
+    subCategory: 'Watches',
     price: 2500,
     stock: 7,
     rating: '4.9',
@@ -148,6 +157,7 @@ export const initialMockProducts: Product[] = [
     name: 'Hat',
     description: 'Simple everyday hat for sun coverage and finishing an outfit.',
     category: 'Accessories',
+    subCategory: 'Hats',
     price: 1100,
     stock: 16,
     rating: '4.8',
@@ -160,6 +170,7 @@ export const initialMockProducts: Product[] = [
     name: 'Clean everyday sneakers',
     description: 'Low-profile sneakers that pair easily with relaxed denim and casual outfits.',
     category: 'Shoes',
+    subCategory: 'Sneakers',
     price: 4300,
     stock: 10,
     rating: '4.7',
@@ -172,6 +183,7 @@ export const initialMockProducts: Product[] = [
     name: 'Soft city sandals',
     description: 'Comfortable sandals for warm days, errands, and weekend styling.',
     category: 'Shoes',
+    subCategory: 'Sandals',
     price: 2600,
     stock: 7,
     rating: '4.6',
@@ -180,23 +192,115 @@ export const initialMockProducts: Product[] = [
   }
 ]
 
+export const initialMockUsers: User[] = [
+  { id: 'usr-1', username: 'tayeb', name: 'Taye Bekele', email: 'taye@example.com', role: 'buyer', created_at: '2026-03-02' },
+  { id: 'usr-2', username: 'selama', name: 'Selam Assefa', email: 'selam@example.com', role: 'buyer', created_at: '2026-03-15' },
+  { id: 'usr-3', username: 'martag', name: 'Marta Girma', email: 'marta@example.com', role: 'buyer', created_at: '2026-04-10' },
+  { id: 'usr-4', username: 'abebek', name: 'Abebe Kebede', email: 'abebe@atelierno.com', role: 'seller', created_at: '2026-04-20' },
+  { id: 'usr-5', username: 'hanad', name: 'Hana Daniel', email: 'hana@beyondscore.com', role: 'seller', created_at: '2026-05-05' },
+  { id: 'usr-6', username: 'dawitm', name: 'Dawit Mengistu', email: 'dawit@trueform.com', role: 'seller', created_at: '2026-05-18' },
+  { id: 'usr-7', username: 'bethelhemh', name: 'Bethelhem Haile', email: 'beth@minimalstudio.com', role: 'seller', created_at: '2026-06-02' },
+  { id: 'usr-8', username: 'robelt', name: 'Robel Tesfaye', email: 'robel@urbanthread.com', role: 'seller', created_at: '2026-06-21' },
+  { id: 'usr-9', username: 'saray', name: 'Sara Yohannes', email: 'sara@marastudio.com', role: 'seller', created_at: '2026-07-11' },
+  { id: 'usr-10', username: 'admin', name: 'System Admin', email: 'admin@platform.com', role: 'buyer', created_at: '2026-08-01' }
+]
+
 export const initialMockOrders: MarketplaceOrder[] = [
   {
-    id: 240824,
-    buyerName: 'Test User',
-    items: [
-      {
-        productId: 1,
-        quantity: 1
-      }
-    ],
+    id: 240801,
+    buyerName: 'Taye Bekele',
+    items: [{ productId: 1, quantity: 1 }],
+    deliveryAddress: 'Bole, Addis Ababa',
+    phone: '+251 911 112 233',
+    paymentMethod: 'Telebirr',
+    paymentStatus: 'Paid',
+    status: 'Delivered',
+    date: 'March 12, 2026',
+    total: 45
+  },
+  {
+    id: 240802,
+    buyerName: 'Selam Assefa',
+    items: [{ productId: 2, quantity: 1 }],
+    deliveryAddress: 'Kazanchis, Addis Ababa',
+    phone: '+251 912 334 455',
+    paymentMethod: 'CBE',
+    paymentStatus: 'Paid',
+    status: 'Delivered',
+    date: 'April 4, 2026',
+    total: 70
+  },
+  {
+    id: 240803,
+    buyerName: 'Marta Girma',
+    items: [{ productId: 3, quantity: 1 }],
+    deliveryAddress: 'CMC, Addis Ababa',
+    phone: '+251 913 556 677',
+    paymentMethod: 'Telebirr',
+    paymentStatus: 'Paid',
+    status: 'Delivered',
+    date: 'April 22, 2026',
+    total: 65
+  },
+  {
+    id: 240804,
+    buyerName: 'Taye Bekele',
+    items: [{ productId: 4, quantity: 1 }],
+    deliveryAddress: 'Bole, Addis Ababa',
+    phone: '+251 911 112 233',
+    paymentMethod: 'Telebirr',
+    paymentStatus: 'Paid',
+    status: 'Delivered',
+    date: 'May 15, 2026',
+    total: 55
+  },
+  {
+    id: 240805,
+    buyerName: 'Selam Assefa',
+    items: [{ productId: 6, quantity: 1 }],
+    deliveryAddress: 'Kazanchis, Addis Ababa',
+    phone: '+251 912 334 455',
+    paymentMethod: 'CBE',
+    paymentStatus: 'Paid',
+    status: 'Delivered',
+    date: 'June 8, 2026',
+    total: 95
+  },
+  {
+    id: 240806,
+    buyerName: 'Marta Girma',
+    items: [{ productId: 7, quantity: 1 }],
+    deliveryAddress: 'CMC, Addis Ababa',
+    phone: '+251 913 556 677',
+    paymentMethod: 'Telebirr',
+    paymentStatus: 'Paid',
+    status: 'Delivered',
+    date: 'June 27, 2026',
+    total: 80
+  },
+  {
+    id: 240807,
+    buyerName: 'Taye Bekele',
+    items: [{ productId: 8, quantity: 1 }],
+    deliveryAddress: 'Bole, Addis Ababa',
+    phone: '+251 911 112 233',
+    paymentMethod: 'Telebirr',
+    paymentStatus: 'Paid',
+    status: 'Delivered',
+    date: 'July 19, 2026',
+    total: 110
+  },
+  {
+    id: 240808,
+    buyerName: 'Selam Assefa',
+    items: [{ productId: 1, quantity: 1 }],
     deliveryAddress: 'Bole, Addis Ababa',
     phone: '+251 911 000 000',
     paymentMethod: 'Cash on delivery',
     paymentStatus: 'Cash on delivery',
     status: 'Shipped',
     date: 'August 24, 2026',
-    total: 1400
+    total: 130
   }
 ]
 
@@ -226,6 +330,7 @@ export const initialMockCart: CartItem[] = [
 ]
 
 export const useMockDataStore = () => {
+  const users = safeState<User[]>('mock-ds-all-users', () => [...initialMockUsers])
   const products = safeState<Product[]>('mock-ds-products', () => [...initialMockProducts])
   const orders = safeState<MarketplaceOrder[]>('mock-ds-orders', () => [...initialMockOrders])
   const cart = safeState<CartItem[]>('mock-ds-cart', () => [...initialMockCart])
@@ -265,6 +370,7 @@ export const useMockDataStore = () => {
   }
 
   return {
+    users,
     products,
     orders,
     cart,
@@ -275,3 +381,4 @@ export const useMockDataStore = () => {
     addReview
   }
 }
+

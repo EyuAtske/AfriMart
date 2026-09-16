@@ -15,6 +15,8 @@ export interface Shop {
   ownerEmail: string
   products: Product[]
   paymentMethods: PaymentMethod[]
+  status?: string
+  backendId?: string
 }
 
 export interface CreateShopDTO {

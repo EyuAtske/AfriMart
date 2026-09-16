@@ -51,7 +51,7 @@ const loadMore = () => {
 
           <!-- Description -->
           <p
-            class="mt-6 max-w-md text-sm leading-6 text-[#4c4945] sm:mt-8 sm:text-base sm:leading-7 lg:mt-10 lg:text-lg lg:leading-8"
+            class="mt-6 max-w-md text-sm leading-6 text-[#756a60] sm:mt-8 sm:text-base sm:leading-7 lg:mt-10 lg:text-lg lg:leading-8"
           >
             Discover clothing from independent sellers.
             <br class="hidden sm:block" />
@@ -63,14 +63,22 @@ const loadMore = () => {
             class="mt-7 flex flex-wrap items-center gap-5 sm:mt-8 sm:gap-7 lg:mt-10"
           >
             <!-- Shop Now -->
-           <NuxtLink to="/products" class="group inline-flex items-center gap-4 rounded-full border border-[#806344] px-10 py-4 text-sm font-medium tracking-[0.14em] text-[#5d4b37] transition-all duration-300 hover:bg-[#806344] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#806344] focus:ring-offset-2 focus:ring-offset-[#f5f1e9]">
-             <span>SHOP NOW</span>
-          </NuxtLink>
+            <UiAppButton
+              to="/products"
+              variant="secondary"
+              class="px-10 py-4"
+            >
+              SHOP NOW
+            </UiAppButton>
 
             <!-- Explore Items -->
-            <NuxtLink to="/shop" class="group inline-flex items-center gap-4 rounded-full border border-[#806344] px-10 py-4 text-sm font-medium tracking-[0.14em] text-[#5d4b37] transition-all duration-300 hover:bg-[#806344] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#806344] focus:ring-offset-2 focus:ring-offset-[#f5f1e9]">
-              <span>SELL ITEMS</span>
-            </NuxtLink>
+            <UiAppButton
+              to="/shop"
+              variant="secondary"
+              class="px-10 py-4"
+            >
+              SELL ITEMS
+            </UiAppButton>
           </div>
         </div>
       </div>
@@ -78,7 +86,7 @@ const loadMore = () => {
 
     <!-- Categories section -->
     <section
-      class="bg-[#f5f1e9] px-3 py-12 sm:px-4 sm:py-16 md:px-6 md:py-20 lg:px-12 lg:py-24"
+      class="bg-[#f5f1e9] px-4 py-12 sm:px-6 sm:py-16 md:py-20 lg:px-12 lg:py-24"
     >
       <div class="grid grid-cols-3 gap-2 sm:gap-4 lg:gap-6">
         <CategoryCard
@@ -101,15 +109,16 @@ const loadMore = () => {
       </div>
     </section>
 
- <MarketplaceFeaturedProducts
-  :limit="productsToShow"
-/>
+    <MarketplaceFeaturedProducts
+      :limit="productsToShow"
+    />
 
-<LoadMoreButton
-  @load-more="loadMore"
-/>
+    <div class="pb-12 sm:pb-16">
+      <LoadMoreButton
+        @load-more="loadMore"
+      />
+    </div>
 
-<br>
     <MarketplaceAiSearch />
   </main>
 </template>

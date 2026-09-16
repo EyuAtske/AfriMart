@@ -38,7 +38,7 @@ const model = computed({
   <div class="space-y-2">
     <label
       :for="name || label"
-      class="block text-[11px] font-medium uppercase tracking-[0.16em] text-[#4d4035]"
+      class="block text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]"
     >
       {{ label }}
     </label>
@@ -51,7 +51,7 @@ const model = computed({
         :type="inputType"
         :placeholder="placeholder"
         :autocomplete="autocomplete"
-        class="h-12 w-full rounded-[5px] border border-[#cfc4b5] bg-[#faf8f4] px-4 text-sm text-[#211f1d] outline-none transition-all placeholder:text-[#92877b] hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
+        class="h-12 w-full rounded-md border border-[#cfc4b5] bg-[#faf8f4] px-4 text-sm text-[#211f1d] outline-none transition-all placeholder:text-[#92877b] hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
       />
 
       <button

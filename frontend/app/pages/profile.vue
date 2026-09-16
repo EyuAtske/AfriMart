@@ -5,11 +5,13 @@ definePageMeta({
   middleware: 'auth'
 })
 
-const { user } = useAuth()
+const { user, updateUsername, updatePassword, fetchProfile } = useAuth()
+const { showToast } = useToast()
 
 const isEditingUsername = ref(false)
 const isChangingPassword = ref(false)
 const isSaving = ref(false)
+const usernameError = ref('')
 const passwordError = ref('')
 
 const profileUser = reactive({
@@ -26,6 +28,18 @@ watch(
   { immediate: true }
 )
 
+onMounted(async () => {
+  try {
+    const profile = await fetchProfile()
+    if (profile) {
+      if (profile.username) profileUser.username = profile.username
+      if (profile.email) profileUser.email = profile.email
+    }
+  } catch {
+    // Keep local session info if remote fetch is not reachable
+  }
+})
+
 const usernameForm = reactive({
   username: ''
 })
@@ -36,31 +50,45 @@ const passwordForm = reactive({
   confirmPassword: ''
 })
 
-const actionButtonClass = 'h-12 rounded-full border border-[#806344] px-6 text-sm font-medium uppercase tracking-[0.14em] text-[#5d4b37] transition-all duration-300 hover:bg-[#806344] hover:text-white focus:outline-none focus:ring-2 focus:ring-[#806344] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
-
 const startEditingUsername = () => {
+  usernameError.value = ''
   usernameForm.username = profileUser.username
   isEditingUsername.value = true
 }
 
 const cancelEditingUsername = () => {
+  usernameError.value = ''
   usernameForm.username = ''
   isEditingUsername.value = false
 }
 
 const saveUsername = async () => {
+  usernameError.value = ''
   const username = usernameForm.username.trim()
 
-  if (!username) return
+  if (!username) {
+    usernameError.value = 'Username is required.'
+    return
+  }
+  if (username.length < 3) {
+    usernameError.value = 'Username must be at least 3 characters long.'
+    return
+  }
+  if (username.length > 50) {
+    usernameError.value = 'Username must not exceed 50 characters.'
+    return
+  }
 
   isSaving.value = true
 
   try {
-    profileUser.username = username
-    user.value.username = username
-    user.value.name = username
+    const updated = await updateUsername(username)
+    profileUser.username = updated.username
     usernameForm.username = ''
     isEditingUsername.value = false
+    showToast('Username updated successfully', 'success')
+  } catch (err: any) {
+    usernameError.value = err?.message || 'Failed to update username'
   } finally {
     isSaving.value = false
   }
@@ -86,7 +114,6 @@ const changePassword = async () => {
   passwordError.value = ''
 
   if (
-    !passwordForm.currentPassword.trim() ||
     !passwordForm.newPassword.trim() ||
     !passwordForm.confirmPassword.trim()
   ) {
@@ -94,8 +121,8 @@ const changePassword = async () => {
     return
   }
 
-  if (passwordForm.newPassword.length < 6) {
-    passwordError.value = 'Password must be at least 6 characters long.'
+  if (passwordForm.newPassword.length < 8) {
+    passwordError.value = 'Password must be at least 8 characters long.'
     return
   }
 
@@ -107,10 +134,14 @@ const changePassword = async () => {
   isSaving.value = true
 
   try {
+    await updatePassword(passwordForm.newPassword)
     passwordForm.currentPassword = ''
     passwordForm.newPassword = ''
     passwordForm.confirmPassword = ''
     isChangingPassword.value = false
+    showToast('Password updated successfully', 'success')
+  } catch (err: any) {
+    passwordError.value = err?.message || 'Failed to update password'
   } finally {
     isSaving.value = false
   }
@@ -118,12 +149,12 @@ const changePassword = async () => {
 </script>
 
 <template>
-  <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-8">
+  <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-12">
     <div class="mx-auto flex max-w-6xl flex-col gap-10 lg:flex-row">
       <AccountSidebar active="profile" />
 
-      <div class="min-w-0 flex-1">
-        <div class="mb-8">
+      <div class="min-w-0 flex-1 space-y-6">
+        <div>
           <h1 class="font-serif text-4xl tracking-[-0.025em] text-[#211f1d]">
             My Profile
           </h1>
@@ -133,7 +164,7 @@ const changePassword = async () => {
           </p>
         </div>
 
-        <section class="rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8">
+        <UiAppCard padding="large">
           <div class="flex items-center gap-5">
             <div class="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[#211f1d] text-2xl font-medium text-white">
               {{ profileUser.username ? profileUser.username.charAt(0).toUpperCase() : 'U' }}
@@ -149,9 +180,9 @@ const changePassword = async () => {
               </p>
             </div>
           </div>
-        </section>
+        </UiAppCard>
 
-        <section class="mt-6 rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8">
+        <UiAppCard padding="large">
           <div class="flex items-start justify-between gap-4">
             <div>
               <h2 class="text-xl font-medium text-[#211f1d]">
@@ -193,28 +224,31 @@ const changePassword = async () => {
               name="profile-username"
             />
 
+            <UiAppAlert v-if="usernameError">
+              {{ usernameError }}
+            </UiAppAlert>
+
             <div class="flex flex-wrap gap-3">
-              <button
+              <UiAppButton
                 type="submit"
+                variant="secondary"
                 :disabled="isSaving"
-                :class="actionButtonClass"
               >
                 {{ isSaving ? 'Saving...' : 'Save changes' }}
-              </button>
+              </UiAppButton>
 
-              <button
-                type="button"
+              <UiAppButton
+                variant="ghost"
                 :disabled="isSaving"
-                :class="actionButtonClass"
                 @click="cancelEditingUsername"
               >
                 Cancel
-              </button>
+              </UiAppButton>
             </div>
           </form>
-        </section>
+        </UiAppCard>
 
-        <section class="mt-6 rounded-[12px] border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8">
+        <UiAppCard padding="large">
           <div class="flex items-start justify-between gap-4">
             <div>
               <h2 class="text-xl font-medium text-[#211f1d]">
@@ -275,33 +309,29 @@ const changePassword = async () => {
               name="confirm-new-password"
             />
 
-            <p
-              v-if="passwordError"
-              class="text-sm font-medium text-red-600"
-            >
+            <UiAppAlert v-if="passwordError">
               {{ passwordError }}
-            </p>
+            </UiAppAlert>
 
             <div class="flex flex-wrap gap-3">
-              <button
+              <UiAppButton
                 type="submit"
+                variant="secondary"
                 :disabled="isSaving"
-                :class="actionButtonClass"
               >
                 {{ isSaving ? 'Updating...' : 'Save changes' }}
-              </button>
+              </UiAppButton>
 
-              <button
-                type="button"
+              <UiAppButton
+                variant="ghost"
                 :disabled="isSaving"
-                :class="actionButtonClass"
                 @click="cancelChangingPassword"
               >
                 Cancel
-              </button>
+              </UiAppButton>
             </div>
           </form>
-        </section>
+        </UiAppCard>
       </div>
     </div>
   </main>
