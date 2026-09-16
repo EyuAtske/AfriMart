@@ -114,7 +114,12 @@ func (apiCfg *ShopHandler) HandleGetMyShop(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	comm.RespondwithJson(w, r, shop)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(shop); err != nil {
+		return
+	}
 }
 
 func (apiCfg *ShopHandler) HandleUpdateShopName(w http.ResponseWriter, r *http.Request) {
@@ -199,7 +204,12 @@ func (apiCfg *ShopHandler) HandleUpdateShopName(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	comm.RespondwithJson(w, r, shop)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(shop); err != nil {
+		return
+	}
 }
 
 func (apiCfg *ShopHandler) HandleUpdateShopDescription(w http.ResponseWriter, r *http.Request) {
@@ -276,7 +286,12 @@ func (apiCfg *ShopHandler) HandleUpdateShopDescription(w http.ResponseWriter, r 
 		return
 	}
 
-	comm.RespondwithJson(w, r, shop)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(shop); err != nil {
+		return
+	}
 }
 
 func (apiCfg *ShopHandler) HandleDeactivateShop(w http.ResponseWriter, r *http.Request) {

@@ -242,7 +242,12 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 		)
 		return
 	}
-	comm.RespondwithJson(w, r, product)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+
+	if err := json.NewEncoder(w).Encode(product); err != nil {
+		return
+	}
 }
 
 func (apiCfg *ProductHandler) HandleGetProduct(w http.ResponseWriter, r *http.Request) {
@@ -286,7 +291,12 @@ func (apiCfg *ProductHandler) HandleGetProduct(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	comm.RespondwithJson(w, r, product)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(product); err != nil {
+		return
+	}
 }
 
 func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http.Request) {
@@ -513,7 +523,12 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 		return
 	}
 
-	comm.RespondwithJson(w, r, product)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(product); err != nil {
+		return
+	}
 }
 
 func (apiCfg *ProductHandler) HandleDeleteProduct(w http.ResponseWriter, r *http.Request) {

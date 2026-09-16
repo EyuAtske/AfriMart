@@ -105,7 +105,12 @@ func (h *CartHandler) HandleGetCart(w http.ResponseWriter, r *http.Request) {
 		"subtotal": subtotal,
 	}
 
-	comm.RespondwithJson(w, r, response)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		return
+	}
 }
 
 func (h *CartHandler) HandleAddCartItem(w http.ResponseWriter, r *http.Request) {
@@ -235,7 +240,12 @@ func (h *CartHandler) HandleAddCartItem(w http.ResponseWriter, r *http.Request) 
 
 	_ = h.Queries.UpdateCartTimestamp(r.Context(), cart.ID)
 
-	comm.RespondwithJson(w, r, item)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+
+	if err := json.NewEncoder(w).Encode(item); err != nil {
+		return
+	}
 }
 
 func (h *CartHandler) HandleUpdateCartItem(w http.ResponseWriter, r *http.Request) {
@@ -375,7 +385,12 @@ func (h *CartHandler) HandleUpdateCartItem(w http.ResponseWriter, r *http.Reques
 
 	_ = h.Queries.UpdateCartTimestamp(r.Context(), cart.ID)
 
-	comm.RespondwithJson(w, r, item)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(item); err != nil {
+		return
+	}
 }
 
 func (h *CartHandler) HandleDeleteCartItem(w http.ResponseWriter, r *http.Request) {
