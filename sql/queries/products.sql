@@ -67,9 +67,43 @@ RETURNING *;
 SELECT *
 FROM products
 WHERE status = 'active'
+  AND (
+      sqlc.arg(search)::text = ''
+      OR name ILIKE '%' || sqlc.arg(search)::text || '%'
+      OR brand ILIKE '%' || sqlc.arg(search)::text || '%'
+      OR description ILIKE '%' || sqlc.arg(search)::text || '%'
+  )
+  AND (
+      sqlc.narg(category_id)::uuid IS NULL
+      OR category_id = sqlc.narg(category_id)::uuid
+  )
+  AND (
+      sqlc.narg(subcategory_id)::uuid IS NULL
+      OR subcategory_id = sqlc.narg(subcategory_id)::uuid
+  )
+  AND (
+      sqlc.arg(brand)::text = ''
+      OR brand ILIKE '%' || sqlc.arg(brand)::text || '%'
+  )
+  AND (
+      sqlc.arg(color)::text = ''
+      OR color ILIKE '%' || sqlc.arg(color)::text || '%'
+  )
+  AND (
+      sqlc.arg(size)::text = ''
+      OR size = sqlc.arg(size)::text
+  )
+  AND (
+      sqlc.narg(min_price)::numeric IS NULL
+      OR price >= sqlc.narg(min_price)::numeric
+  )
+  AND (
+      sqlc.narg(max_price)::numeric IS NULL
+      OR price <= sqlc.narg(max_price)::numeric
+  )
 ORDER BY created_at DESC
-LIMIT $1
-OFFSET $2;
+LIMIT sqlc.arg(page_limit)
+OFFSET sqlc.arg(page_offset);
 
 -- name: ListProductsByShop :many
 

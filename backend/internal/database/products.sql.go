@@ -142,18 +142,71 @@ const listProducts = `-- name: ListProducts :many
 SELECT id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, image, status, created_at, updated_at
 FROM products
 WHERE status = 'active'
+  AND (
+      $1::text = ''
+      OR name ILIKE '%' || $1::text || '%'
+      OR brand ILIKE '%' || $1::text || '%'
+      OR description ILIKE '%' || $1::text || '%'
+  )
+  AND (
+      $2::uuid IS NULL
+      OR category_id = $2::uuid
+  )
+  AND (
+      $3::uuid IS NULL
+      OR subcategory_id = $3::uuid
+  )
+  AND (
+      $4::text = ''
+      OR brand ILIKE '%' || $4::text || '%'
+  )
+  AND (
+      $5::text = ''
+      OR color ILIKE '%' || $5::text || '%'
+  )
+  AND (
+      $6::text = ''
+      OR size = $6::text
+  )
+  AND (
+      $7::numeric IS NULL
+      OR price >= $7::numeric
+  )
+  AND (
+      $8::numeric IS NULL
+      OR price <= $8::numeric
+  )
 ORDER BY created_at DESC
-LIMIT $1
-OFFSET $2
+LIMIT $10
+OFFSET $9
 `
 
 type ListProductsParams struct {
-	Limit  int32
-	Offset int32
+	Search        string
+	CategoryID    uuid.NullUUID
+	SubcategoryID uuid.NullUUID
+	Brand         string
+	Color         string
+	Size          string
+	MinPrice      sql.NullString
+	MaxPrice      sql.NullString
+	PageOffset    int32
+	PageLimit     int32
 }
 
 func (q *Queries) ListProducts(ctx context.Context, arg ListProductsParams) ([]Product, error) {
-	rows, err := q.db.QueryContext(ctx, listProducts, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listProducts,
+		arg.Search,
+		arg.CategoryID,
+		arg.SubcategoryID,
+		arg.Brand,
+		arg.Color,
+		arg.Size,
+		arg.MinPrice,
+		arg.MaxPrice,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

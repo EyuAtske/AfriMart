@@ -48,3 +48,10 @@ type ProductQuerier interface {
 		arg database.ListProductsBySubcategoryParams,
 	) ([]database.Product, error)
 }
+
+type ShopOwnershipQuerier interface {
+	GetShopByIDAndOwnerID(
+		ctx context.Context,
+		arg database.GetShopByIDAndOwnerIDParams,
+	) (database.Shop, error)
+}

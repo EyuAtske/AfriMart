@@ -9,6 +9,7 @@ import (
 	"github.com/EyuAtske/AfriMart/backend/internal/auth"
 	"github.com/EyuAtske/AfriMart/backend/internal/health"
 	"github.com/EyuAtske/AfriMart/backend/internal/observability"
+	"github.com/EyuAtske/AfriMart/backend/internal/product"
 	"github.com/EyuAtske/AfriMart/backend/internal/shop"
 
 	"github.com/EyuAtske/AfriMart/backend/config"
@@ -29,6 +30,10 @@ func main() {
 	}
 	shopHandler := &shop.ShopHandler{
 		Config:  apicfg,
+		Queries: apicfg.Queries,
+	}
+	productHandler := &product.ProductHandler{
+		Config: apicfg,
 		Queries: apicfg.Queries,
 	}
 	servermux := http.NewServeMux()
@@ -56,11 +61,14 @@ func main() {
 	servermux.Handle("PATCH /api/shops/{shopID}/description", protected(http.HandlerFunc(shopHandler.HandleUpdateShopDescription)))
 	servermux.Handle("PATCH /api/shops/{shopID}/deactivate", protected(http.HandlerFunc(shopHandler.HandleDeactivateShop)))
 	servermux.Handle("PATCH /api/shops/{shopID}/activate", protected(http.HandlerFunc(shopHandler.HandleActivateShop)))
-	// servermux.HandleFunc("GET /api/products", handlers.HandelProducts)
-	// servermux.HandleFunc("GET /api/products/{id}", handlers.HandelProducts)
-	// servermux.HandleFunc("POST /api/products", handlers.HandelProducts)
-	// servermux.HandleFunc("PUT /api/products/{id}", handlers.HandelProducts)
-	// servermux.HandleFunc("DELETE /api/products/{id}", handlers.HandelProducts)
+	servermux.Handle("POST /api/products", protected(http.HandlerFunc(productHandler.HandleCreateProduct)))
+	servermux.Handle("PUT /api/products/{id}", protected(http.HandlerFunc(productHandler.HandleUpdateProduct)))
+	servermux.Handle("DELETE /api/products/{id}", protected(http.HandlerFunc(productHandler.HandleDeleteProduct)))
+	servermux.HandleFunc("GET /api/products/{id}", productHandler.HandleGetProduct)
+	servermux.HandleFunc("GET /api/products", productHandler.HandleListProducts)
+	servermux.Handle("GET /api/shops/{shop_id}/products",protected(http.HandlerFunc(productHandler.HandleListProductsByShop)))
+	servermux.HandleFunc("GET /api/categories/{category_id}/products",productHandler.HandleListProductsByCategory)
+	servermux.HandleFunc("GET /api/subcategories/{subcategory_id}/products",productHandler.HandleListProductsBySubcategory)
 	// servermux.HandleFunc("POST /api/products/{id}/images", handlers.HandelProducts)
 	// servermux.HandleFunc("GET /api/cart", handlers.HandelProducts)
 	// servermux.HandleFunc("POST /api/cart/items", handlers.HandelProducts)
