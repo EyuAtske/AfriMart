@@ -9,7 +9,7 @@ import (
 	"net/mail"
 	"strings"
 
-	comm "github.com/EyuAtske/AfriMart/backend/internal/comm"
+	"github.com/EyuAtske/AfriMart/backend/internal/comm"
 	database "github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/google/uuid"
 )

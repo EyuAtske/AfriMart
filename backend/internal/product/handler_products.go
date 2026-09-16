@@ -10,7 +10,7 @@ import (
 
 	"github.com/EyuAtske/AfriMart/backend/config"
 	"github.com/EyuAtske/AfriMart/backend/internal/auth"
-	comm "github.com/EyuAtske/AfriMart/backend/internal/comm"
+	"github.com/EyuAtske/AfriMart/backend/internal/comm"
 	"github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/google/uuid"
 )
@@ -242,12 +242,7 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 		)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-
-	if err := json.NewEncoder(w).Encode(product); err != nil {
-		return
-	}
+	comm.RespondwithJson(w, r, product)
 }
 
 func (apiCfg *ProductHandler) HandleGetProduct(w http.ResponseWriter, r *http.Request) {
@@ -291,12 +286,7 @@ func (apiCfg *ProductHandler) HandleGetProduct(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	if err := json.NewEncoder(w).Encode(product); err != nil {
-		return
-	}
+	comm.RespondwithJson(w, r, product)
 }
 
 func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http.Request) {
@@ -523,12 +513,7 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	if err := json.NewEncoder(w).Encode(product); err != nil {
-		return
-	}
+	comm.RespondwithJson(w, r, product)
 }
 
 func (apiCfg *ProductHandler) HandleDeleteProduct(w http.ResponseWriter, r *http.Request) {

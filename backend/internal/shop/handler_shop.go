@@ -9,7 +9,7 @@ import (
 
 	"github.com/EyuAtske/AfriMart/backend/config"
 	"github.com/EyuAtske/AfriMart/backend/internal/auth"
-	comm "github.com/EyuAtske/AfriMart/backend/internal/comm"
+	"github.com/EyuAtske/AfriMart/backend/internal/comm"
 	"github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/google/uuid"
 )
@@ -114,12 +114,7 @@ func (apiCfg *ShopHandler) HandleGetMyShop(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	if err := json.NewEncoder(w).Encode(shop); err != nil {
-		return
-	}
+	comm.RespondwithJson(w, r, shop)
 }
 
 func (apiCfg *ShopHandler) HandleUpdateShopName(w http.ResponseWriter, r *http.Request) {
@@ -204,12 +199,7 @@ func (apiCfg *ShopHandler) HandleUpdateShopName(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	if err := json.NewEncoder(w).Encode(shop); err != nil {
-		return
-	}
+	comm.RespondwithJson(w, r, shop)
 }
 
 func (apiCfg *ShopHandler) HandleUpdateShopDescription(w http.ResponseWriter, r *http.Request) {
@@ -286,12 +276,7 @@ func (apiCfg *ShopHandler) HandleUpdateShopDescription(w http.ResponseWriter, r 
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	if err := json.NewEncoder(w).Encode(shop); err != nil {
-		return
-	}
+	comm.RespondwithJson(w, r, shop)
 }
 
 func (apiCfg *ShopHandler) HandleDeactivateShop(w http.ResponseWriter, r *http.Request) {

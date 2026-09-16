@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	comm "github.com/EyuAtske/AfriMart/backend/internal/comm"
+	"github.com/EyuAtske/AfriMart/backend/internal/comm"
 )
 
 type contextKey string
