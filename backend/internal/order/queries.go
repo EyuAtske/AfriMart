@@ -36,7 +36,7 @@ type OrderQuerier interface {
 	ReduceProductStock(
 		ctx context.Context, 
 		arg database.ReduceProductStockParams,
-	)(database.ReduceProductStockParams, error)
+	)(database.ReduceProductStockRow, error)
 
 	UpdateOrderStatus(
 		ctx context.Context, 

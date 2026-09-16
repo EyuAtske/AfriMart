@@ -10,6 +10,7 @@ import (
 	"github.com/EyuAtske/AfriMart/backend/internal/cart"
 	"github.com/EyuAtske/AfriMart/backend/internal/health"
 	"github.com/EyuAtske/AfriMart/backend/internal/observability"
+	"github.com/EyuAtske/AfriMart/backend/internal/order"
 	"github.com/EyuAtske/AfriMart/backend/internal/product"
 	"github.com/EyuAtske/AfriMart/backend/internal/shop"
 
@@ -38,6 +39,10 @@ func main() {
 		Queries: apicfg.Queries,
 	}
 	cartHandler := &cart.CartHandler{
+		Queries: apicfg.Queries,
+	}
+	orderHandler := &order.OrderHandler{
+		Config:  apicfg,
 		Queries: apicfg.Queries,
 	}
 	servermux := http.NewServeMux()
@@ -78,7 +83,7 @@ func main() {
 	servermux.Handle("PATCH /api/cart/items/{id}", protected(http.HandlerFunc(cartHandler.HandleUpdateCartItem)))
 	servermux.Handle("DELETE /api/cart/items/{id}", protected(http.HandlerFunc(cartHandler.HandleDeleteCartItem)))
 	servermux.Handle("DELETE /api/cart", protected(http.HandlerFunc(cartHandler.HandleClearCart)))
-	// servermux.HandleFunc("POST /api/checkout", handlers.HandelProducts)
+	servermux.Handle("POST /api/orders/checkout", protected(http.HandlerFunc(orderHandler.HandleCheckout)))
 	// servermux.HandleFunc("POST /api/payments", handlers.HandelProducts)
 	// servermux.HandleFunc("GET /api/payments/{id}", handlers.HandelProducts)
 	// servermux.HandleFunc("POST /api/payments/{id}/verify", handlers.HandelProducts)
