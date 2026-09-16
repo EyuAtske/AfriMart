@@ -1,4 +1,4 @@
-package commErr
+package comm
 
 import (
 	"encoding/json"
