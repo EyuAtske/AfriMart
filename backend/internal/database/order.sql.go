@@ -263,3 +263,26 @@ func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusPa
 	)
 	return i, err
 }
+
+const verifyOrderSellerOwnership = `-- name: VerifyOrderSellerOwnership :one
+SELECT o.status
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.id
+JOIN products p ON p.id = oi.product_id
+JOIN shops s ON s.id = p.shop_id
+WHERE o.id = $1
+  AND s.owner_id = $2
+LIMIT 1
+`
+
+type VerifyOrderSellerOwnershipParams struct {
+	ID      uuid.UUID
+	OwnerID uuid.UUID
+}
+
+func (q *Queries) VerifyOrderSellerOwnership(ctx context.Context, arg VerifyOrderSellerOwnershipParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, verifyOrderSellerOwnership, arg.ID, arg.OwnerID)
+	var status string
+	err := row.Scan(&status)
+	return status, err
+}

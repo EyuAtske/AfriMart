@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/google/uuid"
+
 	"github.com/EyuAtske/AfriMart/backend/config"
 	"github.com/EyuAtske/AfriMart/backend/internal/auth"
 	"github.com/EyuAtske/AfriMart/backend/internal/comm"
@@ -234,4 +236,290 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 
 	_ = json.NewEncoder(w).Encode(response)
+}
+
+func (h *OrderHandler) HandleListOrders(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusUnauthorized,
+			"Unauthorized",
+			nil,
+		)
+		return
+	}
+
+	page := 1
+	limit := 20
+
+	query := r.URL.Query()
+
+	if value := query.Get("page"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 {
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusBadRequest,
+				"Invalid page",
+				err,
+			)
+			return
+		}
+		page = parsed
+	}
+
+	if value := query.Get("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 || parsed > 50 {
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusBadRequest,
+				"Invalid limit",
+				err,
+			)
+			return
+		}
+		limit = parsed
+	}
+
+	offset := (page - 1) * limit
+
+	orders, err := h.Queries.ListOrdersByUser(
+		r.Context(),
+		database.ListOrdersByUserParams{
+			UserID: userID,
+			Limit:  int32(limit),
+			Offset: int32(offset),
+		},
+	)
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Failed to get orders",
+			err,
+		)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"page":   page,
+		"limit":  limit,
+		"orders": orders,
+	})
+}
+
+func (h *OrderHandler) HandleGetOrder(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusUnauthorized,
+			"Unauthorized",
+			nil,
+		)
+		return
+	}
+
+	orderID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Invalid order ID",
+			err,
+		)
+		return
+	}
+
+	orderRecord, err := h.Queries.GetOrderByID(
+		r.Context(),
+		database.GetOrderByIDParams{
+			ID:     orderID,
+			UserID: userID,
+		},
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusNotFound,
+				"Order not found",
+				err,
+			)
+			return
+		}
+
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Failed to get order",
+			err,
+		)
+		return
+	}
+
+	items, err := h.Queries.GetOrderItems(
+		r.Context(),
+		orderID,
+	)
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Failed to get order items",
+			err,
+		)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"order": orderRecord,
+		"items": items,
+	})
+}
+
+func (h *OrderHandler) HandleUpdateOrderStatus(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusUnauthorized,
+			"Unauthorized",
+			nil,
+		)
+		return
+	}
+
+	orderID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Invalid order ID",
+			err,
+		)
+		return
+	}
+
+	var request struct {
+		Status string `json:"status"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Invalid request body",
+			err,
+		)
+		return
+	}
+
+	switch request.Status {
+	case "confirmed", "processing", "shipped", "delivered", "cancelled":
+		// Valid status.
+	default:
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Invalid order status",
+			nil,
+		)
+		return
+	}
+
+	currentStatus, err := h.Queries.VerifyOrderSellerOwnership(
+		r.Context(),
+		database.VerifyOrderSellerOwnershipParams{
+			ID:      orderID,
+			OwnerID: userID,
+		},
+	)
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusForbidden,
+			"You do not own this order",
+			err,
+		)
+		return
+	}
+
+	if !isValidStatusTransition(currentStatus, request.Status) {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Invalid order status transition",
+			nil,
+		)
+		return
+	}
+
+	updatedOrder, err := h.Queries.UpdateOrderStatus(
+		r.Context(),
+		database.UpdateOrderStatusParams{
+			ID:     orderID,
+			Status: request.Status,
+		},
+	)
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Failed to update order status",
+			err,
+		)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"order": updatedOrder,
+	})
+}
+
+func isValidStatusTransition(current, next string) bool {
+	switch current {
+	case "pending":
+		return next == "confirmed" || next == "cancelled"
+
+	case "confirmed":
+		return next == "processing" || next == "cancelled"
+
+	case "processing":
+		return next == "shipped" || next == "cancelled"
+
+	case "shipped":
+		return next == "delivered"
+
+	case "delivered", "cancelled":
+		return false
+
+	default:
+		return false
+	}
 }

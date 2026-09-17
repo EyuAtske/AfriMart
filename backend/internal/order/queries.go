@@ -2,6 +2,7 @@ package order
 
 import (
 	"context"
+
 	"github.com/google/uuid"
 
 	"github.com/EyuAtske/AfriMart/backend/internal/database"
@@ -26,20 +27,25 @@ type OrderQuerier interface {
 	GetOrderItems(
 		ctx context.Context,
 		orderID uuid.UUID,
-	)([]database.GetOrderItemsRow, error)
+	) ([]database.GetOrderItemsRow, error)
 
 	ListOrdersByUser(
-		ctx context.Context, 
+		ctx context.Context,
 		arg database.ListOrdersByUserParams,
-	)([]database.Order, error)
+	) ([]database.Order, error)
 
 	ReduceProductStock(
-		ctx context.Context, 
+		ctx context.Context,
 		arg database.ReduceProductStockParams,
-	)(database.ReduceProductStockRow, error)
+	) (database.ReduceProductStockRow, error)
 
 	UpdateOrderStatus(
-		ctx context.Context, 
+		ctx context.Context,
 		arg database.UpdateOrderStatusParams,
-	)(database.Order, error)
+	) (database.Order, error)
+
+	VerifyOrderSellerOwnership(
+		ctx context.Context,
+		arg database.VerifyOrderSellerOwnershipParams,
+	) (string, error)
 }

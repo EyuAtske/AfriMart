@@ -67,3 +67,13 @@ SET
 WHERE id = $1
   AND stock >= $2
 RETURNING id, stock;
+
+-- name: VerifyOrderSellerOwnership :one
+SELECT o.status
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.id
+JOIN products p ON p.id = oi.product_id
+JOIN shops s ON s.id = p.shop_id
+WHERE o.id = $1
+  AND s.owner_id = $2
+LIMIT 1;
