@@ -34,12 +34,17 @@ type Category struct {
 }
 
 type Order struct {
-	ID        uuid.UUID
-	UserID    uuid.UUID
-	Subtotal  string
-	Status    string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID              uuid.UUID
+	UserID          uuid.UUID
+	Subtotal        string
+	Status          string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	RecipientName   string
+	Phone           string
+	DeliveryAddress string
+	DeliveryCity    string
+	DeliveryNotes   sql.NullString
 }
 
 type OrderItem struct {

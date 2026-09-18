@@ -48,4 +48,9 @@ type OrderQuerier interface {
 		ctx context.Context,
 		arg database.VerifyOrderSellerOwnershipParams,
 	) (string, error)
+
+	ListOrdersBySeller(
+		ctx context.Context,
+		arg database.ListOrdersBySellerParams,
+	) ([]database.Order, error)
 }

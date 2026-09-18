@@ -2,9 +2,23 @@
 INSERT INTO orders (
     user_id,
     subtotal,
-    status
+    status,
+    recipient_name,
+    phone,
+    delivery_address,
+    delivery_city,
+    delivery_notes
 )
-VALUES ($1, $2, 'pending')
+VALUES (
+    $1,
+    $2,
+    'pending',
+    $3,
+    $4,
+    $5,
+    $6,
+    $7
+)
 RETURNING *;
 
 
@@ -77,3 +91,13 @@ JOIN shops s ON s.id = p.shop_id
 WHERE o.id = $1
   AND s.owner_id = $2
 LIMIT 1;
+
+-- name: ListOrdersBySeller :many
+SELECT DISTINCT o.*
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.id
+JOIN products p ON p.id = oi.product_id
+JOIN shops s ON s.id = p.shop_id
+WHERE s.owner_id = $1
+ORDER BY o.created_at DESC
+LIMIT $2 OFFSET $3;

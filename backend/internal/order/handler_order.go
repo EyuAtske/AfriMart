@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -25,6 +27,14 @@ type checkoutResponse struct {
 	Items []database.OrderItem `json:"items"`
 }
 
+type checkoutRequest struct {
+	RecipientName   string `json:"recipient_name"`
+	Phone           string `json:"phone"`
+	DeliveryAddress string `json:"delivery_address"`
+	DeliveryCity    string `json:"delivery_city"`
+	DeliveryNotes   string `json:"delivery_notes"`
+}
+
 func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
@@ -33,6 +43,69 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 			r,
 			http.StatusUnauthorized,
 			"Unauthorized",
+			nil,
+		)
+		return
+	}
+
+	var req checkoutRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Invalid request body",
+			err,
+		)
+		return
+	}
+
+	req.RecipientName = strings.TrimSpace(req.RecipientName)
+	req.Phone = strings.TrimSpace(req.Phone)
+	req.DeliveryAddress = strings.TrimSpace(req.DeliveryAddress)
+	req.DeliveryCity = strings.TrimSpace(req.DeliveryCity)
+	req.DeliveryNotes = strings.TrimSpace(req.DeliveryNotes)
+
+	if req.RecipientName == "" {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Recipient name is required",
+			nil,
+		)
+		return
+	}
+
+	if req.Phone == "" {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Phone is required",
+			nil,
+		)
+		return
+	}
+
+	if req.DeliveryAddress == "" {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Delivery address is required",
+			nil,
+		)
+		return
+	}
+
+	if req.DeliveryCity == "" {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Delivery city is required",
 			nil,
 		)
 		return
@@ -146,8 +219,16 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 	order, err := txQueries.CreateOrder(
 		r.Context(),
 		database.CreateOrderParams{
-			UserID:   userID,
-			Subtotal: subtotalString,
+			UserID:          userID,
+			Subtotal:        subtotalString,
+			RecipientName:   req.RecipientName,
+			Phone:           req.Phone,
+			DeliveryAddress: req.DeliveryAddress,
+			DeliveryCity:    req.DeliveryCity,
+			DeliveryNotes: sql.NullString{
+				String: req.DeliveryNotes,
+				Valid:  true,
+			},
 		},
 	)
 	if err != nil {
@@ -521,5 +602,85 @@ func isValidStatusTransition(current, next string) bool {
 
 	default:
 		return false
+	}
+}
+
+func (h *OrderHandler) HandleListSellerOrders(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusUnauthorized,
+			"Authentication required",
+			nil,
+		)
+		return
+	}
+
+	page := 1
+	limit := 20
+
+	if value := r.URL.Query().Get("page"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 {
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusBadRequest,
+				"Invalid page",
+				err,
+			)
+			return
+		}
+		page = parsed
+	}
+
+	if value := r.URL.Query().Get("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 || parsed > 50 {
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusBadRequest,
+				"Invalid limit",
+				err,
+			)
+			return
+		}
+		limit = parsed
+	}
+
+	offset := (page - 1) * limit
+
+	orders, err := h.Queries.ListOrdersBySeller(
+		r.Context(),
+		database.ListOrdersBySellerParams{
+			OwnerID: userID,
+			Limit:   int32(limit),
+			Offset:  int32(offset),
+		},
+	)
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Failed to get seller orders",
+			err,
+		)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	response := map[string]interface{}{
+		"page":   page,
+		"limit":  limit,
+		"orders": orders,
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		slog.ErrorContext(r.Context(), "failed to encode seller orders", "error", err)
 	}
 }

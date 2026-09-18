@@ -17,19 +17,46 @@ const createOrder = `-- name: CreateOrder :one
 INSERT INTO orders (
     user_id,
     subtotal,
-    status
+    status,
+    recipient_name,
+    phone,
+    delivery_address,
+    delivery_city,
+    delivery_notes
 )
-VALUES ($1, $2, 'pending')
-RETURNING id, user_id, subtotal, status, created_at, updated_at
+VALUES (
+    $1,
+    $2,
+    'pending',
+    $3,
+    $4,
+    $5,
+    $6,
+    $7
+)
+RETURNING id, user_id, subtotal, status, created_at, updated_at, recipient_name, phone, delivery_address, delivery_city, delivery_notes
 `
 
 type CreateOrderParams struct {
-	UserID   uuid.UUID
-	Subtotal string
+	UserID          uuid.UUID
+	Subtotal        string
+	RecipientName   string
+	Phone           string
+	DeliveryAddress string
+	DeliveryCity    string
+	DeliveryNotes   sql.NullString
 }
 
 func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error) {
-	row := q.db.QueryRowContext(ctx, createOrder, arg.UserID, arg.Subtotal)
+	row := q.db.QueryRowContext(ctx, createOrder,
+		arg.UserID,
+		arg.Subtotal,
+		arg.RecipientName,
+		arg.Phone,
+		arg.DeliveryAddress,
+		arg.DeliveryCity,
+		arg.DeliveryNotes,
+	)
 	var i Order
 	err := row.Scan(
 		&i.ID,
@@ -38,6 +65,11 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RecipientName,
+		&i.Phone,
+		&i.DeliveryAddress,
+		&i.DeliveryCity,
+		&i.DeliveryNotes,
 	)
 	return i, err
 }
@@ -80,7 +112,7 @@ func (q *Queries) CreateOrderItem(ctx context.Context, arg CreateOrderItemParams
 }
 
 const getOrderByID = `-- name: GetOrderByID :one
-SELECT id, user_id, subtotal, status, created_at, updated_at
+SELECT id, user_id, subtotal, status, created_at, updated_at, recipient_name, phone, delivery_address, delivery_city, delivery_notes
 FROM orders
 WHERE id = $1
   AND user_id = $2
@@ -101,6 +133,11 @@ func (q *Queries) GetOrderByID(ctx context.Context, arg GetOrderByIDParams) (Ord
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RecipientName,
+		&i.Phone,
+		&i.DeliveryAddress,
+		&i.DeliveryCity,
+		&i.DeliveryNotes,
 	)
 	return i, err
 }
@@ -164,8 +201,60 @@ func (q *Queries) GetOrderItems(ctx context.Context, orderID uuid.UUID) ([]GetOr
 	return items, nil
 }
 
+const listOrdersBySeller = `-- name: ListOrdersBySeller :many
+SELECT DISTINCT o.id, o.user_id, o.subtotal, o.status, o.created_at, o.updated_at, o.recipient_name, o.phone, o.delivery_address, o.delivery_city, o.delivery_notes
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.id
+JOIN products p ON p.id = oi.product_id
+JOIN shops s ON s.id = p.shop_id
+WHERE s.owner_id = $1
+ORDER BY o.created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type ListOrdersBySellerParams struct {
+	OwnerID uuid.UUID
+	Limit   int32
+	Offset  int32
+}
+
+func (q *Queries) ListOrdersBySeller(ctx context.Context, arg ListOrdersBySellerParams) ([]Order, error) {
+	rows, err := q.db.QueryContext(ctx, listOrdersBySeller, arg.OwnerID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Order
+	for rows.Next() {
+		var i Order
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Subtotal,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.RecipientName,
+			&i.Phone,
+			&i.DeliveryAddress,
+			&i.DeliveryCity,
+			&i.DeliveryNotes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOrdersByUser = `-- name: ListOrdersByUser :many
-SELECT id, user_id, subtotal, status, created_at, updated_at
+SELECT id, user_id, subtotal, status, created_at, updated_at, recipient_name, phone, delivery_address, delivery_city, delivery_notes
 FROM orders
 WHERE user_id = $1
 ORDER BY created_at DESC
@@ -195,6 +284,11 @@ func (q *Queries) ListOrdersByUser(ctx context.Context, arg ListOrdersByUserPara
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.RecipientName,
+			&i.Phone,
+			&i.DeliveryAddress,
+			&i.DeliveryCity,
+			&i.DeliveryNotes,
 		); err != nil {
 			return nil, err
 		}
@@ -242,7 +336,7 @@ SET
     status = $2,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, subtotal, status, created_at, updated_at
+RETURNING id, user_id, subtotal, status, created_at, updated_at, recipient_name, phone, delivery_address, delivery_city, delivery_notes
 `
 
 type UpdateOrderStatusParams struct {
@@ -260,6 +354,11 @@ func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusPa
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RecipientName,
+		&i.Phone,
+		&i.DeliveryAddress,
+		&i.DeliveryCity,
+		&i.DeliveryNotes,
 	)
 	return i, err
 }
