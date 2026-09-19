@@ -7,14 +7,17 @@ import (
 	"os"
 
 	"github.com/EyuAtske/AfriMart/backend/internal/auth"
+	"github.com/EyuAtske/AfriMart/backend/internal/cart"
 	"github.com/EyuAtske/AfriMart/backend/internal/health"
 	"github.com/EyuAtske/AfriMart/backend/internal/observability"
+	"github.com/EyuAtske/AfriMart/backend/internal/order"
 	"github.com/EyuAtske/AfriMart/backend/internal/product"
 	"github.com/EyuAtske/AfriMart/backend/internal/shop"
 
 	"github.com/EyuAtske/AfriMart/backend/config"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/rs/cors"
 )
 
 func main() {
@@ -25,7 +28,7 @@ func main() {
 	slog.Info("starting AfriMart backend")
 	apicfg := config.SetupAPIConfig(ctx)
 	authHandler := &auth.AuthHandler{
-		Config: apicfg,
+		Config:  apicfg,
 		Queries: apicfg.Queries,
 	}
 	shopHandler := &shop.ShopHandler{
@@ -33,13 +36,27 @@ func main() {
 		Queries: apicfg.Queries,
 	}
 	productHandler := &product.ProductHandler{
-		Config: apicfg,
+		Config:  apicfg,
+		Queries: apicfg.Queries,
+	}
+	cartHandler := &cart.CartHandler{
+		Queries: apicfg.Queries,
+	}
+	orderHandler := &order.OrderHandler{
+		Config:  apicfg,
 		Queries: apicfg.Queries,
 	}
 	servermux := http.NewServeMux()
 	tracedHandler := observability.TraceMiddleware(servermux)
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:3000"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "traceparent", "tracestate", "baggage"},
+		ExposedHeaders:   []string{"traceresponse"}, // Allows frontend to read the trace response
+		AllowCredentials: true,
+	})
 	server := &http.Server{
-		Handler: tracedHandler,
+		Handler: c.Handler(tracedHandler),
 		Addr:    ":8080",
 	}
 	slog.Info(
@@ -66,23 +83,23 @@ func main() {
 	servermux.Handle("DELETE /api/products/{id}", protected(http.HandlerFunc(productHandler.HandleDeleteProduct)))
 	servermux.HandleFunc("GET /api/products/{id}", productHandler.HandleGetProduct)
 	servermux.HandleFunc("GET /api/products", productHandler.HandleListProducts)
-	servermux.Handle("GET /api/shops/{shop_id}/products",protected(http.HandlerFunc(productHandler.HandleListProductsByShop)))
-	servermux.HandleFunc("GET /api/categories/{category_id}/products",productHandler.HandleListProductsByCategory)
-	servermux.HandleFunc("GET /api/subcategories/{subcategory_id}/products",productHandler.HandleListProductsBySubcategory)
-	// servermux.HandleFunc("POST /api/products/{id}/images", handlers.HandelProducts)
-	// servermux.HandleFunc("GET /api/cart", handlers.HandelProducts)
-	// servermux.HandleFunc("POST /api/cart/items", handlers.HandelProducts)
-	// servermux.HandleFunc("PUT /api/cart/items/{id}", handlers.HandelProducts)
-	// servermux.HandleFunc("DELETE /api/cart/items/{id}", handlers.HandelProducts)
-	// servermux.HandleFunc("POST /api/checkout", handlers.HandelProducts)
+	servermux.Handle("GET /api/shops/{shop_id}/products", protected(http.HandlerFunc(productHandler.HandleListProductsByShop)))
+	servermux.HandleFunc("GET /api/categories/{category_id}/products", productHandler.HandleListProductsByCategory)
+	servermux.HandleFunc("GET /api/subcategories/{subcategory_id}/products", productHandler.HandleListProductsBySubcategory)
+	servermux.Handle("GET /api/cart", protected(http.HandlerFunc(cartHandler.HandleGetCart)))
+	servermux.Handle("POST /api/cart/items", protected(http.HandlerFunc(cartHandler.HandleAddCartItem)))
+	servermux.Handle("PATCH /api/cart/items/{id}", protected(http.HandlerFunc(cartHandler.HandleUpdateCartItem)))
+	servermux.Handle("DELETE /api/cart/items/{id}", protected(http.HandlerFunc(cartHandler.HandleDeleteCartItem)))
+	servermux.Handle("DELETE /api/cart", protected(http.HandlerFunc(cartHandler.HandleClearCart)))
+	servermux.Handle("POST /api/orders/checkout", protected(http.HandlerFunc(orderHandler.HandleCheckout)))
+	servermux.Handle("GET /api/orders", protected(http.HandlerFunc(orderHandler.HandleListOrders)))
+	servermux.Handle("GET /api/orders/{id}", protected(http.HandlerFunc(orderHandler.HandleGetOrder)))
+	servermux.Handle("PATCH /api/orders/{id}/status", protected(http.HandlerFunc(orderHandler.HandleUpdateOrderStatus)))
+	servermux.Handle("GET /api/orders/seller", protected(http.HandlerFunc(orderHandler.HandleListSellerOrders)))
+	// servermux.HandleFunc("POST /api/orders/{id}/cancel", handlers.HandelProducts)
 	// servermux.HandleFunc("POST /api/payments", handlers.HandelProducts)
 	// servermux.HandleFunc("GET /api/payments/{id}", handlers.HandelProducts)
 	// servermux.HandleFunc("POST /api/payments/{id}/verify", handlers.HandelProducts)
-	// servermux.HandleFunc("GET /api/orders", handlers.HandelProducts)
-	// servermux.HandleFunc("GET /api/orders/{id}", handlers.HandelProducts)
-	// servermux.HandleFunc("GET /api/seller/orders", handlers.HandelProducts)
-	// servermux.HandleFunc("PATCH /api/orders/{id}/status", handlers.HandelProducts)
-	// servermux.HandleFunc("POST /api/orders/{id}/cancel", handlers.HandelProducts)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		slog.Error("server failed", "error", err)
 		os.Exit(1)

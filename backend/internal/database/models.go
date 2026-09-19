@@ -33,6 +33,29 @@ type Category struct {
 	CreatedAt time.Time
 }
 
+type Order struct {
+	ID              uuid.UUID
+	UserID          uuid.UUID
+	Subtotal        string
+	Status          string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	RecipientName   string
+	Phone           string
+	DeliveryAddress string
+	DeliveryCity    string
+	DeliveryNotes   sql.NullString
+}
+
+type OrderItem struct {
+	ID        uuid.UUID
+	OrderID   uuid.UUID
+	ProductID uuid.UUID
+	Quantity  int32
+	Price     string
+	CreatedAt time.Time
+}
+
 type Product struct {
 	ID            uuid.UUID
 	ShopID        uuid.UUID
