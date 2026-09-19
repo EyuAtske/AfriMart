@@ -25,6 +25,7 @@ type mockOrderQuerier struct {
 	updateOrderStatusFn          func(context.Context, database.UpdateOrderStatusParams) (database.Order, error)
 	verifyOrderSellerOwnershipFn func(context.Context, database.VerifyOrderSellerOwnershipParams) (string, error)
 	listOrdersBySellerFn         func(context.Context, database.ListOrdersBySellerParams) ([]database.Order, error)
+	getCartByUserIDForUpdatefn   func(context.Context, uuid.UUID) (database.Cart, error)
 }
 
 func (m *mockOrderQuerier) CreateOrder(ctx context.Context, arg database.CreateOrderParams) (database.Order, error) {
@@ -91,8 +92,8 @@ func (m *mockOrderQuerier) ListOrdersBySeller(ctx context.Context, arg database.
 }
 
 func (m *mockOrderQuerier) GetCartByUserIDForUpdate(ctx context.Context, userID uuid.UUID) (database.Cart, error) {
-	if m.GetCartByUserIDForUpdate != nil {
-		return m.GetCartByUserIDForUpdate(ctx, userID)
+	if m.getCartByUserIDForUpdatefn != nil {
+		return m.getCartByUserIDForUpdatefn(ctx, userID)
 	}
 	return database.Cart{}, nil
 }
