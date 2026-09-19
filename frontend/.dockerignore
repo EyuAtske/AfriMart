@@ -11,6 +11,7 @@ dist
 node_modules
 Dockerfile
 README.md
+pnpm-workspace.yaml
 
 # Test artifacts
 playwright-report

@@ -34,6 +34,7 @@ SET
     name = $2,
     updated_at = NOW()
 WHERE id = $1
+AND owner_id = $3
 RETURNING *;
 
 -- name: UpdateShopDescription :one
@@ -42,6 +43,7 @@ SET
     description = $2,
     updated_at = NOW()
 WHERE id = $1
+AND owner_id = $3
 RETURNING *;
 
 
@@ -51,6 +53,7 @@ SET
     status = 'inactive',
     updated_at = NOW()
 WHERE id = $1
+AND owner_id = $2
 RETURNING *;
 
 -- name: ActivateShop :one
@@ -59,4 +62,12 @@ SET
     status = 'active',
     updated_at = NOW()
 WHERE id = $1
+AND owner_id = $2
 RETURNING *;
+
+-- name: GetShopByIDAndOwnerID :one
+
+SELECT *
+FROM shops
+WHERE id = $1
+  AND owner_id = $2;

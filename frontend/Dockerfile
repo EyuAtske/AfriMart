@@ -15,7 +15,7 @@ COPY . .
 ARG API_PROXY_TARGET=http://localhost:8080
 ENV API_PROXY_TARGET=${API_PROXY_TARGET}
 
-RUN pnpm run build
+RUN pnpm run build --ignore-workspace
 
 # ---- Stage 2: Run ----
 FROM node:22-alpine AS runtime

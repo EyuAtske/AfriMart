@@ -10,13 +10,14 @@ import (
 	"time"
 
 	"github.com/EyuAtske/AfriMart/backend/config"
-	"github.com/EyuAtske/AfriMart/backend/internal/commErr"
+	"github.com/EyuAtske/AfriMart/backend/internal/comm"
 	"github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/google/uuid"
 )
 
 type AuthHandler struct {
 	Config *config.ApiConfig
+	Queries AuthQuerier
 }
 
 type register struct {
@@ -63,11 +64,11 @@ func (apicfg *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&reg)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, 400, "Error while decoding", err)
+		comm.RespondErrorWithJson(w, r, 400, "Error while decoding", err)
 		return
 	}
 	if err := validateRegistration(&reg); err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -78,10 +79,10 @@ func (apicfg *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request
 	}
 	hashedPassword, err := HashPassword(reg.Password)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, 500, "Error while decoding request", err)
+		comm.RespondErrorWithJson(w, r, 500, "Error while decoding request", err)
 		return
 	}
-	users, err := apicfg.Config.Queries.CreateUser(r.Context(), database.CreateUserParams{
+	users, err := apicfg.Queries.CreateUser(r.Context(), database.CreateUserParams{
 		FirstName: sql.NullString{
 			String: reg.First,
 			Valid:  strings.TrimSpace(reg.First) != "",
@@ -98,7 +99,7 @@ func (apicfg *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request
 		PasswordHash: hashedPassword,
 	})
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, 500, "Error while creating user", err)
+		comm.RespondErrorWithJson(w, r, 500, "Error while creating user", err)
 		return
 	}
 	respUser := user{
@@ -109,7 +110,7 @@ func (apicfg *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request
 	}
 	data, err := json.Marshal(respUser)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, 500, "Error while encoding response", err)
+		comm.RespondErrorWithJson(w, r, 500, "Error while encoding response", err)
 		return
 	}
 	w.Header().Add("Content-Type", "application/json; charset=utf-8")
@@ -128,27 +129,27 @@ func (apicfg *AuthHandler) HandleLogIn(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&reg)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, 400, "Error while decoding request", err)
+		comm.RespondErrorWithJson(w, r, 400, "Error while decoding request", err)
 		return
 	}
 	expires_in_seconds := 3600
 	usr, err := apicfg.Config.Queries.GetUserByEmail(r.Context(), reg.Email)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, 401, "Incorrect email or password", err)
+		comm.RespondErrorWithJson(w, r, 401, "Incorrect email or password", err)
 		return
 	}
 	check, err := CheckPasswordHash(reg.Password, usr.PasswordHash)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, 500, "Error checking password", err)
+		comm.RespondErrorWithJson(w, r, 500, "Error checking password", err)
 		return
 	}
 	if !check {
-		commErr.RespondErrorWithJson(w, r, 401, "Incorrect email or password", nil)
+		comm.RespondErrorWithJson(w, r, 401, "Incorrect email or password", nil)
 		return
 	}
 	token, err := MakeJWT(usr.ID, apicfg.Config.Secret, time.Duration(expires_in_seconds)*time.Second)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, 500, "Error while creating token", err)
+		comm.RespondErrorWithJson(w, r, 500, "Error while creating token", err)
 		return
 	}
 
@@ -160,7 +161,7 @@ func (apicfg *AuthHandler) HandleLogIn(w http.ResponseWriter, r *http.Request) {
 		UserID:    usr.ID,
 	})
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, 500, "Error while creating refresh token", err)
+		comm.RespondErrorWithJson(w, r, 500, "Error while creating refresh token", err)
 		return
 	}
 
@@ -187,7 +188,7 @@ func (apicfg *AuthHandler) HandleRevoke(w http.ResponseWriter, r *http.Request) 
 	)
 	bearerToken, err := GetBearerToken(r.Header)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Missing or invalid Authorization header", err)
+		comm.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Missing or invalid Authorization header", err)
 		return
 	}
 
@@ -196,11 +197,11 @@ func (apicfg *AuthHandler) HandleRevoke(w http.ResponseWriter, r *http.Request) 
 	_, err = apicfg.Config.Queries.RevokeRefreshToken(r.Context(), tokenHash)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			commErr.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Invalid refresh token", err)
+			comm.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Invalid refresh token", err)
 			return
 		}
 
-		commErr.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Error while revoking refresh token", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Error while revoking refresh token", err)
 		return
 	}
 
@@ -216,7 +217,7 @@ func (apicfg *AuthHandler) HandleUpdatePassword(w http.ResponseWriter, r *http.R
 	)
 	userID, ok := UserIDFromContext(r.Context())
 	if !ok {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusUnauthorized,
@@ -228,22 +229,22 @@ func (apicfg *AuthHandler) HandleUpdatePassword(w http.ResponseWriter, r *http.R
 
 	params, err := DecodeUpdateParams(r)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, http.StatusBadRequest, err.Error(), err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, err.Error(), err)
 		return
 	}
 
 	if err := ValidateUpdateParams(params); err != nil {
-		commErr.RespondErrorWithJson(w, r, http.StatusBadRequest, err.Error(), err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, err.Error(), err)
 		return
 	}
 
 	hashedPassword, err := HashPassword(params.Password)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, http.StatusInternalServerError, err.Error(), err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, err.Error(), err)
 		return
 	}
 
-	usr, err := apicfg.Config.Queries.UpdateUserPassword(
+	usr, err := apicfg.Queries.UpdateUserPassword(
 		r.Context(),
 		database.UpdateUserPasswordParams{
 			PasswordHash: hashedPassword,
@@ -251,17 +252,14 @@ func (apicfg *AuthHandler) HandleUpdatePassword(w http.ResponseWriter, r *http.R
 		},
 	)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Error while updating user", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Error while updating user", err)
 		return
 	}
 
 	RespondWithUpdatedUser(w, usr)
 }
 
-func (apicfg *AuthHandler) HandleUpdateUsername(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
+func (apicfg *AuthHandler) HandleUpdateUsername(w http.ResponseWriter,r *http.Request) {
 	slog.InfoContext(
 		r.Context(),
 		"request received",
@@ -276,7 +274,7 @@ func (apicfg *AuthHandler) HandleUpdateUsername(
 
 	params, err := decodeAndValidateUsername(r)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
@@ -288,7 +286,7 @@ func (apicfg *AuthHandler) HandleUpdateUsername(
 
 	usr, err := apicfg.updateUsername(r, userID, params.Username)
 	if err != nil {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,
@@ -310,23 +308,23 @@ func (apicfg *AuthHandler) HandleRefresh(w http.ResponseWriter, r *http.Request)
 	)
 	bearerToken, err := GetBearerToken(r.Header)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, 401, "Missing or invalid Authorization header", err)
+		comm.RespondErrorWithJson(w, r, 401, "Missing or invalid Authorization header", err)
 		return
 	}
 	tokenHash := HashRefreshToken(bearerToken)
 
 	refToken, err := apicfg.Config.Queries.GetRefreshToken(r.Context(), tokenHash)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, 401, "Invalid refresh token", err)
+		comm.RespondErrorWithJson(w, r, 401, "Invalid refresh token", err)
 		return
 	}
 	if refToken.ExpiresAt.Before(time.Now()) || refToken.RevokedAt.Valid {
-		commErr.RespondErrorWithJson(w, r, 401, "Refresh token has expired or been revoked", errors.New("token expired or revoked"))
+		comm.RespondErrorWithJson(w, r, 401, "Refresh token has expired or been revoked", errors.New("token expired or revoked"))
 		return
 	}
 	newToken, err := MakeJWT(refToken.UserID, apicfg.Config.Secret, time.Hour)
 	if err != nil {
-		commErr.RespondErrorWithJson(w, r, 500, "Error while creating token", err)
+		comm.RespondErrorWithJson(w, r, 500, "Error while creating token", err)
 		return
 	}
 	resp := struct {
@@ -343,7 +341,7 @@ func (apicfg *AuthHandler) HandleRefresh(w http.ResponseWriter, r *http.Request)
 func (apicfg *AuthHandler) HandleGetProfile(w http.ResponseWriter, r *http.Request) {
 	userID, ok := UserIDFromContext(r.Context())
 	if !ok {
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusUnauthorized,
@@ -356,7 +354,7 @@ func (apicfg *AuthHandler) HandleGetProfile(w http.ResponseWriter, r *http.Reque
 	usr, err := apicfg.Config.Queries.GetUserByID(r.Context(), userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			commErr.RespondErrorWithJson(
+			comm.RespondErrorWithJson(
 				w,
 				r,
 				http.StatusNotFound,
@@ -366,7 +364,7 @@ func (apicfg *AuthHandler) HandleGetProfile(w http.ResponseWriter, r *http.Reque
 			return
 		}
 
-		commErr.RespondErrorWithJson(
+		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusInternalServerError,

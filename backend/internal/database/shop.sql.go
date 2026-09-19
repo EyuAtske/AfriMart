@@ -18,11 +18,17 @@ SET
     status = 'active',
     updated_at = NOW()
 WHERE id = $1
+AND owner_id = $2
 RETURNING id, owner_id, name, description, status, created_at, updated_at
 `
 
-func (q *Queries) ActivateShop(ctx context.Context, id uuid.UUID) (Shop, error) {
-	row := q.db.QueryRowContext(ctx, activateShop, id)
+type ActivateShopParams struct {
+	ID      uuid.UUID
+	OwnerID uuid.UUID
+}
+
+func (q *Queries) ActivateShop(ctx context.Context, arg ActivateShopParams) (Shop, error) {
+	row := q.db.QueryRowContext(ctx, activateShop, arg.ID, arg.OwnerID)
 	var i Shop
 	err := row.Scan(
 		&i.ID,
@@ -85,11 +91,17 @@ SET
     status = 'inactive',
     updated_at = NOW()
 WHERE id = $1
+AND owner_id = $2
 RETURNING id, owner_id, name, description, status, created_at, updated_at
 `
 
-func (q *Queries) DeactivateShop(ctx context.Context, id uuid.UUID) (Shop, error) {
-	row := q.db.QueryRowContext(ctx, deactivateShop, id)
+type DeactivateShopParams struct {
+	ID      uuid.UUID
+	OwnerID uuid.UUID
+}
+
+func (q *Queries) DeactivateShop(ctx context.Context, arg DeactivateShopParams) (Shop, error) {
+	row := q.db.QueryRowContext(ctx, deactivateShop, arg.ID, arg.OwnerID)
 	var i Shop
 	err := row.Scan(
 		&i.ID,
@@ -112,6 +124,34 @@ LIMIT 1
 
 func (q *Queries) GetShopByID(ctx context.Context, id uuid.UUID) (Shop, error) {
 	row := q.db.QueryRowContext(ctx, getShopByID, id)
+	var i Shop
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerID,
+		&i.Name,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getShopByIDAndOwnerID = `-- name: GetShopByIDAndOwnerID :one
+
+SELECT id, owner_id, name, description, status, created_at, updated_at
+FROM shops
+WHERE id = $1
+  AND owner_id = $2
+`
+
+type GetShopByIDAndOwnerIDParams struct {
+	ID      uuid.UUID
+	OwnerID uuid.UUID
+}
+
+func (q *Queries) GetShopByIDAndOwnerID(ctx context.Context, arg GetShopByIDAndOwnerIDParams) (Shop, error) {
+	row := q.db.QueryRowContext(ctx, getShopByIDAndOwnerID, arg.ID, arg.OwnerID)
 	var i Shop
 	err := row.Scan(
 		&i.ID,
@@ -153,16 +193,18 @@ SET
     description = $2,
     updated_at = NOW()
 WHERE id = $1
+AND owner_id = $3
 RETURNING id, owner_id, name, description, status, created_at, updated_at
 `
 
 type UpdateShopDescriptionParams struct {
 	ID          uuid.UUID
 	Description sql.NullString
+	OwnerID     uuid.UUID
 }
 
 func (q *Queries) UpdateShopDescription(ctx context.Context, arg UpdateShopDescriptionParams) (Shop, error) {
-	row := q.db.QueryRowContext(ctx, updateShopDescription, arg.ID, arg.Description)
+	row := q.db.QueryRowContext(ctx, updateShopDescription, arg.ID, arg.Description, arg.OwnerID)
 	var i Shop
 	err := row.Scan(
 		&i.ID,
@@ -182,16 +224,18 @@ SET
     name = $2,
     updated_at = NOW()
 WHERE id = $1
+AND owner_id = $3
 RETURNING id, owner_id, name, description, status, created_at, updated_at
 `
 
 type UpdateShopNameParams struct {
-	ID   uuid.UUID
-	Name string
+	ID      uuid.UUID
+	Name    string
+	OwnerID uuid.UUID
 }
 
 func (q *Queries) UpdateShopName(ctx context.Context, arg UpdateShopNameParams) (Shop, error) {
-	row := q.db.QueryRowContext(ctx, updateShopName, arg.ID, arg.Name)
+	row := q.db.QueryRowContext(ctx, updateShopName, arg.ID, arg.Name, arg.OwnerID)
 	var i Shop
 	err := row.Scan(
 		&i.ID,
