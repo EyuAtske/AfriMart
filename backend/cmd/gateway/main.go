@@ -17,6 +17,7 @@ import (
 	"github.com/EyuAtske/AfriMart/backend/config"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/rs/cors"
 )
 
 func main() {
@@ -47,8 +48,15 @@ func main() {
 	}
 	servermux := http.NewServeMux()
 	tracedHandler := observability.TraceMiddleware(servermux)
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:3000"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type", "traceparent", "tracestate", "baggage"},
+		ExposedHeaders:   []string{"traceresponse"}, // Allows frontend to read the trace response
+		AllowCredentials: true,
+	})
 	server := &http.Server{
-		Handler: tracedHandler,
+		Handler: c.Handler(tracedHandler),
 		Addr:    ":8080",
 	}
 	slog.Info(
@@ -87,8 +95,7 @@ func main() {
 	servermux.Handle("GET /api/orders", protected(http.HandlerFunc(orderHandler.HandleListOrders)))
 	servermux.Handle("GET /api/orders/{id}", protected(http.HandlerFunc(orderHandler.HandleGetOrder)))
 	servermux.Handle("PATCH /api/orders/{id}/status", protected(http.HandlerFunc(orderHandler.HandleUpdateOrderStatus)))
-	servermux.HandleFunc("GET /api/orders/seller", orderHandler.HandleListSellerOrders)
-	servermux.HandleFunc("POST /api/orders/checkout", orderHandler.HandleCheckout)
+	servermux.Handle("GET /api/orders/seller", protected(http.HandlerFunc(orderHandler.HandleListSellerOrders)))
 	// servermux.HandleFunc("POST /api/orders/{id}/cancel", handlers.HandelProducts)
 	// servermux.HandleFunc("POST /api/payments", handlers.HandelProducts)
 	// servermux.HandleFunc("GET /api/payments/{id}", handlers.HandelProducts)
