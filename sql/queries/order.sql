@@ -101,3 +101,9 @@ JOIN shops s ON s.id = p.shop_id
 WHERE s.owner_id = $1
 ORDER BY o.created_at DESC
 LIMIT $2 OFFSET $3;
+
+-- name: GetCartByUserIDForUpdate :one
+SELECT *
+FROM carts
+WHERE user_id = $1
+FOR UPDATE;

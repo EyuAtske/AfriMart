@@ -90,6 +90,13 @@ func (m *mockOrderQuerier) ListOrdersBySeller(ctx context.Context, arg database.
 	return nil, nil
 }
 
+func (m *mockOrderQuerier) GetCartByUserIDForUpdate(ctx context.Context, userID uuid.UUID) (database.Cart, error) {
+	if m.GetCartByUserIDForUpdate != nil {
+		return m.GetCartByUserIDForUpdate(ctx, userID)
+	}
+	return database.Cart{}, nil
+}
+
 func orderRequestWithUser(method, target, body string, userID uuid.UUID) *http.Request {
 	req := httptest.NewRequest(method, target, strings.NewReader(body))
 	ctx := auth.ContextWithUserID(req.Context(), userID)

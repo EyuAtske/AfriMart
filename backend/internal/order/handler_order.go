@@ -111,7 +111,26 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cart, err := h.Config.Queries.GetCartByUserID(r.Context(), userID)
+	tx, err := h.Config.DB.BeginTx(r.Context(), nil)
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Failed to start checkout",
+			err,
+		)
+		return
+	}
+
+	defer tx.Rollback()
+
+	txQueries := database.New(tx)
+
+	cart, err := txQueries.GetCartByUserIDForUpdate(
+		r.Context(),
+		userID,
+	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			comm.RespondErrorWithJson(
@@ -199,22 +218,6 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	subtotalString := strconv.FormatFloat(subtotal, 'f', 2, 64)
-
-	tx, err := h.Config.DB.BeginTx(r.Context(), nil)
-	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Failed to start checkout",
-			err,
-		)
-		return
-	}
-
-	defer tx.Rollback()
-
-	txQueries := database.New(tx)
 
 	order, err := txQueries.CreateOrder(
 		r.Context(),

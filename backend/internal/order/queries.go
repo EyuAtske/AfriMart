@@ -53,4 +53,9 @@ type OrderQuerier interface {
 		ctx context.Context,
 		arg database.ListOrdersBySellerParams,
 	) ([]database.Order, error)
+
+	GetCartByUserIDForUpdate(
+		ctx context.Context, 
+		userID uuid.UUID,
+	) (database.Cart, error)
 }

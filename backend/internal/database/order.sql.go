@@ -111,6 +111,25 @@ func (q *Queries) CreateOrderItem(ctx context.Context, arg CreateOrderItemParams
 	return i, err
 }
 
+const getCartByUserIDForUpdate = `-- name: GetCartByUserIDForUpdate :one
+SELECT id, user_id, created_at, updated_at
+FROM carts
+WHERE user_id = $1
+FOR UPDATE
+`
+
+func (q *Queries) GetCartByUserIDForUpdate(ctx context.Context, userID uuid.UUID) (Cart, error) {
+	row := q.db.QueryRowContext(ctx, getCartByUserIDForUpdate, userID)
+	var i Cart
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getOrderByID = `-- name: GetOrderByID :one
 SELECT id, user_id, subtotal, status, created_at, updated_at, recipient_name, phone, delivery_address, delivery_city, delivery_notes
 FROM orders
