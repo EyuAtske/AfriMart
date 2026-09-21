@@ -1,0 +1,42 @@
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "all_services" {
+  targets = discovery.docker.containers.targets
+
+  // 1. DROP Alloy's own logs to prevent an infinite feedback loop
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/afrimart-alloy"
+    action        = "drop"
+  }
+
+  // 2. Create a clean "container" label (strips the leading "/")
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "container"
+    regex         = "/(.*)"
+    replacement   = "$1"
+  }
+
+  // 3. Create a "service_name" label for standard Grafana querying
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "service_name"
+    regex         = "/(.*)"
+    replacement   = "$1"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.all_services.output
+  forward_to = [loki.write.default.receiver]
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
