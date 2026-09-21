@@ -21,7 +21,6 @@ SELECT
     p.name AS product_name,
     p.price,
     p.stock,
-    p.image,
     p.status
 FROM cart_items ci
 JOIN products p ON p.id = ci.product_id

@@ -169,8 +169,7 @@ SELECT
     oi.quantity,
     oi.price,
     oi.created_at,
-    p.name AS product_name,
-    p.image AS product_image
+    p.name AS product_name
 FROM order_items oi
 JOIN products p ON p.id = oi.product_id
 WHERE oi.order_id = $1
@@ -178,14 +177,13 @@ ORDER BY oi.created_at ASC
 `
 
 type GetOrderItemsRow struct {
-	ID           uuid.UUID
-	OrderID      uuid.UUID
-	ProductID    uuid.UUID
-	Quantity     int32
-	Price        string
-	CreatedAt    time.Time
-	ProductName  string
-	ProductImage sql.NullString
+	ID          uuid.UUID
+	OrderID     uuid.UUID
+	ProductID   uuid.UUID
+	Quantity    int32
+	Price       string
+	CreatedAt   time.Time
+	ProductName string
 }
 
 func (q *Queries) GetOrderItems(ctx context.Context, orderID uuid.UUID) ([]GetOrderItemsRow, error) {
@@ -205,7 +203,6 @@ func (q *Queries) GetOrderItems(ctx context.Context, orderID uuid.UUID) ([]GetOr
 			&i.Price,
 			&i.CreatedAt,
 			&i.ProductName,
-			&i.ProductImage,
 		); err != nil {
 			return nil, err
 		}

@@ -35,9 +35,11 @@ func main() {
 		Config:  apicfg,
 		Queries: apicfg.Queries,
 	}
+
 	productHandler := &product.ProductHandler{
-		Config:  apicfg,
-		Queries: apicfg.Queries,
+		Config:       apicfg,
+		Queries:      apicfg.Queries,
+		ImageStorage: apicfg.ImageStorage,
 	}
 	cartHandler := &cart.CartHandler{
 		Queries: apicfg.Queries,
@@ -96,6 +98,8 @@ func main() {
 	servermux.Handle("GET /api/orders/{id}", protected(http.HandlerFunc(orderHandler.HandleGetOrder)))
 	servermux.Handle("PATCH /api/orders/{id}/status", protected(http.HandlerFunc(orderHandler.HandleUpdateOrderStatus)))
 	servermux.Handle("GET /api/orders/seller", protected(http.HandlerFunc(orderHandler.HandleListSellerOrders)))
+	servermux.Handle("PATCH /api/products/{id}/images/{imageID}", protected(http.HandlerFunc(productHandler.HandleUpdateProductImage)))
+ 	servermux.Handle("DELETE /api/products/{id}/images/{imageID}", protected(http.HandlerFunc(productHandler.HandleDeleteProductImage)))
 	// servermux.HandleFunc("POST /api/orders/{id}/cancel", handlers.HandelProducts)
 	// servermux.HandleFunc("POST /api/payments", handlers.HandelProducts)
 	// servermux.HandleFunc("GET /api/payments/{id}", handlers.HandelProducts)

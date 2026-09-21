@@ -68,18 +68,17 @@ type Product struct {
 	Size          sql.NullString
 	Price         string
 	Stock         int32
-	Image         sql.NullString
 	Status        string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
 
 type ProductImage struct {
-	ID        uuid.UUID
-	ProductID uuid.UUID
-	ImageUrl  string
-	SortOrder int32
-	CreatedAt time.Time
+	ID           uuid.UUID
+	ProductID    uuid.UUID
+	ObjectKey    string
+	DisplayOrder int32
+	CreatedAt    time.Time
 }
 
 type RefreshToken struct {
