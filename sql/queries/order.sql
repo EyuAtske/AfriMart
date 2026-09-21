@@ -48,8 +48,7 @@ SELECT
     oi.quantity,
     oi.price,
     oi.created_at,
-    p.name AS product_name,
-    p.image AS product_image
+    p.name AS product_name
 FROM order_items oi
 JOIN products p ON p.id = oi.product_id
 WHERE oi.order_id = $1

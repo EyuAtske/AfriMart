@@ -11,7 +11,6 @@ INSERT INTO products (
     size,
     price,
     stock,
-    image,
     status
 )
 VALUES (
@@ -25,8 +24,7 @@ VALUES (
     $8,
     $9,
     $10,
-    $11,
-    $12
+    $11
 )
 RETURNING *;
 
@@ -56,8 +54,7 @@ SET
     size = $8,
     price = $9,
     stock = $10,
-    image = $11,
-    status = $12,
+    status = $11,
     updated_at = NOW()
 WHERE id = $1
 RETURNING *;

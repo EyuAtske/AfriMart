@@ -6,6 +6,7 @@ import (
 	"os"
 
 	database "github.com/EyuAtske/AfriMart/backend/internal/database"
+	"github.com/EyuAtske/AfriMart/backend/internal/storage"
 	"github.com/XSAM/otelsql"
 )
 
@@ -50,9 +51,18 @@ func SetupAPIConfig(ctx context.Context) *ApiConfig {
 
 	dbQueries := database.New(dbConn)
 
+	imageStorage, err := storage.NewMinioStorage(
+		os.Getenv("MINIO_ENDPOINT"),
+		os.Getenv("MINIO_ACCESS_KEY"),
+		os.Getenv("MINIO_SECRET_KEY"),
+		os.Getenv("MINIO_BUCKET"),
+		false,
+	)
+
 	return &ApiConfig{
-		DB:      dbConn,
-		Queries: dbQueries,
-		Secret:  secretKey,
+		DB:           dbConn,
+		Queries:      dbQueries,
+		Secret:       secretKey,
+		ImageStorage: imageStorage,
 	}
 }

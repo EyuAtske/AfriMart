@@ -25,7 +25,6 @@ INSERT INTO products (
     size,
     price,
     stock,
-    image,
     status
 )
 VALUES (
@@ -39,10 +38,9 @@ VALUES (
     $8,
     $9,
     $10,
-    $11,
-    $12
+    $11
 )
-RETURNING id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, image, status, created_at, updated_at
+RETURNING id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at
 `
 
 type CreateProductParams struct {
@@ -56,7 +54,6 @@ type CreateProductParams struct {
 	Size          sql.NullString
 	Price         string
 	Stock         int32
-	Image         sql.NullString
 	Status        string
 }
 
@@ -72,7 +69,6 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (P
 		arg.Size,
 		arg.Price,
 		arg.Stock,
-		arg.Image,
 		arg.Status,
 	)
 	var i Product
@@ -88,7 +84,6 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (P
 		&i.Size,
 		&i.Price,
 		&i.Stock,
-		&i.Image,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -109,7 +104,7 @@ func (q *Queries) DeleteProduct(ctx context.Context, id uuid.UUID) error {
 
 const getProduct = `-- name: GetProduct :one
 
-SELECT id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, image, status, created_at, updated_at
+SELECT id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at
 FROM products
 WHERE id = $1
 `
@@ -129,7 +124,6 @@ func (q *Queries) GetProduct(ctx context.Context, id uuid.UUID) (Product, error)
 		&i.Size,
 		&i.Price,
 		&i.Stock,
-		&i.Image,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -139,7 +133,7 @@ func (q *Queries) GetProduct(ctx context.Context, id uuid.UUID) (Product, error)
 
 const listProducts = `-- name: ListProducts :many
 
-SELECT id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, image, status, created_at, updated_at
+SELECT id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at
 FROM products
 WHERE status = 'active'
   AND (
@@ -226,7 +220,6 @@ func (q *Queries) ListProducts(ctx context.Context, arg ListProductsParams) ([]P
 			&i.Size,
 			&i.Price,
 			&i.Stock,
-			&i.Image,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -246,7 +239,7 @@ func (q *Queries) ListProducts(ctx context.Context, arg ListProductsParams) ([]P
 
 const listProductsByCategory = `-- name: ListProductsByCategory :many
 
-SELECT id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, image, status, created_at, updated_at
+SELECT id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at
 FROM products
 WHERE category_id = $1
   AND status = 'active'
@@ -282,7 +275,6 @@ func (q *Queries) ListProductsByCategory(ctx context.Context, arg ListProductsBy
 			&i.Size,
 			&i.Price,
 			&i.Stock,
-			&i.Image,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -302,7 +294,7 @@ func (q *Queries) ListProductsByCategory(ctx context.Context, arg ListProductsBy
 
 const listProductsByShop = `-- name: ListProductsByShop :many
 
-SELECT id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, image, status, created_at, updated_at
+SELECT id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at
 FROM products
 WHERE shop_id = $1
 ORDER BY created_at DESC
@@ -337,7 +329,6 @@ func (q *Queries) ListProductsByShop(ctx context.Context, arg ListProductsByShop
 			&i.Size,
 			&i.Price,
 			&i.Stock,
-			&i.Image,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -357,7 +348,7 @@ func (q *Queries) ListProductsByShop(ctx context.Context, arg ListProductsByShop
 
 const listProductsBySubcategory = `-- name: ListProductsBySubcategory :many
 
-SELECT id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, image, status, created_at, updated_at
+SELECT id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at
 FROM products
 WHERE subcategory_id = $1
   AND status = 'active'
@@ -393,7 +384,6 @@ func (q *Queries) ListProductsBySubcategory(ctx context.Context, arg ListProduct
 			&i.Size,
 			&i.Price,
 			&i.Stock,
-			&i.Image,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -424,11 +414,10 @@ SET
     size = $8,
     price = $9,
     stock = $10,
-    image = $11,
-    status = $12,
+    status = $11,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, image, status, created_at, updated_at
+RETURNING id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at
 `
 
 type UpdateProductParams struct {
@@ -442,7 +431,6 @@ type UpdateProductParams struct {
 	Size          sql.NullString
 	Price         string
 	Stock         int32
-	Image         sql.NullString
 	Status        string
 }
 
@@ -458,7 +446,6 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) (P
 		arg.Size,
 		arg.Price,
 		arg.Stock,
-		arg.Image,
 		arg.Status,
 	)
 	var i Product
@@ -474,7 +461,6 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) (P
 		&i.Size,
 		&i.Price,
 		&i.Stock,
-		&i.Image,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,

@@ -1,9 +1,13 @@
 package product
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,13 +16,15 @@ import (
 	"github.com/EyuAtske/AfriMart/backend/internal/auth"
 	"github.com/EyuAtske/AfriMart/backend/internal/comm"
 	"github.com/EyuAtske/AfriMart/backend/internal/database"
+	"github.com/EyuAtske/AfriMart/backend/internal/storage"
 	"github.com/google/uuid"
 )
 
 type ProductHandler struct {
-	Config      *config.ApiConfig
-	Queries     ProductQuerier
-	ShopQueries ShopOwnershipQuerier
+	Config       *config.ApiConfig
+	Queries      ProductQuerier
+	ShopQueries  ShopOwnershipQuerier
+	ImageStorage storage.ImageStorage
 }
 
 type createProductRequest struct {
@@ -32,7 +38,6 @@ type createProductRequest struct {
 	Size          string `json:"size"`
 	Price         string `json:"price"`
 	Stock         int32  `json:"stock"`
-	Image         string `json:"image"`
 	Status        string `json:"status"`
 }
 
@@ -46,7 +51,6 @@ type updateProductRequest struct {
 	Size          string `json:"size"`
 	Price         string `json:"price"`
 	Stock         int32  `json:"stock"`
-	Image         string `json:"image"`
 	Status        string `json:"status"`
 }
 
@@ -63,34 +67,54 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 		return
 	}
 
-	var params createProductRequest
-
-	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+	// Parse multipart form.
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		comm.RespondErrorWithJson(
 			w,
 			r,
 			http.StatusBadRequest,
-			"Error decoding params",
+			"Invalid multipart form",
 			err,
 		)
 		return
 	}
 
-	params.Name = strings.TrimSpace(params.Name)
-	params.Description = strings.TrimSpace(params.Description)
-	params.Brand = strings.TrimSpace(params.Brand)
-	params.Color = strings.TrimSpace(params.Color)
-	params.Size = strings.TrimSpace(params.Size)
-	params.Price = strings.TrimSpace(params.Price)
-	params.Image = strings.TrimSpace(params.Image)
-	params.Status = strings.TrimSpace(params.Status)
-	params.ShopID = strings.TrimSpace(params.ShopID)
-	params.CategoryID = strings.TrimSpace(params.CategoryID)
-	params.SubcategoryID = strings.TrimSpace(params.SubcategoryID)
+	// Read product fields.
+	params := createProductRequest{
+		ShopID:        strings.TrimSpace(r.FormValue("shop_id")),
+		CategoryID:    strings.TrimSpace(r.FormValue("category_id")),
+		SubcategoryID: strings.TrimSpace(r.FormValue("subcategory_id")),
+		Name:          strings.TrimSpace(r.FormValue("name")),
+		Description:   strings.TrimSpace(r.FormValue("description")),
+		Brand:         strings.TrimSpace(r.FormValue("brand")),
+		Color:         strings.TrimSpace(r.FormValue("color")),
+		Size:          strings.TrimSpace(r.FormValue("size")),
+		Price:         strings.TrimSpace(r.FormValue("price")),
+		Status:        strings.TrimSpace(r.FormValue("status")),
+	}
 
+	// Parse stock.
+	stockString := strings.TrimSpace(r.FormValue("stock"))
+
+	stock, err := strconv.ParseInt(stockString, 10, 32)
+	if err != nil || stock < 0 {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Stock must be a valid non-negative integer",
+			nil,
+		)
+		return
+	}
+
+	params.Stock = int32(stock)
+
+	// Default status.
 	if params.Status == "" {
 		params.Status = "active"
 	}
+
 	if params.Status != "active" && params.Status != "inactive" {
 		comm.RespondErrorWithJson(
 			w,
@@ -113,6 +137,7 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 		return
 	}
 
+	// Validate price.
 	price, err := strconv.ParseFloat(params.Price, 64)
 	if err != nil || price < 0 {
 		comm.RespondErrorWithJson(
@@ -125,17 +150,7 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 		return
 	}
 
-	if params.Stock < 0 {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Stock cannot be negative",
-			nil,
-		)
-		return
-	}
-
+	// Validate IDs.
 	shopID, err := uuid.Parse(params.ShopID)
 	if err != nil {
 		comm.RespondErrorWithJson(
@@ -171,6 +186,47 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 		)
 		return
 	}
+
+	// Get uploaded images.
+	files := r.MultipartForm.File["images"]
+
+	if len(files) == 0 {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"At least one product image is required",
+			nil,
+		)
+		return
+	}
+
+	if len(files) > maxProductImageCount {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"A product can have at most 10 images",
+			nil,
+		)
+		return
+	}
+
+	// Validate every image before creating anything.
+	for _, file := range files {
+		if err := validateProductImage(file); err != nil {
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusBadRequest,
+				err.Error(),
+				nil,
+			)
+			return
+		}
+	}
+
+	// Verify shop ownership.
 	_, err = apiCfg.ShopQueries.GetShopByIDAndOwnerID(
 		r.Context(),
 		database.GetShopByIDAndOwnerIDParams{
@@ -200,6 +256,8 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 		)
 		return
 	}
+
+	// Create the product first.
 	product, err := apiCfg.Queries.CreateProduct(
 		r.Context(),
 		database.CreateProductParams{
@@ -223,15 +281,12 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 				String: params.Size,
 				Valid:  params.Size != "",
 			},
-			Price: params.Price,
-			Stock: params.Stock,
-			Image: sql.NullString{
-				String: params.Image,
-				Valid:  params.Image != "",
-			},
+			Price:  params.Price,
+			Stock:  params.Stock,
 			Status: params.Status,
 		},
 	)
+
 	if err != nil {
 		comm.RespondErrorWithJson(
 			w,
@@ -242,12 +297,152 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 		)
 		return
 	}
+
+	// Track uploaded objects so we can clean them up if something fails.
+	uploadedObjects := make([]string, 0, len(files))
+
+	cleanup := func() {
+		for _, objectKey := range uploadedObjects {
+			_ = apiCfg.ImageStorage.Delete(
+				context.Background(),
+				objectKey,
+			)
+		}
+
+		_ = apiCfg.Queries.DeleteProduct(
+			context.Background(),
+			product.ID,
+		)
+	}
+
+	// Upload images and create product_images records.
+	for index, file := range files {
+		src, err := file.Open()
+		if err != nil {
+			cleanup()
+
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusInternalServerError,
+				"Could not open product image",
+				err,
+			)
+			return
+		}
+
+		contentTypeBuffer := make([]byte, 512)
+
+		n, err := src.Read(contentTypeBuffer)
+		if err != nil {
+			src.Close()
+			cleanup()
+
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusInternalServerError,
+				"Could not read product image",
+				err,
+			)
+			return
+		}
+
+		contentType := http.DetectContentType(contentTypeBuffer[:n])
+
+		// Reset file position after MIME detection.
+		if _, err := src.Seek(0, io.SeekStart); err != nil {
+			src.Close()
+			cleanup()
+
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusInternalServerError,
+				"Could not reset product image",
+				err,
+			)
+			return
+		}
+
+		extension := imageExtension(contentType)
+
+		objectKey := fmt.Sprintf(
+			"products/%s/%s%s",
+			product.ID.String(),
+			uuid.New().String(),
+			extension,
+		)
+
+		err = apiCfg.ImageStorage.Upload(
+			r.Context(),
+			objectKey,
+			src,
+			file.Size,
+			contentType,
+		)
+
+		src.Close()
+
+		if err != nil {
+			cleanup()
+
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusInternalServerError,
+				"Could not upload product image",
+				err,
+			)
+			return
+		}
+
+		uploadedObjects = append(uploadedObjects, objectKey)
+
+		_, err = apiCfg.Queries.CreateProductImage(
+			r.Context(),
+			database.CreateProductImageParams{
+				ProductID:    product.ID,
+				ObjectKey:    objectKey,
+				DisplayOrder: int32(index),
+			},
+		)
+
+		if err != nil {
+			cleanup()
+
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusInternalServerError,
+				"Could not save product image",
+				err,
+			)
+			return
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 
-	if err := json.NewEncoder(w).Encode(product); err != nil {
+	response := struct {
+		Product database.Product        `json:"product"`
+		Images  []database.ProductImage `json:"images"`
+	}{
+		Product: product,
+		Images:  nil,
+	}
+
+	response.Images, err = apiCfg.Queries.GetProductImages(
+		r.Context(),
+		product.ID,
+	)
+
+	if err != nil {
 		return
 	}
+
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 func (apiCfg *ProductHandler) HandleGetProduct(w http.ResponseWriter, r *http.Request) {
@@ -401,7 +596,6 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 	params.Color = strings.TrimSpace(params.Color)
 	params.Size = strings.TrimSpace(params.Size)
 	params.Price = strings.TrimSpace(params.Price)
-	params.Image = strings.TrimSpace(params.Image)
 	params.Status = strings.TrimSpace(params.Status)
 	params.CategoryID = strings.TrimSpace(params.CategoryID)
 	params.SubcategoryID = strings.TrimSpace(params.SubcategoryID)
@@ -502,12 +696,8 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 				String: params.Size,
 				Valid:  params.Size != "",
 			},
-			Price: params.Price,
-			Stock: params.Stock,
-			Image: sql.NullString{
-				String: params.Image,
-				Valid:  params.Image != "",
-			},
+			Price:  params.Price,
+			Stock:  params.Stock,
 			Status: params.Status,
 		},
 	)
@@ -612,6 +802,37 @@ func (apiCfg *ProductHandler) HandleDeleteProduct(w http.ResponseWriter, r *http
 			err,
 		)
 		return
+	}
+
+	images, err := apiCfg.Queries.GetProductImages(
+		r.Context(),
+		productID,
+	)
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Could not get product images",
+			err,
+		)
+		return
+	}
+
+	for _, image := range images {
+		if err := apiCfg.ImageStorage.Delete(
+			r.Context(),
+			image.ObjectKey,
+		); err != nil {
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusInternalServerError,
+				"Could not delete product image",
+				err,
+			)
+			return
+		}
 	}
 
 	err = apiCfg.Queries.DeleteProduct(
@@ -1053,6 +1274,436 @@ func (apiCfg *ProductHandler) HandleListProductsBySubcategory(w http.ResponseWri
 	w.Header().Set("Content-Type", "application/json")
 
 	if err := json.NewEncoder(w).Encode(products); err != nil {
+		return
+	}
+}
+
+func (apiCfg *ProductHandler) HandleUpdateProductImage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	userID, ok := auth.UserIDFromContext(ctx)
+	if !ok {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusUnauthorized,
+			"Unauthorized",
+			nil,
+		)
+		return
+	}
+
+	productID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Invalid product ID",
+			err,
+		)
+		return
+	}
+
+	imageID, err := uuid.Parse(r.PathValue("imageID"))
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Invalid image ID",
+			err,
+		)
+		return
+	}
+
+	// Get the product first so we can verify ownership.
+	product, err := apiCfg.Queries.GetProduct(ctx, productID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusNotFound,
+				"Product not found",
+				err,
+			)
+			return
+		}
+
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Could not get product",
+			err,
+		)
+		return
+	}
+
+	// Verify that the authenticated user owns the shop.
+	_, err = apiCfg.ShopQueries.GetShopByIDAndOwnerID(
+		ctx,
+		database.GetShopByIDAndOwnerIDParams{
+			ID:      product.ShopID,
+			OwnerID: userID,
+		},
+	)
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusForbidden,
+			"You do not own this product",
+			err,
+		)
+		return
+	}
+
+	// Get the existing image.
+	oldImage, err := apiCfg.Queries.GetProductImage(
+		ctx,
+		database.GetProductImageParams{
+			ID:        imageID,
+			ProductID: productID,
+		},
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusNotFound,
+				"Product image not found",
+				err,
+			)
+			return
+		}
+
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Could not get product image",
+			err,
+		)
+		return
+	}
+
+	// Expect exactly one image file.
+	if err := r.ParseMultipartForm(8 << 20); err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Invalid multipart form",
+			err,
+		)
+		return
+	}
+
+	files := r.MultipartForm.File["image"]
+
+	if len(files) != 1 {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Exactly one image is required",
+			errors.New("expected one image file"),
+		)
+		return
+	}
+
+	file := files[0]
+
+	// Validate the new image before uploading anything.
+	if err := validateProductImage(file); err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			err.Error(),
+			err,
+		)
+		return
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Could not open image",
+			err,
+		)
+		return
+	}
+	defer src.Close()
+
+	buffer := make([]byte, 512)
+
+	n, err := src.Read(buffer)
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Could not read image",
+			err,
+		)
+		return
+	}
+
+	contentType := http.DetectContentType(buffer[:n])
+
+	if _, err := src.Seek(0, io.SeekStart); err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Could not reset image",
+			err,
+		)
+		return
+	}
+
+	extension := imageExtension(contentType)
+
+	if extension == "" {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Unsupported image type",
+			errors.New("unsupported image type"),
+		)
+		return
+	}
+
+	// Generate a completely new object key.
+	newObjectKey := fmt.Sprintf(
+		"products/%s/%s%s",
+		productID.String(),
+		uuid.New().String(),
+		extension,
+	)
+
+	// Upload the new image first.
+	if err := apiCfg.ImageStorage.Upload(
+		ctx,
+		newObjectKey,
+		src,
+		file.Size,
+		contentType,
+	); err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Could not upload image",
+			err,
+		)
+		return
+	}
+
+	// Update the database to point to the new object.
+	updatedImage, err := apiCfg.Queries.UpdateProductImage(
+		ctx,
+		database.UpdateProductImageParams{
+			ID:        imageID,
+			ProductID: productID,
+			ObjectKey: newObjectKey,
+		},
+	)
+	if err != nil {
+		// Database update failed, so remove the newly uploaded object.
+		_ = apiCfg.ImageStorage.Delete(ctx, newObjectKey)
+
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Could not update product image",
+			err,
+		)
+		return
+	}
+
+	// Database now points to the new object, so the old object
+	// is no longer needed.
+	if err := apiCfg.ImageStorage.Delete(ctx, oldImage.ObjectKey); err != nil {
+		// The DB update succeeded, so don't roll it back.
+		// The old object is now just an orphaned storage object.
+		slog.ErrorContext(
+			ctx,
+			"failed to delete old product image",
+			"object_key", oldImage.ObjectKey,
+			"error", err,
+		)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(map[string]any{
+			"image": updatedImage,
+		}); err != nil {
+		return
+	}
+}
+
+func (apiCfg *ProductHandler) HandleDeleteProductImage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	userID, ok := auth.UserIDFromContext(ctx)
+	if !ok {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusUnauthorized,
+			"Unauthorized",
+			nil,
+		)
+		return
+	}
+
+	productID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Invalid product ID",
+			err,
+		)
+		return
+	}
+
+	imageID, err := uuid.Parse(r.PathValue("imageID"))
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusBadRequest,
+			"Invalid image ID",
+			err,
+		)
+		return
+	}
+
+	// Get the product so we can verify ownership.
+	product, err := apiCfg.Queries.GetProduct(ctx, productID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusNotFound,
+				"Product not found",
+				err,
+			)
+			return
+		}
+
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Could not get product",
+			err,
+		)
+		return
+	}
+
+	// Verify product ownership through the shop.
+	_, err = apiCfg.ShopQueries.GetShopByIDAndOwnerID(
+		ctx,
+		database.GetShopByIDAndOwnerIDParams{
+			ID:      product.ShopID,
+			OwnerID: userID,
+		},
+	)
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusForbidden,
+			"You do not own this product",
+			err,
+		)
+		return
+	}
+
+	// Get the image.
+	image, err := apiCfg.Queries.GetProductImage(
+		ctx,
+		database.GetProductImageParams{
+			ID:        imageID,
+			ProductID: productID,
+		},
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusNotFound,
+				"Product image not found",
+				err,
+			)
+			return
+		}
+
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Could not get product image",
+			err,
+		)
+		return
+	}
+
+	// Delete the database record first.
+	// This prevents the database from continuing to reference
+	// an object that has already been deleted from MinIO.
+	_, err = apiCfg.Queries.DeleteProductImage(
+		ctx,
+		database.DeleteProductImageParams{
+			ID:        imageID,
+			ProductID: productID,
+		},
+	)
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Could not delete product image",
+			err,
+		)
+		return
+	}
+
+	// Now remove the actual object from MinIO.
+	if err := apiCfg.ImageStorage.Delete(ctx, image.ObjectKey); err != nil {
+		slog.ErrorContext(
+			ctx,
+			"failed to delete product image from storage",
+			"object_key", image.ObjectKey,
+			"error", err,
+		)
+
+		// The database deletion already succeeded.
+		// Don't report the entire operation as failed.
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(map[string]any{
+			"message": "Product image deleted successfully",
+		}); err != nil {
 		return
 	}
 }

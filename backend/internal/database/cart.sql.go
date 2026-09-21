@@ -7,7 +7,6 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -122,7 +121,6 @@ SELECT
     p.name AS product_name,
     p.price,
     p.stock,
-    p.image,
     p.status
 FROM cart_items ci
 JOIN products p ON p.id = ci.product_id
@@ -140,7 +138,6 @@ type GetCartItemsRow struct {
 	ProductName string
 	Price       string
 	Stock       int32
-	Image       sql.NullString
 	Status      string
 }
 
@@ -163,7 +160,6 @@ func (q *Queries) GetCartItems(ctx context.Context, cartID uuid.UUID) ([]GetCart
 			&i.ProductName,
 			&i.Price,
 			&i.Stock,
-			&i.Image,
 			&i.Status,
 		); err != nil {
 			return nil, err
