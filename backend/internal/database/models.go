@@ -11,76 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type Cart struct {
-	ID        uuid.UUID
-	UserID    uuid.UUID
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-type CartItem struct {
-	ID        uuid.UUID
-	CartID    uuid.UUID
-	ProductID uuid.UUID
-	Quantity  int32
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-type Category struct {
-	ID        uuid.UUID
-	Name      string
-	CreatedAt time.Time
-}
-
-type Order struct {
-	ID              uuid.UUID
-	UserID          uuid.UUID
-	Subtotal        string
-	Status          string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	RecipientName   string
-	Phone           string
-	DeliveryAddress string
-	DeliveryCity    string
-	DeliveryNotes   sql.NullString
-}
-
-type OrderItem struct {
-	ID        uuid.UUID
-	OrderID   uuid.UUID
-	ProductID uuid.UUID
-	Quantity  int32
-	Price     string
-	CreatedAt time.Time
-}
-
-type Product struct {
-	ID            uuid.UUID
-	ShopID        uuid.UUID
-	CategoryID    uuid.UUID
-	SubcategoryID uuid.UUID
-	Name          string
-	Description   sql.NullString
-	Brand         sql.NullString
-	Color         sql.NullString
-	Size          sql.NullString
-	Price         string
-	Stock         int32
-	Status        string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-}
-
-type ProductImage struct {
-	ID           uuid.UUID
-	ProductID    uuid.UUID
-	ObjectKey    string
-	DisplayOrder int32
-	CreatedAt    time.Time
-}
-
 type RefreshToken struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
@@ -88,23 +18,6 @@ type RefreshToken struct {
 	ExpiresAt time.Time
 	RevokedAt sql.NullTime
 	CreatedAt time.Time
-}
-
-type Shop struct {
-	ID          uuid.UUID
-	OwnerID     uuid.UUID
-	Name        string
-	Description sql.NullString
-	Status      string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
-
-type Subcategory struct {
-	ID         uuid.UUID
-	CategoryID uuid.UUID
-	Name       string
-	CreatedAt  time.Time
 }
 
 type User struct {
