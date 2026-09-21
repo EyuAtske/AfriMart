@@ -84,6 +84,8 @@ func main() {
 	servermux.Handle("GET /api/orders/seller", protected(http.HandlerFunc(orderHandler.HandleListSellerOrders)))
 	servermux.Handle("PATCH /api/products/{id}/images/{imageID}", protected(http.HandlerFunc(productHandler.HandleUpdateProductImage)))
 	servermux.Handle("DELETE /api/products/{id}/images/{imageID}", protected(http.HandlerFunc(productHandler.HandleDeleteProductImage)))
+	servermux.Handle("GET /api/categories", http.HandlerFunc(productHandler.HandleListCategories))
+	servermux.Handle("GET /api/categories/{category_id}/subcategories", http.HandlerFunc(productHandler.HandleListSubcategories))
 	// servermux.HandleFunc("POST /api/orders/{id}/cancel", handlers.HandelProducts)
 	// servermux.HandleFunc("POST /api/payments", handlers.HandelProducts)
 	// servermux.HandleFunc("GET /api/payments/{id}", handlers.HandelProducts)

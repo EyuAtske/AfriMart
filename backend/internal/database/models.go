@@ -71,6 +71,7 @@ type Product struct {
 	Status        string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	Gender        string
 }
 
 type ProductImage struct {

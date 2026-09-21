@@ -1190,3 +1190,80 @@ func (h *ProductHandler) HandleDeleteProductImage(w http.ResponseWriter, r *http
 
 	h.Logger.InfoContext(ctx, "product image deleted successfully", "user_id", userID, "product_id", productID, "image_id", imageID)
 }
+
+func (h *ProductHandler) HandleListCategories(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	h.Logger.InfoContext(ctx, "handling list categories request")
+
+	categories, err := h.Queries.ListCategories(ctx)
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "list categories failed: database error", "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not list categories", err)
+		return
+	}
+
+	// Ensure we return an empty array [] instead of null in JSON
+	if categories == nil {
+		categories = []database.Category{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(categories); err != nil {
+		h.Logger.ErrorContext(ctx, "list categories succeeded but failed to encode response", "error", err)
+		return
+	}
+
+	h.Logger.InfoContext(ctx, "categories listed successfully", "count", len(categories))
+}
+
+func (h *ProductHandler) HandleListSubcategories(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	categoryIDString := strings.TrimSpace(r.PathValue("category_id"))
+
+	categoryID, err := uuid.Parse(categoryIDString)
+	if err != nil {
+		h.Logger.WarnContext(ctx, "list subcategories failed: invalid category ID", "category_id", categoryIDString, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid category ID", err)
+		return
+	}
+
+	h.Logger.InfoContext(ctx, "handling list subcategories request", "category_id", categoryID)
+
+	// First make sure the category actually exists.
+	_, err = h.Queries.GetCategory(ctx, categoryID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			h.Logger.WarnContext(ctx, "list subcategories failed: category not found", "category_id", categoryID)
+			comm.RespondErrorWithJson(w, r, http.StatusNotFound, "Category not found", err)
+			return
+		}
+
+		h.Logger.ErrorContext(ctx, "list subcategories failed: could not get category", "category_id", categoryID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not get category", err)
+		return
+	}
+
+	subcategories, err := h.Queries.ListSubcategoriesByCategory(ctx, categoryID)
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "list subcategories failed: database error", "category_id", categoryID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not list subcategories", err)
+		return
+	}
+
+	// Ensure we return an empty array [] instead of null in JSON
+	if subcategories == nil {
+		subcategories = []database.Subcategory{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(subcategories); err != nil {
+		h.Logger.ErrorContext(ctx, "list subcategories succeeded but failed to encode response", "category_id", categoryID, "error", err)
+		return
+	}
+
+	h.Logger.InfoContext(ctx, "subcategories listed successfully", "category_id", categoryID, "count", len(subcategories))
+}
