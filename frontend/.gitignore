@@ -20,5 +20,8 @@ logs
 
 # Local env files
 .env
-.env.*
+
 !.env.example
+# Playwright test artifacts
+playwright-report/
+test-results/
