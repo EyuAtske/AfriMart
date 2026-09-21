@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -123,15 +124,15 @@ func TestHandleGetCartSuccess(t *testing.T) {
 		},
 	}
 
-	handler := &CartHandler{Queries: mock}
+	handler := &CartHandler{Queries: mock, Logger: slog.Default()}
 
 	req := cartRequestWithUser(http.MethodGet, "/api/cart", "", userID)
 	rec := httptest.NewRecorder()
 
 	handler.HandleGetCart(rec, req)
 
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("expected status %d, got %d", http.StatusCreated, rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
 	var response map[string]interface{}
@@ -147,6 +148,7 @@ func TestHandleGetCartSuccess(t *testing.T) {
 func TestHandleGetCartUnauthorized(t *testing.T) {
 	handler := &CartHandler{
 		Queries: &mockCartQuerier{},
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/cart", nil)
@@ -178,15 +180,15 @@ func TestHandleGetCartCreatesCart(t *testing.T) {
 		},
 	}
 
-	handler := &CartHandler{Queries: mock}
+	handler := &CartHandler{Queries: mock, Logger: slog.Default()}
 
 	req := cartRequestWithUser(http.MethodGet, "/api/cart", "", userID)
 	rec := httptest.NewRecorder()
 
 	handler.HandleGetCart(rec, req)
 
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("expected status %d, got %d", http.StatusCreated, rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 }
 
@@ -227,7 +229,7 @@ func TestHandleAddCartItemSuccess(t *testing.T) {
 		},
 	}
 
-	handler := &CartHandler{Queries: mock}
+	handler := &CartHandler{Queries: mock, Logger: slog.Default()}
 
 	req := cartRequestWithUser(
 		http.MethodPost,
@@ -250,6 +252,7 @@ func TestHandleAddCartItemInvalidProductID(t *testing.T) {
 
 	handler := &CartHandler{
 		Queries: &mockCartQuerier{},
+		Logger: slog.Default(),
 	}
 
 	req := cartRequestWithUser(
@@ -274,6 +277,7 @@ func TestHandleAddCartItemInvalidQuantity(t *testing.T) {
 
 	handler := &CartHandler{
 		Queries: &mockCartQuerier{},
+		Logger: slog.Default(),
 	}
 
 	req := cartRequestWithUser(
@@ -302,7 +306,7 @@ func TestHandleAddCartItemProductNotFound(t *testing.T) {
 		},
 	}
 
-	handler := &CartHandler{Queries: mock}
+	handler := &CartHandler{Queries: mock, Logger: slog.Default()}
 
 	req := cartRequestWithUser(
 		http.MethodPost,
@@ -334,7 +338,7 @@ func TestHandleAddCartItemInactiveProduct(t *testing.T) {
 		},
 	}
 
-	handler := &CartHandler{Queries: mock}
+	handler := &CartHandler{Queries: mock, Logger: slog.Default()}
 
 	req := cartRequestWithUser(
 		http.MethodPost,
@@ -366,7 +370,7 @@ func TestHandleAddCartItemInsufficientStock(t *testing.T) {
 		},
 	}
 
-	handler := &CartHandler{Queries: mock}
+	handler := &CartHandler{Queries: mock, Logger: slog.Default()}
 
 	req := cartRequestWithUser(
 		http.MethodPost,
@@ -430,7 +434,7 @@ func TestHandleUpdateCartItemSuccess(t *testing.T) {
 		},
 	}
 
-	handler := &CartHandler{Queries: mock}
+	handler := &CartHandler{Queries: mock, Logger: slog.Default()}
 
 	req := httptest.NewRequest(
 		http.MethodPatch,
@@ -469,7 +473,7 @@ func TestHandleUpdateCartItemNotFound(t *testing.T) {
 		},
 	}
 
-	handler := &CartHandler{Queries: mock}
+	handler := &CartHandler{Queries: mock, Logger: slog.Default()}
 
 	req := httptest.NewRequest(
 		http.MethodPatch,
@@ -518,7 +522,7 @@ func TestHandleUpdateCartItemInsufficientStock(t *testing.T) {
 		},
 	}
 
-	handler := &CartHandler{Queries: mock}
+	handler := &CartHandler{Queries: mock, Logger: slog.Default()}
 
 	req := httptest.NewRequest(
 		http.MethodPatch,
@@ -566,7 +570,7 @@ func TestHandleDeleteCartItemSuccess(t *testing.T) {
 		},
 	}
 
-	handler := &CartHandler{Queries: mock}
+	handler := &CartHandler{Queries: mock, Logger: slog.Default()}
 
 	req := httptest.NewRequest(
 		http.MethodDelete,
@@ -613,7 +617,7 @@ func TestHandleClearCartSuccess(t *testing.T) {
 		},
 	}
 
-	handler := &CartHandler{Queries: mock}
+	handler := &CartHandler{Queries: mock, Logger: slog.Default()}
 
 	req := cartRequestWithUser(
 		http.MethodDelete,
@@ -638,6 +642,7 @@ func TestHandleClearCartSuccess(t *testing.T) {
 func TestHandleClearCartUnauthorized(t *testing.T) {
 	handler := &CartHandler{
 		Queries: &mockCartQuerier{},
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/cart", nil)
@@ -659,7 +664,7 @@ func TestGetOrCreateCartDatabaseError(t *testing.T) {
 		},
 	}
 
-	handler := &CartHandler{Queries: mock}
+	handler := &CartHandler{Queries: mock, Logger: slog.Default()}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/cart", nil)
 

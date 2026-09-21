@@ -2,7 +2,9 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"log"
 
 	"github.com/minio/minio-go/v7"
 )
@@ -34,7 +36,10 @@ func (m *MinioStorage) Upload(
 	size int64,
 	contentType string,
 ) error {
-	_, err := m.Client.PutObject(
+	log.Printf("[MINIO DEBUG] Attempting upload -> Bucket: %q, Key: %q, Size: %d, ContentType: %q",
+		m.Bucket, objectKey, size, contentType)
+
+	info, err := m.Client.PutObject(
 		ctx,
 		m.Bucket,
 		objectKey,
@@ -45,7 +50,13 @@ func (m *MinioStorage) Upload(
 		},
 	)
 
-	return err
+	if err != nil {
+		log.Printf("[MINIO DEBUG] Upload FAILED -> Error: %v", err)
+		return fmt.Errorf("minio put object: %w", err)
+	}
+
+	log.Printf("[MINIO DEBUG] Upload SUCCESS -> Key: %q, Uploaded Size: %d", info.Key, info.Size)
+	return nil
 }
 
 func (m *MinioStorage) Delete(

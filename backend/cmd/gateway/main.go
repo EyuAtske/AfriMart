@@ -27,27 +27,11 @@ func main() {
 	defer shutdownObservability()
 	slog.Info("starting AfriMart backend")
 	apicfg := config.SetupAPIConfig(ctx)
-	authHandler := &auth.AuthHandler{
-		Config:  apicfg,
-		Queries: apicfg.Queries,
-	}
-	shopHandler := &shop.ShopHandler{
-		Config:  apicfg,
-		Queries: apicfg.Queries,
-	}
-
-	productHandler := &product.ProductHandler{
-		Config:       apicfg,
-		Queries:      apicfg.Queries,
-		ImageStorage: apicfg.ImageStorage,
-	}
-	cartHandler := &cart.CartHandler{
-		Queries: apicfg.Queries,
-	}
-	orderHandler := &order.OrderHandler{
-		Config:  apicfg,
-		Queries: apicfg.Queries,
-	}
+	authHandler := auth.NewAuthHandler(apicfg, apicfg.Queries, slog.Default())
+	shopHandler := shop.NewShopHandler(apicfg, apicfg.Queries, slog.Default())
+	productHandler := product.NewProductHandler(apicfg, apicfg.Queries, apicfg.ImageStorage, slog.Default())
+	cartHandler := cart.NewCartHandler(apicfg.Queries, slog.Default())
+	orderHandler := order.NewOrderHandler(apicfg, apicfg.Queries, slog.Default())
 	servermux := http.NewServeMux()
 	tracedHandler := observability.TraceMiddleware(servermux)
 	c := cors.New(cors.Options{
@@ -99,7 +83,7 @@ func main() {
 	servermux.Handle("PATCH /api/orders/{id}/status", protected(http.HandlerFunc(orderHandler.HandleUpdateOrderStatus)))
 	servermux.Handle("GET /api/orders/seller", protected(http.HandlerFunc(orderHandler.HandleListSellerOrders)))
 	servermux.Handle("PATCH /api/products/{id}/images/{imageID}", protected(http.HandlerFunc(productHandler.HandleUpdateProductImage)))
- 	servermux.Handle("DELETE /api/products/{id}/images/{imageID}", protected(http.HandlerFunc(productHandler.HandleDeleteProductImage)))
+	servermux.Handle("DELETE /api/products/{id}/images/{imageID}", protected(http.HandlerFunc(productHandler.HandleDeleteProductImage)))
 	// servermux.HandleFunc("POST /api/orders/{id}/cancel", handlers.HandelProducts)
 	// servermux.HandleFunc("POST /api/payments", handlers.HandelProducts)
 	// servermux.HandleFunc("GET /api/payments/{id}", handlers.HandelProducts)

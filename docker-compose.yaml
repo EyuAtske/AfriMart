@@ -16,6 +16,7 @@ services:
       - rabbitmq
       - otel-collector
       - minio
+      - migrate
   frontend:
     container_name: afrimart-frontend
     build:
@@ -153,6 +154,18 @@ services:
       MINIO_ROOT_PASSWORD: minio123
     volumes:
       - minio_data:/data
+  migrate:
+    image: golang:1.25-alpine  
+    container_name: afrimart-migrate
+    command: >
+      sh -c "
+        go install github.com/pressly/goose/v3/cmd/goose@v3.27.0 &&
+        goose -dir /sql/schema postgres 'postgres://postgres:postgres@postgres:5432/afrimart?sslmode=disable' up
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
 
 volumes:
   postgres_data:

@@ -36,3 +36,9 @@ SET
 WHERE id = $1
   AND product_id = $2
 RETURNING *;
+
+-- name: GetProductImagesByProductIDs :many
+SELECT *
+FROM product_images
+WHERE product_id = ANY($1::uuid[])
+ORDER BY product_id, display_order ASC, created_at ASC;

@@ -72,6 +72,11 @@ type ProductQuerier interface {
 		ctx context.Context,
 		arg database.DeleteProductImageParams,
 	) (database.ProductImage, error)
+
+	GetProductImagesByProductIDs(
+		ctx context.Context, 
+		dollar_1 []uuid.UUID,
+	) ([]database.ProductImage, error)
 }
 
 type ShopOwnershipQuerier interface {
