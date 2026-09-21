@@ -77,6 +77,20 @@ type ProductQuerier interface {
 		ctx context.Context, 
 		dollar_1 []uuid.UUID,
 	) ([]database.ProductImage, error)
+
+	ListCategories(
+		ctx context.Context,
+	) ([]database.Category, error)
+
+	GetCategory(
+		ctx context.Context,
+		id uuid.UUID,
+	) (database.Category, error)
+
+	ListSubcategoriesByCategory(
+		ctx context.Context,
+		categoryID uuid.UUID,
+	) ([]database.Subcategory, error)
 }
 
 type ShopOwnershipQuerier interface {

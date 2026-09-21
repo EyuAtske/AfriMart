@@ -94,6 +94,20 @@ type mockProductQueries struct {
 		ctx context.Context,
 		dollar_1 []uuid.UUID,
 	) ([]database.ProductImage, error)
+
+	listCategoriesFunc func(
+		ctx context.Context,
+	) ([]database.Category, error)
+
+	getCategoryFunc func(
+		ctx context.Context,
+		id uuid.UUID,
+	) (database.Category, error)
+
+	listSubcategoriesByCategoryFunc func(
+		ctx context.Context,
+		categoryID uuid.UUID,
+	) ([]database.Subcategory, error)
 }
 
 type mockImageStorage struct {
@@ -258,6 +272,38 @@ func (m *mockProductQueries) GetProductImagesByProductIDs(
 	}
 
 	return m.getProductImagesByProductIDsFunc(ctx, dollar_1)
+}
+
+func (m *mockProductQueries) ListCategories(
+		ctx context.Context,
+	) ([]database.Category, error){
+	if m.listCategoriesFunc == nil {
+		return []database.Category{}, nil
+	}
+
+	return m.listCategoriesFunc(ctx)
+}
+
+func (m *mockProductQueries) GetCategory(
+		ctx context.Context,
+		id uuid.UUID,
+	) (database.Category, error){
+	if m.getCategoryFunc == nil {
+		return database.Category{}, nil
+	}
+
+	return m.getCategoryFunc(ctx, id)
+}
+
+func (m *mockProductQueries) ListSubcategoriesByCategory(
+		ctx context.Context,
+		categoryID uuid.UUID,
+	) ([]database.Subcategory, error){
+	if m.listSubcategoriesByCategoryFunc == nil {
+		return []database.Subcategory{}, nil
+	}
+
+	return m.listSubcategoriesByCategoryFunc(ctx, categoryID)
 }
 
 func TestHandleCreateProduct_Success(t *testing.T) {

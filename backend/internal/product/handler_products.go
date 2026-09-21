@@ -25,7 +25,7 @@ type ProductHandler struct {
 	Queries      ProductQuerier
 	ShopQueries  ShopOwnershipQuerier
 	ImageStorage storage.ImageStorage
-	Logger       *slog.Logger 
+	Logger       *slog.Logger
 }
 
 type ProductWithImages struct {
@@ -90,6 +90,7 @@ type createProductRequest struct {
 	Color         string `json:"color"`
 	Size          string `json:"size"`
 	Price         string `json:"price"`
+	Gender        string `json:"gender"`
 	Stock         int32  `json:"stock"`
 	Status        string `json:"status"`
 }
@@ -246,6 +247,7 @@ func (h *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Requ
 		},
 		Price:  params.Price,
 		Stock:  params.Stock,
+		Gender: params.Gender,
 		Status: params.Status,
 	})
 	if err != nil {
@@ -255,33 +257,33 @@ func (h *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Requ
 	}
 
 	uploadedObjects := make([]string, 0, len(files))
-	
+
 	// Enhanced cleanup function that logs the trigger and the result of every step
 	cleanup := func(originalErr error) {
-		h.Logger.ErrorContext(ctx, "initiating rollback/cleanup due to previous error", 
-			"user_id", userID, 
-			"product_id", product.ID, 
+		h.Logger.ErrorContext(ctx, "initiating rollback/cleanup due to previous error",
+			"user_id", userID,
+			"product_id", product.ID,
 			"original_error", originalErr)
 
 		for _, objectKey := range uploadedObjects {
 			delErr := h.ImageStorage.Delete(context.Background(), objectKey)
 			if delErr != nil {
-				h.Logger.ErrorContext(ctx, "cleanup failed: could not delete orphaned image from storage", 
-					"object_key", objectKey, 
+				h.Logger.ErrorContext(ctx, "cleanup failed: could not delete orphaned image from storage",
+					"object_key", objectKey,
 					"error", delErr)
 			} else {
-				h.Logger.InfoContext(ctx, "cleanup successful: deleted orphaned image from storage", 
+				h.Logger.InfoContext(ctx, "cleanup successful: deleted orphaned image from storage",
 					"object_key", objectKey)
 			}
 		}
 
 		delErr := h.Queries.DeleteProduct(context.Background(), product.ID)
 		if delErr != nil {
-			h.Logger.ErrorContext(ctx, "cleanup failed: could not delete orphaned product from database", 
-				"product_id", product.ID, 
+			h.Logger.ErrorContext(ctx, "cleanup failed: could not delete orphaned product from database",
+				"product_id", product.ID,
 				"error", delErr)
 		} else {
-			h.Logger.InfoContext(ctx, "cleanup successful: deleted orphaned product from database", 
+			h.Logger.InfoContext(ctx, "cleanup successful: deleted orphaned product from database",
 				"product_id", product.ID)
 		}
 	}
@@ -1189,4 +1191,81 @@ func (h *ProductHandler) HandleDeleteProductImage(w http.ResponseWriter, r *http
 	}
 
 	h.Logger.InfoContext(ctx, "product image deleted successfully", "user_id", userID, "product_id", productID, "image_id", imageID)
+}
+
+func (h *ProductHandler) HandleListCategories(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	h.Logger.InfoContext(ctx, "handling list categories request")
+
+	categories, err := h.Queries.ListCategories(ctx)
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "list categories failed: database error", "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not list categories", err)
+		return
+	}
+
+	// Ensure we return an empty array [] instead of null in JSON
+	if categories == nil {
+		categories = []database.Category{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(categories); err != nil {
+		h.Logger.ErrorContext(ctx, "list categories succeeded but failed to encode response", "error", err)
+		return
+	}
+
+	h.Logger.InfoContext(ctx, "categories listed successfully", "count", len(categories))
+}
+
+func (h *ProductHandler) HandleListSubcategories(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	categoryIDString := strings.TrimSpace(r.PathValue("category_id"))
+
+	categoryID, err := uuid.Parse(categoryIDString)
+	if err != nil {
+		h.Logger.WarnContext(ctx, "list subcategories failed: invalid category ID", "category_id", categoryIDString, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid category ID", err)
+		return
+	}
+
+	h.Logger.InfoContext(ctx, "handling list subcategories request", "category_id", categoryID)
+
+	// First make sure the category actually exists.
+	_, err = h.Queries.GetCategory(ctx, categoryID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			h.Logger.WarnContext(ctx, "list subcategories failed: category not found", "category_id", categoryID)
+			comm.RespondErrorWithJson(w, r, http.StatusNotFound, "Category not found", err)
+			return
+		}
+
+		h.Logger.ErrorContext(ctx, "list subcategories failed: could not get category", "category_id", categoryID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not get category", err)
+		return
+	}
+
+	subcategories, err := h.Queries.ListSubcategoriesByCategory(ctx, categoryID)
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "list subcategories failed: database error", "category_id", categoryID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not list subcategories", err)
+		return
+	}
+
+	// Ensure we return an empty array [] instead of null in JSON
+	if subcategories == nil {
+		subcategories = []database.Subcategory{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(subcategories); err != nil {
+		h.Logger.ErrorContext(ctx, "list subcategories succeeded but failed to encode response", "category_id", categoryID, "error", err)
+		return
+	}
+
+	h.Logger.InfoContext(ctx, "subcategories listed successfully", "category_id", categoryID, "count", len(subcategories))
 }

@@ -9,9 +9,10 @@ INSERT INTO products (
     brand,
     color,
     size,
+    gender,
     price,
-    stock,
-    status
+    status,
+    stock
 )
 VALUES (
     $1,
@@ -24,7 +25,8 @@ VALUES (
     $8,
     $9,
     $10,
-    $11
+    $11,
+    $12
 )
 RETURNING *;
 
@@ -130,3 +132,24 @@ WHERE subcategory_id = $1
 ORDER BY created_at DESC
 LIMIT $2
 OFFSET $3;
+
+-- name: ListCategories :many
+
+SELECT *
+FROM categories
+ORDER BY name ASC;
+
+
+-- name: GetCategory :one
+
+SELECT *
+FROM categories
+WHERE id = $1;
+
+
+-- name: ListSubcategoriesByCategory :many
+
+SELECT *
+FROM subcategories
+WHERE category_id = $1
+ORDER BY name ASC;
