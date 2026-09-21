@@ -28,6 +28,49 @@ type ProductHandler struct {
 	Logger       *slog.Logger 
 }
 
+type ProductWithImages struct {
+	Product database.Product        `json:"product"`
+	Images  []database.ProductImage `json:"images"`
+}
+
+// enrichProductsWithImages fetches all images for a slice of products in a
+// single query and returns them paired together. This avoids the N+1 problem.
+func (h *ProductHandler) enrichProductsWithImages(ctx context.Context, products []database.Product) ([]ProductWithImages, error) {
+	if len(products) == 0 {
+		return []ProductWithImages{}, nil
+	}
+
+	productIDs := make([]uuid.UUID, len(products))
+	for i, p := range products {
+		productIDs[i] = p.ID
+	}
+
+	allImages, err := h.Queries.GetProductImagesByProductIDs(ctx, productIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Group images by product_id
+	imageMap := make(map[uuid.UUID][]database.ProductImage, len(products))
+	for _, img := range allImages {
+		imageMap[img.ProductID] = append(imageMap[img.ProductID], img)
+	}
+
+	result := make([]ProductWithImages, len(products))
+	for i, p := range products {
+		images := imageMap[p.ID]
+		if images == nil {
+			images = []database.ProductImage{} // never null in JSON
+		}
+		result[i] = ProductWithImages{
+			Product: p,
+			Images:  images,
+		}
+	}
+
+	return result, nil
+}
+
 func NewProductHandler(cfg *config.ApiConfig, queries ProductQuerier, imageStorage storage.ImageStorage, logger *slog.Logger) *ProductHandler {
 	return &ProductHandler{
 		Config:       cfg,
@@ -97,7 +140,7 @@ func (h *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Requ
 	stockString := strings.TrimSpace(r.FormValue("stock"))
 	stock, err := strconv.ParseInt(stockString, 10, 32)
 	if err != nil || stock < 0 {
-		h.Logger.WarnContext(ctx, "create product failed: invalid stock", "user_id", userID, "stock", stockString)
+		h.Logger.WarnContext(ctx, "create product failed: invalid stock", "user_id", userID, "stock", stockString, "error", err)
 		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Stock must be a valid non-negative integer", nil)
 		return
 	}
@@ -206,20 +249,40 @@ func (h *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Requ
 		Status: params.Status,
 	})
 	if err != nil {
-		h.Logger.ErrorContext(ctx, "create product failed: database error", "user_id", userID, "shop_id", shopID, "error", err)
+		h.Logger.ErrorContext(ctx, "create product failed: database error creating product record", "user_id", userID, "shop_id", shopID, "error", err)
 		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not create product", err)
 		return
 	}
 
 	uploadedObjects := make([]string, 0, len(files))
-	cleanup := func() {
+	
+	// Enhanced cleanup function that logs the trigger and the result of every step
+	cleanup := func(originalErr error) {
+		h.Logger.ErrorContext(ctx, "initiating rollback/cleanup due to previous error", 
+			"user_id", userID, 
+			"product_id", product.ID, 
+			"original_error", originalErr)
+
 		for _, objectKey := range uploadedObjects {
-			if delErr := h.ImageStorage.Delete(context.Background(), objectKey); delErr != nil {
-				h.Logger.ErrorContext(ctx, "cleanup failed: could not delete orphaned image", "object_key", objectKey, "error", delErr)
+			delErr := h.ImageStorage.Delete(context.Background(), objectKey)
+			if delErr != nil {
+				h.Logger.ErrorContext(ctx, "cleanup failed: could not delete orphaned image from storage", 
+					"object_key", objectKey, 
+					"error", delErr)
+			} else {
+				h.Logger.InfoContext(ctx, "cleanup successful: deleted orphaned image from storage", 
+					"object_key", objectKey)
 			}
 		}
-		if delErr := h.Queries.DeleteProduct(context.Background(), product.ID); delErr != nil {
-			h.Logger.ErrorContext(ctx, "cleanup failed: could not delete orphaned product", "product_id", product.ID, "error", delErr)
+
+		delErr := h.Queries.DeleteProduct(context.Background(), product.ID)
+		if delErr != nil {
+			h.Logger.ErrorContext(ctx, "cleanup failed: could not delete orphaned product from database", 
+				"product_id", product.ID, 
+				"error", delErr)
+		} else {
+			h.Logger.InfoContext(ctx, "cleanup successful: deleted orphaned product from database", 
+				"product_id", product.ID)
 		}
 	}
 
@@ -227,7 +290,7 @@ func (h *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Requ
 		src, err := file.Open()
 		if err != nil {
 			h.Logger.ErrorContext(ctx, "create product failed: could not open image file", "user_id", userID, "product_id", product.ID, "filename", file.Filename, "error", err)
-			cleanup()
+			cleanup(err)
 			comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not open product image", err)
 			return
 		}
@@ -237,7 +300,7 @@ func (h *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Requ
 		if err != nil {
 			src.Close()
 			h.Logger.ErrorContext(ctx, "create product failed: could not read image file", "user_id", userID, "product_id", product.ID, "filename", file.Filename, "error", err)
-			cleanup()
+			cleanup(err)
 			comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not read product image", err)
 			return
 		}
@@ -245,8 +308,8 @@ func (h *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Requ
 		contentType := http.DetectContentType(contentTypeBuffer[:n])
 		if _, err := src.Seek(0, io.SeekStart); err != nil {
 			src.Close()
-			h.Logger.ErrorContext(ctx, "create product failed: could not reset image file", "user_id", userID, "product_id", product.ID, "error", err)
-			cleanup()
+			h.Logger.ErrorContext(ctx, "create product failed: could not reset image file reader", "user_id", userID, "product_id", product.ID, "error", err)
+			cleanup(err)
 			comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not reset product image", err)
 			return
 		}
@@ -259,7 +322,7 @@ func (h *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Requ
 
 		if err != nil {
 			h.Logger.ErrorContext(ctx, "create product failed: storage upload error", "user_id", userID, "product_id", product.ID, "object_key", objectKey, "error", err)
-			cleanup()
+			cleanup(err)
 			comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not upload product image", err)
 			return
 		}
@@ -272,8 +335,8 @@ func (h *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Requ
 			DisplayOrder: int32(index),
 		})
 		if err != nil {
-			h.Logger.ErrorContext(ctx, "create product failed: database error saving image", "user_id", userID, "product_id", product.ID, "object_key", objectKey, "error", err)
-			cleanup()
+			h.Logger.ErrorContext(ctx, "create product failed: database error saving image record", "user_id", userID, "product_id", product.ID, "object_key", objectKey, "error", err)
+			cleanup(err)
 			comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not save product image", err)
 			return
 		}
@@ -288,6 +351,8 @@ func (h *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Requ
 
 	response.Images, err = h.Queries.GetProductImages(ctx, product.ID)
 	if err != nil {
+		// Note: We don't call cleanup() here because the product and images ARE successfully saved.
+		// We just log the fetch error and still return a 201 Created with the product data.
 		h.Logger.ErrorContext(ctx, "create product succeeded but failed to fetch images for response", "user_id", userID, "product_id", product.ID, "error", err)
 	}
 
@@ -327,10 +392,25 @@ func (h *ProductHandler) HandleGetProduct(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	images, err := h.Queries.GetProductImages(ctx, productID)
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "get product failed: could not fetch images", "product_id", productID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not get product images", err)
+		return
+	}
+
+	response := struct {
+		Product database.Product        `json:"product"`
+		Images  []database.ProductImage `json:"images"`
+	}{
+		Product: product,
+		Images:  images,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	if err := json.NewEncoder(w).Encode(product); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.Logger.ErrorContext(ctx, "get product succeeded but failed to encode response", "product_id", productID, "error", err)
 	}
 }
@@ -562,7 +642,7 @@ func (h *ProductHandler) HandleListProducts(w http.ResponseWriter, r *http.Reque
 	brand := strings.TrimSpace(query.Get("brand"))
 	color := strings.TrimSpace(query.Get("color"))
 	size := strings.TrimSpace(query.Get("size"))
-	
+
 	var categoryID uuid.NullUUID
 	if category := query.Get("category_id"); category != "" {
 		id, err := uuid.Parse(category)
@@ -646,13 +726,20 @@ func (h *ProductHandler) HandleListProducts(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	response, err := h.enrichProductsWithImages(ctx, products)
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "list products failed: could not fetch images", "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Failed to retrieve product images", err)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(products); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.Logger.ErrorContext(ctx, "list products succeeded but failed to encode response", "error", err)
 		return
 	}
 
-	h.Logger.InfoContext(ctx, "products listed successfully", "count", len(products), "limit", limit, "offset", offset)
+	h.Logger.InfoContext(ctx, "products listed successfully", "count", len(response), "limit", limit, "offset", offset)
 }
 
 func (h *ProductHandler) HandleListProductsByShop(w http.ResponseWriter, r *http.Request) {
@@ -724,13 +811,20 @@ func (h *ProductHandler) HandleListProductsByShop(w http.ResponseWriter, r *http
 		return
 	}
 
+	response, err := h.enrichProductsWithImages(ctx, products)
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "list products by shop failed: could not fetch images", "user_id", userID, "shop_id", shopID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not retrieve product images", err)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(products); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.Logger.ErrorContext(ctx, "list products by shop succeeded but failed to encode response", "user_id", userID, "shop_id", shopID, "error", err)
 		return
 	}
 
-	h.Logger.InfoContext(ctx, "products listed by shop successfully", "user_id", userID, "shop_id", shopID, "count", len(products))
+	h.Logger.InfoContext(ctx, "products listed by shop successfully", "user_id", userID, "shop_id", shopID, "count", len(response))
 }
 
 func (h *ProductHandler) HandleListProductsByCategory(w http.ResponseWriter, r *http.Request) {
@@ -780,13 +874,20 @@ func (h *ProductHandler) HandleListProductsByCategory(w http.ResponseWriter, r *
 		return
 	}
 
+	response, err := h.enrichProductsWithImages(ctx, products)
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "list products by category failed: could not fetch images", "category_id", categoryID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not retrieve product images", err)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(products); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.Logger.ErrorContext(ctx, "list products by category succeeded but failed to encode response", "category_id", categoryID, "error", err)
 		return
 	}
 
-	h.Logger.InfoContext(ctx, "products listed by category successfully", "category_id", categoryID, "count", len(products))
+	h.Logger.InfoContext(ctx, "products listed by category successfully", "category_id", categoryID, "count", len(response))
 }
 
 func (h *ProductHandler) HandleListProductsBySubcategory(w http.ResponseWriter, r *http.Request) {
@@ -836,13 +937,20 @@ func (h *ProductHandler) HandleListProductsBySubcategory(w http.ResponseWriter, 
 		return
 	}
 
+	response, err := h.enrichProductsWithImages(ctx, products)
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "list products by subcategory failed: could not fetch images", "subcategory_id", subcategoryID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not retrieve product images", err)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(products); err != nil {
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.Logger.ErrorContext(ctx, "list products by subcategory succeeded but failed to encode response", "subcategory_id", subcategoryID, "error", err)
 		return
 	}
 
-	h.Logger.InfoContext(ctx, "products listed by subcategory successfully", "subcategory_id", subcategoryID, "count", len(products))
+	h.Logger.InfoContext(ctx, "products listed by subcategory successfully", "subcategory_id", subcategoryID, "count", len(response))
 }
 
 func (h *ProductHandler) HandleUpdateProductImage(w http.ResponseWriter, r *http.Request) {

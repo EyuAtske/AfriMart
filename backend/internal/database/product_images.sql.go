@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const createProductImage = `-- name: CreateProductImage :one
@@ -103,6 +104,42 @@ ORDER BY display_order ASC, created_at ASC
 
 func (q *Queries) GetProductImages(ctx context.Context, productID uuid.UUID) ([]ProductImage, error) {
 	rows, err := q.db.QueryContext(ctx, getProductImages, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProductImage
+	for rows.Next() {
+		var i ProductImage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProductID,
+			&i.ObjectKey,
+			&i.DisplayOrder,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getProductImagesByProductIDs = `-- name: GetProductImagesByProductIDs :many
+SELECT id, product_id, object_key, display_order, created_at
+FROM product_images
+WHERE product_id = ANY($1::uuid[])
+ORDER BY product_id, display_order ASC, created_at ASC
+`
+
+func (q *Queries) GetProductImagesByProductIDs(ctx context.Context, dollar_1 []uuid.UUID) ([]ProductImage, error) {
+	rows, err := q.db.QueryContext(ctx, getProductImagesByProductIDs, pq.Array(dollar_1))
 	if err != nil {
 		return nil, err
 	}

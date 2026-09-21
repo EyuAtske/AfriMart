@@ -1,10 +1,14 @@
 package product
 
 // import (
+// 	"bytes"
 // 	"context"
 // 	"database/sql"
 // 	"encoding/json"
 // 	"errors"
+// 	"io"
+// 	"log/slog"
+// 	"mime/multipart"
 // 	"net/http"
 // 	"net/http/httptest"
 // 	"strings"
@@ -85,6 +89,51 @@ package product
 // 		ctx context.Context,
 // 		arg database.DeleteProductImageParams,
 // 	) (database.ProductImage, error)
+
+// 	getProductImagesByProductIDsFunc func(
+// 		ctx context.Context, 
+// 		dollar_1 []uuid.UUID,
+// 	) ([]database.ProductImage, error)
+// }
+
+// type mockImageStorage struct {
+// 	uploadFunc func(
+// 		context.Context,
+// 		string,
+// 		io.Reader,
+// 		int64,
+// 		string,
+// 	) error
+
+// 	deleteFunc func(
+// 		context.Context,
+// 		string,
+// 	) error
+// }
+
+// func (m *mockImageStorage) Upload(
+// 	ctx context.Context,
+// 	objectKey string,
+// 	reader io.Reader,
+// 	size int64,
+// 	contentType string,
+// ) error {
+// 	if m.uploadFunc == nil {
+// 		return nil
+// 	}
+
+// 	return m.uploadFunc(ctx, objectKey, reader, size, contentType)
+// }
+
+// func (m *mockImageStorage) Delete(
+// 	ctx context.Context,
+// 	objectKey string,
+// ) error {
+// 	if m.deleteFunc == nil {
+// 		return nil
+// 	}
+
+// 	return m.deleteFunc(ctx, objectKey)
 // }
 
 // func (m *mockProductQueries) GetShopByIDAndOwnerID(
@@ -151,39 +200,64 @@ package product
 // }
 
 // func (m *mockProductQueries) CreateProductImage(
-// 		ctx context.Context,
-// 		arg database.CreateProductImageParams,
-// 	) (database.ProductImage, error){
+// 	ctx context.Context,
+// 	arg database.CreateProductImageParams,
+// ) (database.ProductImage, error) {
+// 	if m.createProductImageFunc == nil {
+// 		return database.ProductImage{}, nil
+// 	}
 // 	return m.createProductImageFunc(ctx, arg)
 // }
 
 // func (m *mockProductQueries) GetProductImages(
-// 		ctx context.Context,
-// 		productID uuid.UUID,
-// 	) ([]database.ProductImage, error){
+// 	ctx context.Context,
+// 	productID uuid.UUID,
+// ) ([]database.ProductImage, error) {
+// 	if m.getProductImagesFunc == nil {
+// 		return nil, nil
+// 	}
 // 	return m.getProductImagesFunc(ctx, productID)
 // }
 
 // func (m *mockProductQueries) GetProductImage(
-// 		ctx context.Context,
-// 		arg database.GetProductImageParams,
-// 	) (database.ProductImage, error){
+// 	ctx context.Context,
+// 	arg database.GetProductImageParams,
+// ) (database.ProductImage, error) {
+// 	if m.getProductImageFunc == nil {
+// 		return database.ProductImage{}, sql.ErrNoRows
+// 	}
 // 	return m.getProductImageFunc(ctx, arg)
 // }
 
 // func (m *mockProductQueries) UpdateProductImage(
-// 		ctx context.Context,
-// 		arg database.UpdateProductImageParams,
-// 	) (database.ProductImage, error){
+// 	ctx context.Context,
+// 	arg database.UpdateProductImageParams,
+// ) (database.ProductImage, error) {
+// 	if m.updateProductImageFunc == nil {
+// 		return database.ProductImage{}, nil
+// 	}
 // 	return m.updateProductImageFunc(ctx, arg)
 // }
 
-// func (m *mockProductQueries)	DeleteProductImage(
-// 		ctx context.Context,
-// 		arg database.DeleteProductImageParams,
-// 	) (database.ProductImage, error){
+// func (m *mockProductQueries) DeleteProductImage(
+// 	ctx context.Context,
+// 	arg database.DeleteProductImageParams,
+// ) (database.ProductImage, error) {
+// 	if m.deleteProductImageFunc == nil {
+// 		return database.ProductImage{}, sql.ErrNoRows
+// 	}
 // 	return m.deleteProductImageFunc(ctx, arg)
 // }
+
+// func (m *mockProductQueries) GetProductImagesByProductIDs(
+// 		ctx context.Context, 
+// 		dollar_1 []uuid.UUID,
+// 	) ([]database.ProductImage, error){
+// 		if m.getProductImagesByProductIDsFunc == nil {
+// 		return []database.ProductImage{}, sql.ErrNoRows
+// 	}
+// 	return m.getProductImagesByProductIDsFunc(ctx, dollar_1)
+// 	}
 
 // func TestHandleCreateProduct_Success(t *testing.T) {
 // 	userID := uuid.New()
@@ -247,8 +321,8 @@ package product
 // 				t.Errorf("expected product name Nike Air Max, got %v", arg.Name)
 // 			}
 
-// 			if arg.Price != "120.00" {
-// 				t.Errorf("expected price 120.00, got %v", arg.Price)
+// 			if arg.Price != "2500" {
+// 				t.Errorf("expected price 2500, got %v", arg.Price)
 // 			}
 
 // 			if arg.Stock != 10 {
@@ -262,31 +336,66 @@ package product
 // 			return expectedProduct, nil
 // 		},
 // 	}
-
-// 	handler := &ProductHandler{
-// 		Queries:     mockQueries,
-// 		ShopQueries: mockQueries,
+// 	mockStorage := &mockImageStorage{
+// 		uploadFunc: func(
+// 			ctx context.Context,
+// 			objectKey string,
+// 			reader io.Reader,
+// 			size int64,
+// 			contentType string,
+// 		) error {
+// 			return nil
+// 		},
 // 	}
 
-// 	body := `{
-// 		"shop_id": "` + shopID.String() + `",
-// 		"category_id": "` + categoryID.String() + `",
-// 		"subcategory_id": "` + subcategoryID.String() + `",
-// 		"name": "Nike Air Max",
-// 		"description": "Running shoes",
-// 		"brand": "Nike",
-// 		"color": "Black",
-// 		"size": "42",
-// 		"price": "120.00",
-// 		"stock": 10,
-// 		"image": "https://example.com/nike.jpg"
-// 	}`
+// 	handler := &ProductHandler{
+// 		Logger:       slog.Default(),
+// 		Queries:      mockQueries,
+// 		ShopQueries:  mockQueries,
+// 		ImageStorage: mockStorage,
+// 	}
+
+// 	var body bytes.Buffer
+// 	writer := multipart.NewWriter(&body)
+
+// 	_ = writer.WriteField("shop_id", shopID.String())
+// 	_ = writer.WriteField("category_id", categoryID.String())
+// 	_ = writer.WriteField("subcategory_id", subcategoryID.String())
+// 	_ = writer.WriteField("name", "Nike Air Max")
+// 	_ = writer.WriteField("description", "Running shoes")
+// 	_ = writer.WriteField("brand", "Nike")
+// 	_ = writer.WriteField("color", "Black")
+// 	_ = writer.WriteField("size", "42")
+// 	_ = writer.WriteField("price", "2500")
+// 	_ = writer.WriteField("stock", "10")
+// 	_ = writer.WriteField("status", "active")
+
+// 	pngData := []byte{
+// 		0x89, 0x50, 0x4E, 0x47,
+// 		0x0D, 0x0A, 0x1A, 0x0A,
+// 	}
+
+// 	part, err := writer.CreateFormFile("images", "shoe.png")
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+
+// 	_, err = part.Write(pngData)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+
+// 	if err := writer.Close(); err != nil {
+// 		t.Fatal(err)
+// 	}
 
 // 	req := httptest.NewRequest(
 // 		http.MethodPost,
-// 		"/products",
-// 		strings.NewReader(body),
+// 		"/api/products",
+// 		&body,
 // 	)
+
+// 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 // 	req = req.WithContext(
 // 		auth.ContextWithUserID(req.Context(), userID),
@@ -333,22 +442,48 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mockQueries,
 // 		ShopQueries: mockQueries,
+// 		Logger:      slog.Default(),
 // 	}
 
-// 	body := `{
-// 		"shop_id": "` + shopID.String() + `",
-// 		"category_id": "` + categoryID.String() + `",
-// 		"subcategory_id": "` + subcategoryID.String() + `",
-// 		"name": "Nike Air Max",
-// 		"price": "120.00",
-// 		"stock": 10
-// 	}`
+// 	var body bytes.Buffer
+// 	writer := multipart.NewWriter(&body)
+
+// 	_ = writer.WriteField("shop_id", shopID.String())
+// 	_ = writer.WriteField("category_id", categoryID.String())
+// 	_ = writer.WriteField("subcategory_id", subcategoryID.String())
+// 	_ = writer.WriteField("name", "Nike Air Max")
+// 	_ = writer.WriteField("description", "Running shoes")
+// 	_ = writer.WriteField("brand", "Nike")
+// 	_ = writer.WriteField("color", "Black")
+// 	_ = writer.WriteField("size", "42")
+// 	_ = writer.WriteField("price", "2500")
+// 	_ = writer.WriteField("stock", "10")
+// 	_ = writer.WriteField("status", "active")
+
+// 	part, err := writer.CreateFormFile("images", "shoe.png")
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+
+// 	_, err = part.Write([]byte{
+// 		0x89, 0x50, 0x4E, 0x47,
+// 		0x0D, 0x0A, 0x1A, 0x0A,
+// 	})
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+
+// 	if err := writer.Close(); err != nil {
+// 		t.Fatal(err)
+// 	}
 
 // 	req := httptest.NewRequest(
 // 		http.MethodPost,
 // 		"/api/products",
-// 		strings.NewReader(body),
+// 		&body,
 // 	)
+
+// 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 // 	req = req.WithContext(
 // 		auth.ContextWithUserID(req.Context(), userID),
@@ -377,6 +512,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mockQueries,
 // 		ShopQueries: mockQueries,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	body := `{
@@ -439,6 +575,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mockQueries,
 // 		ShopQueries: mockQueries,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	body := `{
@@ -509,6 +646,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mockQueries,
 // 		ShopQueries: mockQueries,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	body := `{
@@ -578,6 +716,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mockQueries,
 // 		ShopQueries: mockQueries,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	body := `{
@@ -653,6 +792,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mockQueries,
 // 		ShopQueries: mockQueries,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -737,6 +877,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mockQueries,
 // 		ShopQueries: mockQueries,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -776,6 +917,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mockQueries,
 // 		ShopQueries: mockQueries,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -883,6 +1025,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	body := `{
@@ -999,6 +1142,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	body := `{
@@ -1043,6 +1187,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	body := `{
@@ -1084,6 +1229,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	body := `{
@@ -1134,6 +1280,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	body := `{
@@ -1212,6 +1359,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	body := `{
@@ -1292,6 +1440,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	body := `{
@@ -1372,6 +1521,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	body := `{
@@ -1422,6 +1572,19 @@ package product
 // 		Status: "active",
 // 	}
 
+// 	imageDeleted := false
+// 	productDeleted := false
+
+// 	mockStorage := &mockImageStorage{
+// 		deleteFunc: func(
+// 			ctx context.Context,
+// 			objectKey string,
+// 		) error {
+// 			imageDeleted = true
+// 			return nil
+// 		},
+// 	}
+
 // 	mock := &mockProductQueries{
 // 		getProductFunc: func(
 // 			ctx context.Context,
@@ -1459,32 +1622,51 @@ package product
 // 			if id != productID {
 // 				t.Errorf("expected product ID %v, got %v", productID, id)
 // 			}
+// 			productDeleted = true
 
 // 			return nil
+// 		},
+
+// 		getProductImagesFunc: func(
+// 			ctx context.Context,
+// 			id uuid.UUID,
+// 		) ([]database.ProductImage, error) {
+// 			return []database.ProductImage{
+// 				{
+// 					ID:           uuid.New(),
+// 					ProductID:    id,
+// 					ObjectKey:    "products/" + id.String() + "/image.jpg",
+// 					DisplayOrder: 0,
+// 				},
+// 			}, nil
 // 		},
 // 	}
 
 // 	handler := &ProductHandler{
-// 		Queries:     mock,
-// 		ShopQueries: mock,
+// 		Logger:       slog.Default(),
+// 		Queries:      mock,
+// 		ShopQueries:  mock,
+// 		ImageStorage: mockStorage,
 // 	}
 
+	
 // 	req := httptest.NewRequest(
 // 		http.MethodDelete,
 // 		"/products/"+productID.String(),
 // 		nil,
 // 	)
-
+	
 // 	req.SetPathValue("id", productID.String())
-
+	
 // 	req = req.WithContext(
 // 		auth.ContextWithUserID(req.Context(), userID),
 // 	)
-
+	
 // 	rec := httptest.NewRecorder()
-
+	
 // 	handler.HandleDeleteProduct(rec, req)
 
+	
 // 	if rec.Code != http.StatusNoContent {
 // 		t.Fatalf(
 // 			"expected status %d, got %d",
@@ -1492,9 +1674,17 @@ package product
 // 			rec.Code,
 // 		)
 // 	}
-
+	
 // 	if rec.Body.Len() != 0 {
 // 		t.Errorf("expected empty response body, got %q", rec.Body.String())
+// 	}
+
+// 	if !imageDeleted {
+// 		t.Error("expected product image to be deleted from storage")
+// 	}
+
+// 	if !productDeleted {
+// 		t.Error("expected product to be deleted")
 // 	}
 // }
 
@@ -1551,6 +1741,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -1586,6 +1777,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -1617,6 +1809,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -1660,6 +1853,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -1703,6 +1897,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -1756,6 +1951,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -1818,6 +2014,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -1879,6 +2076,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -1942,6 +2140,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -1969,6 +2168,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -1996,6 +2196,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2023,6 +2224,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2050,6 +2252,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2077,6 +2280,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2111,6 +2315,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2145,6 +2350,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2239,6 +2445,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2287,6 +2494,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2318,6 +2526,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2361,6 +2570,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2404,6 +2614,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2456,6 +2667,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2511,6 +2723,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2569,6 +2782,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2615,6 +2829,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2661,6 +2876,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2707,6 +2923,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2753,6 +2970,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2805,6 +3023,7 @@ package product
 // 	handler := &ProductHandler{
 // 		Queries:     mock,
 // 		ShopQueries: mock,
+// 		Logger:      slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2867,6 +3086,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2895,6 +3115,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2932,6 +3153,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -2972,6 +3194,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -3018,6 +3241,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -3048,6 +3272,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -3078,6 +3303,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -3108,6 +3334,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -3138,6 +3365,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -3175,6 +3403,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -3237,6 +3466,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -3265,6 +3495,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -3302,6 +3533,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -3342,6 +3574,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -3388,6 +3621,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -3418,6 +3652,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -3448,6 +3683,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
@@ -3478,6 +3714,7 @@ package product
 
 // 	handler := &ProductHandler{
 // 		Queries: mock,
+// 		Logger:  slog.Default(),
 // 	}
 
 // 	req := httptest.NewRequest(
