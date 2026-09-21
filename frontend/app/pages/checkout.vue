@@ -1,27 +1,31 @@
 <script setup lang="ts">
+definePageMeta({
+  middleware: 'auth'
+})
+
 const router = useRouter()
-const { user, isLoggedIn } = useAuth()
-const { cartProducts, cartSubtotal, createOrder } = useMarketplace()
-const { mockRequest } = useApiClient()
+const { user } = useAuth()
+const { cartProducts, cartSubtotal, createOrder, retryPostCheckoutRefresh } = useMarketplace()
 const { gtag } = useGtag()
-const { track, isFeatureEnabled } = useAnalytics()
-const newCheckoutEnabled = computed(() =>
-  isFeatureEnabled('new-checkout')
-)
 
 const checkoutForm = reactive({
   fullName: '',
   phone: '',
   address: '',
-  city: 'Addis Ababa',
-  paymentMethod: 'Cash on delivery'
+  deliveryCity: 'Addis Ababa',
+  deliveryNotes: ''
 })
 
-const errorMessage = ref('')
 const isSubmitting = ref(false)
+const errorMessage = ref('')
+const orderSuccess = ref(false)
+const refreshWarning = ref('')
+const createdOrderId = ref('')
+const isRetrying = ref(false)
 
 const deliveryFee = computed(() => (cartSubtotal.value > 0 ? 250 : 0))
 const orderTotal = computed(() => cartSubtotal.value + deliveryFee.value)
+
 if (import.meta.client && cartProducts.value.length) {
   gtag('event', 'begin_checkout', {
     currency: 'ETB',
@@ -46,73 +50,66 @@ watch(
   { immediate: true }
 )
 
-const submitCheckout = async () => {
+const retryRefresh = async () => {
+  isRetrying.value = true
+  try {
+    await retryPostCheckoutRefresh()
+    refreshWarning.value = ''
+    await navigateTo(`/orders?highlight=${createdOrderId.value}`)
+  } catch (err: any) {
+    refreshWarning.value = err?.message || 'Still unable to refresh data. Your order has been placed — check your order history.'
+  } finally {
+    isRetrying.value = false
+  }
+}
+
+const handlePlaceOrder = async () => {
   errorMessage.value = ''
+  refreshWarning.value = ''
+  orderSuccess.value = false
 
-  if (!cartProducts.value.length) {
-    errorMessage.value = 'Your cart is empty.'
+  if (!checkoutForm.fullName.trim()) {
+    errorMessage.value = 'Please enter recipient name for delivery.'
     return
   }
-
-  if (
-    !checkoutForm.fullName.trim() ||
-    !checkoutForm.phone.trim() ||
-    !checkoutForm.address.trim() ||
-    !checkoutForm.city.trim()
-  ) {
-    console.log('[DEBUG] submitCheckout aborted: incomplete details', { ...checkoutForm })
-    errorMessage.value = 'Please complete the delivery details.'
+  if (!checkoutForm.phone.trim()) {
+    errorMessage.value = 'Please enter a contact phone number.'
     return
   }
-
-  const rawPhone = checkoutForm.phone.trim()
-  const cleanPhone = rawPhone.replace(/[\s\-()]/g, '')
-  const ethiopianPhoneRegex = /^\+251[79]\d{8}$/
-
-  if (!ethiopianPhoneRegex.test(cleanPhone)) {
-    errorMessage.value = 'Please enter a valid Ethiopian phone number: +251 followed by 7 or 9 and 8 digits (e.g. +251911234567 or +251711234567).'
+  if (!checkoutForm.address.trim()) {
+    errorMessage.value = 'Please enter delivery address.'
+    return
+  }
+  if (!checkoutForm.deliveryCity.trim()) {
+    errorMessage.value = 'Please enter delivery city.'
     return
   }
 
   isSubmitting.value = true
-
   try {
-    await mockRequest(
-      {
-        cart: cartProducts.value,
-        delivery: checkoutForm
-      },
-      { delay: 0 }
-    )
-
-    const order = await createOrder({
+    const result = await createOrder({
       buyerName: checkoutForm.fullName.trim(),
-      deliveryAddress: `${checkoutForm.address.trim()}, ${checkoutForm.city.trim()}`,
-      phone: cleanPhone,
-      paymentMethod: checkoutForm.paymentMethod,
-      deliveryFee: deliveryFee.value
+      phone: checkoutForm.phone.trim(),
+      deliveryAddress: checkoutForm.address.trim(),
+      deliveryCity: checkoutForm.deliveryCity.trim(),
+      deliveryNotes: checkoutForm.deliveryNotes.trim()
     })
-if (!order) {
-  errorMessage.value = 'Could not create the mock order.'
-  return
-}
 
-gtag('event', 'purchase', {
-  transaction_id: String(order.id),
-  value: orderTotal.value,
-  currency: 'ETB',
-  items: cartProducts.value.map(item => ({
-    item_id: String(item.product.id),
-    item_name: item.product.name,
-    price: item.product.price,
-    quantity: item.quantity
-  }))
-})
+    if (result?.order) {
+      createdOrderId.value = result.order.backendId || String(result.order.id)
 
-isLoggedIn.value = true
-router.push(`/payment/success?order=${order.id}`)
-  } catch (error) {
-    router.push('/payment/failure')
+      if (result.refreshError) {
+        // Order confirmed, but data refresh failed — stay on page with warning
+        orderSuccess.value = true
+        refreshWarning.value = result.refreshError
+      } else {
+        await navigateTo(`/orders?highlight=${createdOrderId.value}`)
+      }
+    } else {
+      throw new Error('Order creation failed. Please try again.')
+    }
+  } catch (err: any) {
+    errorMessage.value = err?.message || 'Failed to place order. Please try again.'
   } finally {
     isSubmitting.value = false
   }
@@ -130,39 +127,88 @@ router.push(`/payment/success?order=${order.id}`)
         <h1 class="mt-2 font-serif text-4xl tracking-[-0.025em] text-[#211f1d] sm:text-5xl">
           Checkout
         </h1>
+      </div>
 
-        <p
-          v-if="!isLoggedIn"
-          class="mt-3 max-w-2xl text-sm leading-6 text-[#756a60]"
+      <!-- Error Message Banner -->
+      <div
+        v-if="errorMessage"
+        class="mb-6 rounded-lg border border-red-300 bg-red-50 p-4 text-red-800"
+      >
+        <div class="flex items-center gap-3">
+          <span class="text-xl">⚠️</span>
+          <p class="text-sm font-medium">{{ errorMessage }}</p>
+        </div>
+      </div>
+
+      <!-- Order placed with data-refresh warning -->
+      <div
+        v-if="orderSuccess"
+        class="mb-6 space-y-3"
+      >
+        <div class="rounded-lg border border-green-300 bg-green-50 p-4 text-green-800">
+          <div class="flex items-center gap-3">
+            <span class="text-xl">✅</span>
+            <p class="text-sm font-medium">Your order has been placed successfully!</p>
+          </div>
+        </div>
+
+        <div
+          v-if="refreshWarning"
+          class="rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-800"
         >
-          You can complete this mock checkout as a guest. When backend auth is connected, this page can become protected.
-        </p>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex items-center gap-3 min-w-0">
+              <span class="shrink-0 text-xl">⚠️</span>
+              <p class="text-sm font-medium">{{ refreshWarning }}</p>
+            </div>
+            <div class="flex shrink-0 items-center gap-2">
+              <button
+                :disabled="isRetrying"
+                class="inline-flex h-9 items-center justify-center rounded-lg border border-amber-400 bg-white px-4 text-xs font-medium text-amber-800 transition hover:bg-amber-100 disabled:opacity-50"
+                @click="retryRefresh"
+              >
+                {{ isRetrying ? 'Retrying…' : 'Retry refresh' }}
+              </button>
+              <NuxtLink
+                :to="`/orders?highlight=${createdOrderId}`"
+                class="inline-flex h-9 items-center justify-center rounded-lg bg-[#806344] px-4 text-xs font-medium text-white transition hover:bg-[#6b5438]"
+              >
+                View orders
+              </NuxtLink>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="flex justify-center pt-2">
+          <NuxtLink
+            :to="`/orders?highlight=${createdOrderId}`"
+            class="inline-flex h-12 items-center justify-center rounded-lg bg-[#806344] px-8 text-sm font-medium text-white transition hover:bg-[#6b5438]"
+          >
+            View your orders →
+          </NuxtLink>
+        </div>
       </div>
 
       <div
-        v-if="cartProducts.length"
+        v-else-if="cartProducts.length"
         class="grid gap-8 lg:grid-cols-[1fr_380px]"
       >
-        <form
-          action="javascript:void(0)"
-          class="rounded-xl border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8"
-          @submit.prevent="submitCheckout"
-        >
+        <div class="rounded-xl border border-[#d9d0c4] bg-[#faf8f4] p-6 shadow-[0_20px_70px_rgba(33,31,29,0.06)] sm:p-8">
           <h2 class="font-serif text-3xl text-[#211f1d]">
-            Delivery details
+            Delivery Details
           </h2>
 
           <div class="mt-6 grid gap-5 sm:grid-cols-2">
             <AuthInput
               v-model="checkoutForm.fullName"
-              label="Full name"
-              placeholder="Name for delivery"
+              label="Recipient Name"
+              placeholder="Full name for delivery"
               name="checkout-name"
             />
 
             <AuthInput
               v-model="checkoutForm.phone"
-              label="Phone"
+              label="Phone Number"
               type="tel"
               placeholder="+251911234567"
               name="checkout-phone"
@@ -172,86 +218,97 @@ router.push(`/payment/success?order=${order.id}`)
           <div class="mt-5 grid gap-5 sm:grid-cols-[1fr_220px]">
             <AuthInput
               v-model="checkoutForm.address"
-              label="Address"
-              placeholder="Street, building, area"
+              label="Street Address"
+              placeholder="Street, building, house no."
               name="checkout-address"
             />
 
             <AuthInput
-              v-model="checkoutForm.city"
+              v-model="checkoutForm.deliveryCity"
               label="City"
-              placeholder="City"
+              placeholder="Addis Ababa"
               name="checkout-city"
+            />
+          </div>
+
+          <div class="mt-5">
+            <AuthInput
+              v-model="checkoutForm.deliveryNotes"
+              label="Delivery Notes (Optional)"
+              placeholder="Special instructions for driver..."
+              name="checkout-notes"
             />
           </div>
 
           <section class="mt-8">
             <h2 class="font-serif text-3xl text-[#211f1d]">
-              Payment method
+              Payment Method
             </h2>
 
-            <p
-              v-if="newCheckoutEnabled"
-              class="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-[#806344]"
-            >
-              New checkout experience
-            </p>
-            
-            <div class="mt-5 grid gap-3 sm:grid-cols-3">
-              <label
-                v-for="method in ['Cash on delivery', 'Telebirr', 'CBE']"
-                :key="method"
-                class="cursor-pointer rounded-lg border p-4 transition"
-                :class="
-                  checkoutForm.paymentMethod === method
-                    ? 'border-[#806344] bg-[#eee8df]'
-                    : 'border-[#d9d0c4] bg-[#f5f1e9] hover:border-[#b9aa98]'
-                "
-              >
-                <input
-                  v-model="checkoutForm.paymentMethod"
-                  type="radio"
-                  name="payment-method"
-                  :value="method"
-                  class="sr-only"
-                  @change="track('payment_method_selected', {
-    payment_method: method
-  })"
-/>
-
-                <span class="block text-sm font-medium text-[#211f1d]">
-                  {{ method }}
-                </span>
-
-                <span class="mt-2 block text-xs leading-5 text-[#756a60]">
-                  {{
-                    method === 'Cash on delivery'
-                      ? 'Pay when the order arrives.'
-                      : 'Mock online payment approval.'
-                  }}
-                </span>
+            <div class="mt-4 space-y-3">
+              <!-- Cash on Delivery (Enabled & Default) -->
+              <label class="flex items-center justify-between rounded-lg border-2 border-[#806344] bg-[#f5f1e9] p-4 cursor-pointer">
+                <div class="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    name="payment"
+                    value="cod"
+                    checked
+                    class="h-4 w-4 text-[#806344] focus:ring-[#806344]"
+                  />
+                  <div>
+                    <p class="font-medium text-[#211f1d]">Cash on Delivery</p>
+                    <p class="text-xs text-[#756a60] mt-0.5">Payment is collected in cash when your package is delivered to your doorstep.</p>
+                  </div>
+                </div>
+                <span class="rounded bg-[#806344]/10 px-2.5 py-1 text-xs font-semibold text-[#806344]">Selected</span>
               </label>
+
+              <!-- Online / Mobile Payment Options (Disabled & Coming Soon) -->
+              <div class="flex items-center justify-between rounded-lg border border-[#ded6cc] bg-[#f0ede8] p-4 opacity-60 cursor-not-allowed">
+                <div class="flex items-center gap-3">
+                  <input type="radio" name="payment" disabled class="h-4 w-4" />
+                  <div>
+                    <p class="font-medium text-[#756a60]">Telebirr / Mobile Money</p>
+                    <p class="text-xs text-[#a0958b] mt-0.5">Digital mobile payment integration.</p>
+                  </div>
+                </div>
+                <span class="rounded bg-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600">Coming soon</span>
+              </div>
+
+              <div class="flex items-center justify-between rounded-lg border border-[#ded6cc] bg-[#f0ede8] p-4 opacity-60 cursor-not-allowed">
+                <div class="flex items-center gap-3">
+                  <input type="radio" name="payment" disabled class="h-4 w-4" />
+                  <div>
+                    <p class="font-medium text-[#756a60]">Credit / Debit Card</p>
+                    <p class="text-xs text-[#a0958b] mt-0.5">Visa, Mastercard, or local card.</p>
+                  </div>
+                </div>
+                <span class="rounded bg-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600">Coming soon</span>
+              </div>
             </div>
           </section>
 
-          <UiAppAlert
-            v-if="errorMessage"
-            class="mt-5"
-          >
-            {{ errorMessage }}
-          </UiAppAlert>
-
-          <div class="mt-8">
+          <div class="mt-8 flex flex-wrap items-center gap-4">
             <UiAppButton
-              type="submit"
-              variant="secondary"
+              variant="primary"
+              size="default"
               :disabled="isSubmitting"
-              class="w-full sm:w-auto"
+              class="min-w-[200px]"
+              @click="handlePlaceOrder"
             >
-              {{ isSubmitting ? 'Creating order...' : 'Place order' }}
+              <span v-if="isSubmitting">Placing order...</span>
+              <span v-else>Place order</span>
             </UiAppButton>
+
+            <NuxtLink
+              to="/cart"
+              class="inline-flex h-12 items-center justify-center rounded-lg border border-[#b8ab9b] px-6 text-sm font-medium text-[#211f1d] transition hover:bg-[#eee8df]"
+            >
+              Return to cart
+            </NuxtLink>
           </div>
-        </form>
+        </div>
 
         <UiAppCard as="aside" class="h-fit">
           <h2 class="font-serif text-3xl text-[#211f1d]">

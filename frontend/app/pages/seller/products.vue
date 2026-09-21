@@ -34,20 +34,20 @@ const openEditModal = (product: SellerProduct) => {
   isEditProductOpen.value = true
 }
 
-const handleDelete = (id: number, name: string) => {
+const handleDelete = (id: number | string, name: string) => {
   if (confirm(`Delete "${name}" permanently?`)) {
     deleteSellerProduct(id)
     showToast(`Product "${name}" deleted.`)
   }
 }
 
-const handleToggleStatus = (id: number, currentStatus: string) => {
+const handleToggleStatus = (id: number | string, currentStatus: string) => {
   toggleProductStatus(id)
   const nextStatus = currentStatus === 'Active' ? 'Draft' : 'Active'
   showToast(`Product status changed to ${nextStatus}`)
 }
 
-const adjustStock = (id: number, currentStock: number, delta: number) => {
+const adjustStock = (id: number | string, currentStock: number, delta: number) => {
   const newStock = Math.max(0, currentStock + delta)
   updateStock(id, newStock)
   showToast(`Stock updated to ${newStock}`)

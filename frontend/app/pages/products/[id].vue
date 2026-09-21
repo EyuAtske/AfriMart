@@ -283,7 +283,7 @@ const addSelectedQuantity = () => {
     <UiAppEmptyState
       v-else
       title="Product not found"
-      description="This mocked product is not in the current marketplace data."
+      description="The requested product could not be found in our catalog."
       action-label="Browse products"
       action-to="/products"
       class="mx-auto max-w-xl"

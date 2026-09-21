@@ -15,7 +15,7 @@ import {
 export class ApiAuthRepository implements IAuthRepository {
 
   async login(dto: LoginDTO): Promise<AuthSession> {
-    const { user, isLoggedIn } = useMockDataStore()
+    const { user, isLoggedIn, cart, orders } = useMockDataStore()
     const apiBase = getApiBase()
 
     try {
@@ -70,6 +70,8 @@ export class ApiAuthRepository implements IAuthRepository {
 
       user.value = authenticatedUser
       isLoggedIn.value = true
+      cart.value = []
+      orders.value = []
 
       return {
         user: { ...authenticatedUser },
@@ -84,7 +86,7 @@ export class ApiAuthRepository implements IAuthRepository {
   }
 
   async register(dto: RegisterDTO): Promise<AuthSession> {
-    const { user, isLoggedIn } = useMockDataStore()
+    const { user, isLoggedIn, cart, orders } = useMockDataStore()
     const apiBase = getApiBase()
 
     try {
@@ -117,6 +119,8 @@ export class ApiAuthRepository implements IAuthRepository {
         setRefreshToken(res.refresh_token || null)
         user.value = registeredUser
         isLoggedIn.value = true
+        cart.value = []
+        orders.value = []
         return {
           user: { ...registeredUser },
           token: res.token,
@@ -137,7 +141,7 @@ export class ApiAuthRepository implements IAuthRepository {
   }
 
   async logout(): Promise<void> {
-    const { user, isLoggedIn } = useMockDataStore()
+    const { user, isLoggedIn, cart, orders } = useMockDataStore()
     const refreshToken = getRefreshTokenValue()
 
     try {
@@ -161,6 +165,8 @@ export class ApiAuthRepository implements IAuthRepository {
         role: 'buyer'
       }
       isLoggedIn.value = false
+      cart.value = []
+      orders.value = []
     }
   }
 

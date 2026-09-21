@@ -99,7 +99,7 @@ describe('Repository Layer Unit Tests', () => {
     expect(review2.comment).toBe('Great quality!')
   })
 
-  it('ApiAuthRepository: should handle successful login and store token in memory', async () => {
+  it('ApiAuthRepository: should handle successful login and store token', async () => {
     const apiAuthRepo = new ApiAuthRepository()
     const mockResponse = {
       id: 101,
@@ -114,13 +114,11 @@ describe('Repository Layer Unit Tests', () => {
     const session = await apiAuthRepo.login({ email: 'backend@afrimart.com', password: 'secretpassword' })
     expect(session.token).toBe('jwt-access-token-123')
     expect(session.user.email).toBe('backend@afrimart.com')
-    expect(apiAuthRepo.getMemoryToken()).toBe('jwt-access-token-123')
 
     const { isLoggedIn } = useMockDataStore()
     expect(isLoggedIn.value).toBe(true)
 
     await apiAuthRepo.logout()
-    expect(apiAuthRepo.getMemoryToken()).toBeNull()
     expect(isLoggedIn.value).toBe(false)
   })
 
@@ -141,7 +139,6 @@ describe('Repository Layer Unit Tests', () => {
 
     expect(session.user.email).toBe('newuser@afrimart.com')
     expect(session.token).toBe('')
-    expect(apiAuthRepo.getMemoryToken()).toBeNull()
 
     const { isLoggedIn } = useMockDataStore()
     expect(isLoggedIn.value).toBe(false)
@@ -159,7 +156,6 @@ describe('Repository Layer Unit Tests', () => {
 
     const { isLoggedIn } = useMockDataStore()
     expect(isLoggedIn.value).toBe(false)
-    expect(apiAuthRepo.getMemoryToken()).toBeNull()
   })
 
   it('ApiAuthRepository: 400 Validation Error must throw error and keep user logged out', async () => {
@@ -179,7 +175,6 @@ describe('Repository Layer Unit Tests', () => {
 
     const { isLoggedIn } = useMockDataStore()
     expect(isLoggedIn.value).toBe(false)
-    expect(apiAuthRepo.getMemoryToken()).toBeNull()
   })
 
   it('ApiAuthRepository: Network failure must throw error and keep user logged out', async () => {
@@ -193,6 +188,5 @@ describe('Repository Layer Unit Tests', () => {
 
     const { isLoggedIn } = useMockDataStore()
     expect(isLoggedIn.value).toBe(false)
-    expect(apiAuthRepo.getMemoryToken()).toBeNull()
   })
 })

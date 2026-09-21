@@ -9,13 +9,17 @@ definePageMeta({
   middleware: 'auth'
 })
 
-const { orders, getOrderProducts, getUserReviewForProduct, formatPrice } = useMarketplace()
+const { orders, getOrderProducts, getUserReviewForProduct, formatPrice, fetchUserOrders } = useMarketplace()
+
+onMounted(() => {
+  fetchUserOrders()
+})
 
 const selectedTrackOrder = ref<MarketplaceOrder | null>(null)
 const isTrackModalOpen = ref(false)
 
 const selectedReviewProduct = ref<Product | null>(null)
-const selectedReviewOrderId = ref<number | undefined>(undefined)
+const selectedReviewOrderId = ref<number | string | undefined>(undefined)
 const isReviewModalOpen = ref(false)
 
 const openTrackModal = (order: MarketplaceOrder) => {
@@ -23,7 +27,7 @@ const openTrackModal = (order: MarketplaceOrder) => {
   isTrackModalOpen.value = true
 }
 
-const openReviewModal = (product: Product, orderId?: number) => {
+const openReviewModal = (product: Product, orderId?: number | string) => {
   selectedReviewProduct.value = product
   selectedReviewOrderId.value = orderId
   isReviewModalOpen.value = true

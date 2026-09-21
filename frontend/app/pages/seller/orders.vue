@@ -6,13 +6,21 @@ definePageMeta({
   middleware: 'auth'
 })
 
-const { orders, getOrderProducts, updateOrderStatus } = useMarketplace()
+const { orders, getOrderProducts, updateOrderStatus, fetchSellerOrders } = useMarketplace()
 const { showToast } = useToast()
-const statuses: OrderStatus[] = ['Ordered', 'Shipped', 'Delivered']
+const statuses: OrderStatus[] = ['Pending', 'Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
 
-const handleStatusChange = (orderId: number, newStatus: OrderStatus) => {
-  updateOrderStatus(orderId, newStatus)
-  showToast(`Order #${orderId} updated to status "${newStatus}"`)
+onMounted(() => {
+  fetchSellerOrders()
+})
+
+const handleStatusChange = async (orderId: number | string, newStatus: OrderStatus) => {
+  try {
+    await updateOrderStatus(orderId, newStatus)
+    showToast(`Order status updated to "${newStatus}"`)
+  } catch (err: any) {
+    showToast(err?.message || 'Failed to update order status', 'error')
+  }
 }
 </script>
 
@@ -28,7 +36,7 @@ const handleStatusChange = (orderId: number, newStatus: OrderStatus) => {
           </h1>
 
           <p class="mt-2 text-base text-[#756a60]">
-            Process mock buyer orders and update delivery status.
+            Manage buyer orders and update delivery statuses.
           </p>
         </div>
 

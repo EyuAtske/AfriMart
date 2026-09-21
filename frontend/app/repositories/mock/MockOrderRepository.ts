@@ -8,6 +8,11 @@ export class MockOrderRepository implements IOrderRepository {
     return [...orders.value]
   }
 
+  async getSellerOrders(): Promise<MarketplaceOrder[]> {
+    const { orders } = useMockDataStore()
+    return [...orders.value]
+  }
+
   async getOrderById(id: number): Promise<MarketplaceOrder | null> {
     const { orders } = useMockDataStore()
     const found = orders.value.find(o => o.id === id)
@@ -24,7 +29,7 @@ export class MockOrderRepository implements IOrderRepository {
       items: [...cartItems],
       deliveryAddress: dto.deliveryAddress,
       phone: dto.phone,
-      paymentMethod: dto.paymentMethod,
+      paymentMethod: dto.paymentMethod || 'Cash on delivery',
       paymentStatus: dto.paymentStatus || (dto.paymentMethod === 'Cash on delivery' ? 'Cash on delivery' : 'Paid'),
       status: 'Ordered',
       date: new Date().toLocaleDateString('en-US', {

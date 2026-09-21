@@ -21,8 +21,8 @@ export const useSellerShop = () => {
         shop.value = myShop
         user.value.role = 'seller'
       }
-    }).catch(() => {
-      // Silently fail — user just doesn't have a shop
+    }).catch((err) => {
+      console.warn('Seller shop hydration notice:', err?.message || err)
     })
   }
 
@@ -66,7 +66,7 @@ export const useSellerShop = () => {
     return productRepo.createProduct(shop.value.name, dto)
   }
 
-  const updateSellerProduct = (id: number, updates: UpdateProductDTO) => {
+  const updateSellerProduct = (id: number | string, updates: UpdateProductDTO) => {
     // Derive image from primary media if media is being updated
     if (updates.media?.length) {
       const primaryMedia = updates.media.find(m => m.isPrimary)
@@ -77,15 +77,15 @@ export const useSellerShop = () => {
     return productRepo.updateProduct(id, updates)
   }
 
-  const deleteSellerProduct = (id: number) => {
+  const deleteSellerProduct = (id: number | string) => {
     return productRepo.deleteProduct(id)
   }
 
-  const toggleProductStatus = (id: number) => {
+  const toggleProductStatus = (id: number | string) => {
     return productRepo.toggleProductStatus(id)
   }
 
-  const updateStock = (id: number, stock: number) => {
+  const updateStock = (id: number | string, stock: number) => {
     const validStock = Math.max(0, stock)
     return productRepo.updateProduct(id, { stock: validStock })
   }

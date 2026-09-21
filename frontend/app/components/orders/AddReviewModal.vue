@@ -6,7 +6,7 @@ import { useToast } from '~/composables/useToast'
 const props = defineProps<{
   isOpen: boolean
   product: Product | null
-  orderId?: number
+  orderId?: number | string
 }>()
 
 const emit = defineEmits<{

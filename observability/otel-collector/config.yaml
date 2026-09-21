@@ -5,6 +5,9 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - http://localhost:3000
 
 processors:
   batch:
@@ -12,13 +15,15 @@ processors:
 exporters:
   debug:
     verbosity: basic
-  
+
   otlp/tempo:
     endpoint: tempo:4317
     tls:
       insecure: true
-      
-  # This exporter pushes metrics WITH exemplars directly to Prometheus
+
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+
   prometheusremotewrite:
     endpoint: "http://prometheus:9090/api/v1/write"
     namespace: afrimart
@@ -29,8 +34,13 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [otlp/tempo, debug]
-    
+
     metrics:
       receivers: [otlp]
       processors: [batch]
       exporters: [prometheusremotewrite, debug]
+
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/loki, debug]

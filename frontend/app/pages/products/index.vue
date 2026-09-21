@@ -52,10 +52,13 @@ watch([search, selectedCategory], () => {
 })
 
 const filteredProducts = computed(() =>
-  filterProducts({
-    search: search.value,
-    category: selectedCategory.value
-  })
+  filterProducts(
+    {
+      search: search.value,
+      category: selectedCategory.value
+    },
+    asyncProducts.value || []
+  )
 )
 
 const displayedProducts = computed(() =>
