@@ -41,7 +41,7 @@ export class ApiAuthRepository implements IAuthRepository {
       let username = res.username || ''
       if (!username) {
         try {
-          const profile = await this.getProfile()
+          const profile = await this.getProfile(res.token)
           if (profile?.username) {
             username = profile.username
           }
@@ -202,11 +202,17 @@ export class ApiAuthRepository implements IAuthRepository {
     return null
   }
 
-  async getProfile(): Promise<{ email: string; username: string }> {
+  async getProfile(tokenOverride?: string): Promise<{ email: string; username: string }> {
     const { user } = useMockDataStore()
 
+    const headers: Record<string, string> = {}
+    if (tokenOverride) {
+      headers.Authorization = `Bearer ${tokenOverride}`
+    }
+
     const res = await authenticatedFetch<{ email: string; username: string }>('api/user/profile', {
-      method: 'GET'
+      method: 'GET',
+      headers
     })
 
     if (res) {
