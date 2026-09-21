@@ -15,7 +15,7 @@ const { hasShop } = useSellerShop()
         </h1>
 
         <p class="mt-6 max-w-2xl text-base leading-8 text-[#756a60]">
-          Afrimart is mocked on the frontend for now, so you can test the shop creation, product listing, payments, and order dashboards before the backend services arrive.
+          Build your brand, reach customers across Africa, and manage your products, payments, and orders seamlessly with AfriMart.
         </p>
 
         <div class="mt-8 flex flex-col gap-3 sm:flex-row">

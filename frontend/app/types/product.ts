@@ -47,9 +47,9 @@ export interface ProductMedia {
 }
 
 export interface ProductReview {
-  id: number
-  productId: number
-  orderId?: number
+  id: number | string
+  productId: number | string
+  orderId?: number | string
   author: string
   rating: number
   comment: string
@@ -58,7 +58,8 @@ export interface ProductReview {
 }
 
 export interface Product {
-  id: number
+  id: number | string
+  backendId?: string
   shop: string
   name: string
   description: string

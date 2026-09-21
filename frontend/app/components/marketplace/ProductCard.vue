@@ -2,7 +2,7 @@
 import type { ProductMedia } from '~/types/product'
 
 const props = defineProps<{
-  id: number
+  id: number | string
   shop: string
   name: string
   price: string
@@ -13,7 +13,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  addToCart: [id: number]
+  addToCart: [id: number | string]
 }>()
 
 const { flyToCart } = useFlyToCart()

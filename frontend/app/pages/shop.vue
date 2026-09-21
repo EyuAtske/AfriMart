@@ -131,14 +131,14 @@ const openProductEdit = (product: SellerProduct) => {
   isEditProductOpen.value = true
 }
 
-const handleDeleteProduct = (id: number, name: string) => {
+const handleDeleteProduct = (id: number | string, name: string) => {
   if (confirm(`Are you sure you want to delete "${name}"?`)) {
     deleteSellerProduct(id)
     showToast(`Product "${name}" deleted.`)
   }
 }
 
-const handleToggleStatus = (id: number, currentStatus: string) => {
+const handleToggleStatus = (id: number | string, currentStatus: string) => {
   toggleProductStatus(id)
   const newStatus = currentStatus === 'Active' ? 'Draft' : 'Active'
   showToast(`Product status updated to ${newStatus}.`)

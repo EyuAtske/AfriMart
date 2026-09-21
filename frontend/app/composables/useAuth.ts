@@ -1,6 +1,7 @@
 import type { User, LoginDTO, RegisterDTO } from '~/types/auth'
 import { useMockDataStore } from '~/repositories/mock/MockDataStore'
 import { useRepositories } from '~/composables/useRepositories'
+import { useMarketplace } from '~/composables/useMarketplace'
 
 export type AuthUser = User
 
@@ -8,46 +9,55 @@ export const useAuth = () => {
   const { user, isLoggedIn } = useMockDataStore()
   const { authRepo } = useRepositories()
   const { gtag } = useGtag()
+  const { syncCartFromBackend } = useMarketplace()
 
   // Restore session from persisted tokens on first load (client-side only)
   const sessionRestored = useState<boolean>('auth-session-restored', () => false)
   if (import.meta.client && !sessionRestored.value && !isLoggedIn.value) {
     sessionRestored.value = true
-    authRepo.getCurrentSession().catch(() => {
+    authRepo.getCurrentSession().then((currentUser) => {
+      if (currentUser) {
+        syncCartFromBackend().catch(() => {})
+      }
+    }).catch(() => {
       // Silently fail — user stays logged out
     })
   }
 
-const login = async (credentials: LoginDTO) => {
-  if (!credentials.email.trim() || !credentials.password.trim()) {
-    throw new Error('Please enter your email and password.')
-  }
+  const login = async (credentials: LoginDTO) => {
+    if (!credentials.email.trim() || !credentials.password.trim()) {
+      throw new Error('Please enter your email and password.')
+    }
 
-  await authRepo.login(credentials)
+    await authRepo.login(credentials)
 
-  if (import.meta.client) {
-    gtag('event', 'login', {
-      method: 'email'
-    })
-  }
+    await syncCartFromBackend()
 
-  await navigateTo('/profile')
-}
- const register = async (details: RegisterDTO) => {
-  const session = await authRepo.register(details)
+    if (import.meta.client) {
+      gtag('event', 'login', {
+        method: 'email'
+      })
+    }
 
-  if (import.meta.client) {
-    gtag('event', 'sign_up', {
-      method: 'email'
-    })
-  }
-
-  if (isLoggedIn.value) {
     await navigateTo('/profile')
   }
 
-  return session
-}
+  const register = async (details: RegisterDTO) => {
+    const session = await authRepo.register(details)
+
+    if (import.meta.client) {
+      gtag('event', 'sign_up', {
+        method: 'email'
+      })
+    }
+
+    if (isLoggedIn.value) {
+      await syncCartFromBackend()
+      await navigateTo('/profile')
+    }
+
+    return session
+  }
 
   const logout = async () => {
     await authRepo.logout()

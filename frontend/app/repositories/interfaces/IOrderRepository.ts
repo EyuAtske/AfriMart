@@ -2,7 +2,8 @@ import type { MarketplaceOrder, OrderStatus, CreateOrderDTO, CartItem } from '~/
 
 export interface IOrderRepository {
   getOrders(): Promise<MarketplaceOrder[]>
-  getOrderById(id: number): Promise<MarketplaceOrder | null>
+  getSellerOrders(): Promise<MarketplaceOrder[]>
+  getOrderById(id: number | string): Promise<MarketplaceOrder | null>
   createOrder(cartItems: CartItem[], cartSubtotal: number, dto: CreateOrderDTO): Promise<MarketplaceOrder>
-  updateOrderStatus(orderId: number, status: OrderStatus): Promise<MarketplaceOrder | null>
+  updateOrderStatus(orderId: number | string, status: OrderStatus): Promise<MarketplaceOrder | null>
 }

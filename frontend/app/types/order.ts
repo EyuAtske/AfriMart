@@ -1,11 +1,12 @@
 import type { Product } from './product'
 
-export type OrderStatus = 'Ordered' | 'Shipped' | 'Delivered'
+export type OrderStatus = 'Pending' | 'Confirmed' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Ordered'
 export type PaymentStatus = 'Pending' | 'Paid' | 'Failed' | 'Cash on delivery'
 
 export interface CartItem {
-  productId: number
+  productId: number | string
   quantity: number
+  backendItemId?: string
 }
 
 export interface CartProductItem extends CartItem {
@@ -14,10 +15,13 @@ export interface CartProductItem extends CartItem {
 }
 
 export interface MarketplaceOrder {
-  id: number
+  id: number | string
+  backendId?: string
   buyerName: string
   items: CartItem[]
   deliveryAddress: string
+  deliveryCity?: string
+  deliveryNotes?: string
   phone: string
   paymentMethod: string
   paymentStatus: PaymentStatus
@@ -29,8 +33,10 @@ export interface MarketplaceOrder {
 export interface CreateOrderDTO {
   buyerName: string
   deliveryAddress: string
+  deliveryCity: string
+  deliveryNotes?: string
   phone: string
-  paymentMethod: string
+  paymentMethod?: string
   paymentStatus?: PaymentStatus
   deliveryFee?: number
 }

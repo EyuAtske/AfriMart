@@ -361,13 +361,5 @@ const acceptString = ALL_ACCEPTED_TYPES.join(',')
     >
       No media files selected yet.
     </p>
-
-    <!-- Mock notice -->
-    <p
-      v-if="mediaItems.length"
-      class="text-center text-xs text-[#b9aa98]"
-    >
-      Preview only — uploaded files are stored locally and will reset on page refresh.
-    </p>
   </div>
 </template>

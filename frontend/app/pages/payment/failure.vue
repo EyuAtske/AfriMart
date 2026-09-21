@@ -18,7 +18,7 @@
       </h1>
 
       <p class="mt-4 text-base leading-7 text-[#756a60]">
-        This is the mocked failure state. When the payment provider is selected, failed verifications can route here.
+        We were unable to process your payment. Please review your details and try again.
       </p>
 
       <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">

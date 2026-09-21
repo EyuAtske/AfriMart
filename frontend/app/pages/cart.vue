@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import type { CartProductItem } from '~/types/order'
 
+definePageMeta({
+  middleware: 'auth'
+})
+
 const {
   cartProducts,
   cartSubtotal,
@@ -25,33 +29,50 @@ if (import.meta.client && cartProducts.value.length) {
   })
 }
 
-const handleDecreaseQuantity = (item: CartProductItem) => {
-  const newQty = item.quantity - 1
-  updateCartQuantity(item.productId, newQty)
-  track('cart_quantity_updated', {
-    product_id: String(item.product.id),
-    product_name: item.product.name,
-    quantity: newQty
-  })
+const cartError = ref<string | null>(null)
+
+const handleDecreaseQuantity = async (item: CartProductItem) => {
+  cartError.value = null
+  try {
+    const newQty = item.quantity - 1
+    await updateCartQuantity(item.productId, newQty)
+    track('cart_quantity_updated', {
+      product_id: String(item.product.id),
+      product_name: item.product.name,
+      quantity: newQty
+    })
+  } catch (err: any) {
+    cartError.value = err?.message || 'Failed to update cart'
+  }
 }
 
-const handleIncreaseQuantity = (item: CartProductItem) => {
-  const newQty = item.quantity + 1
-  updateCartQuantity(item.productId, newQty)
-  track('cart_quantity_updated', {
-    product_id: String(item.product.id),
-    product_name: item.product.name,
-    quantity: newQty
-  })
+const handleIncreaseQuantity = async (item: CartProductItem) => {
+  cartError.value = null
+  try {
+    const newQty = item.quantity + 1
+    await updateCartQuantity(item.productId, newQty)
+    track('cart_quantity_updated', {
+      product_id: String(item.product.id),
+      product_name: item.product.name,
+      quantity: newQty
+    })
+  } catch (err: any) {
+    cartError.value = err?.message || 'Failed to update cart'
+  }
 }
 
-const handleRemoveFromCart = (item: CartProductItem) => {
-  removeFromCart(item.productId)
-  track('cart_item_removed', {
-    product_id: String(item.product.id),
-    product_name: item.product.name,
-    quantity: item.quantity
-  })
+const handleRemoveFromCart = async (item: CartProductItem) => {
+  cartError.value = null
+  try {
+    await removeFromCart(item.productId)
+    track('cart_item_removed', {
+      product_id: String(item.product.id),
+      product_name: item.product.name,
+      quantity: item.quantity
+    })
+  } catch (err: any) {
+    cartError.value = err?.message || 'Failed to remove item'
+  }
 }
 </script>
 
@@ -75,6 +96,14 @@ const handleRemoveFromCart = (item: CartProductItem) => {
         >
           Continue shopping
         </NuxtLink>
+      </div>
+
+      <!-- Error Message Banner -->
+      <div
+        v-if="cartError"
+        class="mb-6 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800"
+      >
+        {{ cartError }}
       </div>
 
       <div

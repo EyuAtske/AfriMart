@@ -325,15 +325,24 @@ const safeState = <T>(key: string, init: () => T): Ref<T> => {
 export const initialMockCart: CartItem[] = [
   {
     productId: 1,
-    quantity: 1
+    quantity: 1,
+    backendItemId: 'mock-item-1'
   }
 ]
 
 export const useMockDataStore = () => {
-  const users = safeState<User[]>('mock-ds-all-users', () => [...initialMockUsers])
-  const products = safeState<Product[]>('mock-ds-products', () => [...initialMockProducts])
-  const orders = safeState<MarketplaceOrder[]>('mock-ds-orders', () => [...initialMockOrders])
-  const cart = safeState<CartItem[]>('mock-ds-cart', () => [...initialMockCart])
+  let isApiMode = false
+  try {
+    const config = useRuntimeConfig()
+    isApiMode = config?.public?.authMode === 'api'
+  } catch {
+    // Non-Nuxt test runner environments (Vitest) fall back to mock mode
+  }
+
+  const users = safeState<User[]>('mock-ds-all-users', () => (isApiMode ? [] : [...initialMockUsers]))
+  const products = safeState<Product[]>('mock-ds-products', () => (isApiMode ? [] : [...initialMockProducts]))
+  const orders = safeState<MarketplaceOrder[]>('mock-ds-orders', () => (isApiMode ? [] : [...initialMockOrders]))
+  const cart = safeState<CartItem[]>('mock-ds-cart', () => (isApiMode ? [] : [...initialMockCart]))
   const shop = safeState<Shop | null>('mock-ds-shop', () => null)
   const user = safeState<User>('mock-ds-user', () => ({
     username: '',
@@ -342,14 +351,14 @@ export const useMockDataStore = () => {
     role: 'buyer'
   }))
   const isLoggedIn = safeState<boolean>('mock-ds-is-logged-in', () => false)
-  const reviews = safeState<ProductReview[]>('mock-ds-reviews', () => [...initialMockReviews])
+  const reviews = safeState<ProductReview[]>('mock-ds-reviews', () => (isApiMode ? [] : [...initialMockReviews]))
 
-  const addReview = (productId: number, rating: number, comment: string, authorName?: string, orderId?: number) => {
+  const addReview = (productId: number, rating: number, comment: string, authorName?: string, orderId?: number | string) => {
     const author = authorName || user.value.name || user.value.username || 'Verified Buyer'
 
     // Prevent duplicate review for the same product by the same author
     const existing = reviews.value.find(
-      r => r.productId === productId && r.author === author && (orderId ? r.orderId === orderId : true)
+      r => r.productId === productId && r.author === author && (orderId ? String(r.orderId) === String(orderId) : true)
     )
     if (existing) {
       return existing
