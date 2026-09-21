@@ -23,9 +23,10 @@ INSERT INTO products (
     brand,
     color,
     size,
+    gender,
     price,
-    stock,
-    status
+    status,
+    stock
 )
 VALUES (
     $1,
@@ -38,7 +39,8 @@ VALUES (
     $8,
     $9,
     $10,
-    $11
+    $11,
+    $12
 )
 RETURNING id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at, gender
 `
@@ -52,9 +54,10 @@ type CreateProductParams struct {
 	Brand         sql.NullString
 	Color         sql.NullString
 	Size          sql.NullString
+	Gender        string
 	Price         string
-	Stock         int32
 	Status        string
+	Stock         int32
 }
 
 func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (Product, error) {
@@ -67,9 +70,10 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (P
 		arg.Brand,
 		arg.Color,
 		arg.Size,
+		arg.Gender,
 		arg.Price,
-		arg.Stock,
 		arg.Status,
+		arg.Stock,
 	)
 	var i Product
 	err := row.Scan(

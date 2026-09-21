@@ -25,7 +25,7 @@ type ProductHandler struct {
 	Queries      ProductQuerier
 	ShopQueries  ShopOwnershipQuerier
 	ImageStorage storage.ImageStorage
-	Logger       *slog.Logger 
+	Logger       *slog.Logger
 }
 
 type ProductWithImages struct {
@@ -90,6 +90,7 @@ type createProductRequest struct {
 	Color         string `json:"color"`
 	Size          string `json:"size"`
 	Price         string `json:"price"`
+	Gender        string `json:"gender"`
 	Stock         int32  `json:"stock"`
 	Status        string `json:"status"`
 }
@@ -246,6 +247,7 @@ func (h *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Requ
 		},
 		Price:  params.Price,
 		Stock:  params.Stock,
+		Gender: params.Gender,
 		Status: params.Status,
 	})
 	if err != nil {
@@ -255,33 +257,33 @@ func (h *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Requ
 	}
 
 	uploadedObjects := make([]string, 0, len(files))
-	
+
 	// Enhanced cleanup function that logs the trigger and the result of every step
 	cleanup := func(originalErr error) {
-		h.Logger.ErrorContext(ctx, "initiating rollback/cleanup due to previous error", 
-			"user_id", userID, 
-			"product_id", product.ID, 
+		h.Logger.ErrorContext(ctx, "initiating rollback/cleanup due to previous error",
+			"user_id", userID,
+			"product_id", product.ID,
 			"original_error", originalErr)
 
 		for _, objectKey := range uploadedObjects {
 			delErr := h.ImageStorage.Delete(context.Background(), objectKey)
 			if delErr != nil {
-				h.Logger.ErrorContext(ctx, "cleanup failed: could not delete orphaned image from storage", 
-					"object_key", objectKey, 
+				h.Logger.ErrorContext(ctx, "cleanup failed: could not delete orphaned image from storage",
+					"object_key", objectKey,
 					"error", delErr)
 			} else {
-				h.Logger.InfoContext(ctx, "cleanup successful: deleted orphaned image from storage", 
+				h.Logger.InfoContext(ctx, "cleanup successful: deleted orphaned image from storage",
 					"object_key", objectKey)
 			}
 		}
 
 		delErr := h.Queries.DeleteProduct(context.Background(), product.ID)
 		if delErr != nil {
-			h.Logger.ErrorContext(ctx, "cleanup failed: could not delete orphaned product from database", 
-				"product_id", product.ID, 
+			h.Logger.ErrorContext(ctx, "cleanup failed: could not delete orphaned product from database",
+				"product_id", product.ID,
 				"error", delErr)
 		} else {
-			h.Logger.InfoContext(ctx, "cleanup successful: deleted orphaned product from database", 
+			h.Logger.InfoContext(ctx, "cleanup successful: deleted orphaned product from database",
 				"product_id", product.ID)
 		}
 	}

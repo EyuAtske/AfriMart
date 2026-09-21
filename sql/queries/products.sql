@@ -9,9 +9,10 @@ INSERT INTO products (
     brand,
     color,
     size,
+    gender,
     price,
-    stock,
-    status
+    status,
+    stock
 )
 VALUES (
     $1,
@@ -24,7 +25,8 @@ VALUES (
     $8,
     $9,
     $10,
-    $11
+    $11,
+    $12
 )
 RETURNING *;
 
