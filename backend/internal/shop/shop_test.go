@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,8 +26,8 @@ type mockShopQueries struct {
 	) (database.Shop, error)
 
 	getShopByIDAndOwnerID func(
-    	ctx context.Context,
-    	arg database.GetShopByIDAndOwnerIDParams,
+		ctx context.Context,
+		arg database.GetShopByIDAndOwnerIDParams,
 	) (database.Shop, error)
 }
 
@@ -151,6 +152,7 @@ func TestHandleDeactivateShop_Success(t *testing.T) {
 
 	handler := &ShopHandler{
 		Queries: mockQueries,
+		Logger:  slog.Default(),
 	}
 
 	req := httptest.NewRequest(
@@ -213,6 +215,7 @@ func TestHandleDeactivateShop_Unauthorized(t *testing.T) {
 
 	handler := &ShopHandler{
 		Queries: mockQueries,
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(
@@ -251,6 +254,7 @@ func TestHandleDeactivateShop_InvalidShopID(t *testing.T) {
 
 	handler := &ShopHandler{
 		Queries: mockQueries,
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(
@@ -301,6 +305,7 @@ func TestHandleDeactivateShop_NotOwner(t *testing.T) {
 
 	handler := &ShopHandler{
 		Queries: mockQueries,
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(
@@ -358,6 +363,7 @@ func TestHandleActivateShop_Success(t *testing.T) {
 
 	handler := &ShopHandler{
 		Queries: mockQueries,
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(
@@ -412,7 +418,7 @@ func TestHandleActivateShop_Unauthorized(t *testing.T) {
 		activateShopFunc: func(
 			ctx context.Context,
 			arg database.ActivateShopParams,
-		) (database.Shop, error){
+		) (database.Shop, error) {
 			t.Fatal("ActivateShop should not be called")
 			return database.Shop{}, nil
 		},
@@ -420,6 +426,7 @@ func TestHandleActivateShop_Unauthorized(t *testing.T) {
 
 	handler := &ShopHandler{
 		Queries: mockQueries,
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(
@@ -458,6 +465,7 @@ func TestHandleActivateShop_InvalidShopID(t *testing.T) {
 
 	handler := &ShopHandler{
 		Queries: mockQueries,
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(
@@ -508,6 +516,7 @@ func TestHandleActivateShop_NotOwner(t *testing.T) {
 
 	handler := &ShopHandler{
 		Queries: mockQueries,
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(

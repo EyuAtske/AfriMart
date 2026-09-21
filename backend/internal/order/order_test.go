@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -151,6 +152,7 @@ func TestHandleCheckoutUnauthorized(t *testing.T) {
 	handler := &OrderHandler{
 		Config:  &config.ApiConfig{},
 		Queries: &mockOrderQuerier{},
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(
@@ -176,6 +178,7 @@ func TestHandleCheckoutInvalidBody(t *testing.T) {
 	handler := &OrderHandler{
 		Config:  &config.ApiConfig{},
 		Queries: &mockOrderQuerier{},
+		Logger: slog.Default(),
 	}
 
 	userID := uuid.New()
@@ -204,6 +207,7 @@ func TestHandleCheckoutMissingRecipientName(t *testing.T) {
 	handler := &OrderHandler{
 		Config:  &config.ApiConfig{},
 		Queries: &mockOrderQuerier{},
+		Logger: slog.Default(),
 	}
 
 	userID := uuid.New()
@@ -234,6 +238,7 @@ func TestHandleCheckoutMissingPhone(t *testing.T) {
 	handler := &OrderHandler{
 		Config:  &config.ApiConfig{},
 		Queries: &mockOrderQuerier{},
+		Logger: slog.Default(),
 	}
 
 	userID := uuid.New()
@@ -264,6 +269,7 @@ func TestHandleCheckoutMissingAddress(t *testing.T) {
 	handler := &OrderHandler{
 		Config:  &config.ApiConfig{},
 		Queries: &mockOrderQuerier{},
+		Logger: slog.Default(),
 	}
 
 	userID := uuid.New()
@@ -294,6 +300,7 @@ func TestHandleCheckoutMissingCity(t *testing.T) {
 	handler := &OrderHandler{
 		Config:  &config.ApiConfig{},
 		Queries: &mockOrderQuerier{},
+		Logger: slog.Default(),
 	}
 
 	userID := uuid.New()
@@ -323,6 +330,7 @@ func TestHandleCheckoutMissingCity(t *testing.T) {
 func TestHandleListOrdersUnauthorized(t *testing.T) {
 	handler := &OrderHandler{
 		Queries: &mockOrderQuerier{},
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(
@@ -372,6 +380,7 @@ func TestHandleListOrdersSuccess(t *testing.T) {
 
 	handler := &OrderHandler{
 		Queries: mock,
+		Logger: slog.Default(),
 	}
 
 	req := orderRequestWithUser(
@@ -399,6 +408,7 @@ func TestHandleListOrdersInvalidPage(t *testing.T) {
 
 	handler := &OrderHandler{
 		Queries: &mockOrderQuerier{},
+		Logger: slog.Default(),
 	}
 
 	req := orderRequestWithUser(
@@ -422,6 +432,7 @@ func TestHandleListOrdersInvalidLimit(t *testing.T) {
 
 	handler := &OrderHandler{
 		Queries: &mockOrderQuerier{},
+		Logger: slog.Default(),
 	}
 
 	req := orderRequestWithUser(
@@ -473,6 +484,7 @@ func TestHandleGetOrderSuccess(t *testing.T) {
 
 	handler := &OrderHandler{
 		Queries: mock,
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(
@@ -504,6 +516,7 @@ func TestHandleGetOrderInvalidID(t *testing.T) {
 
 	handler := &OrderHandler{
 		Queries: &mockOrderQuerier{},
+		Logger: slog.Default(),
 	}
 
 	req := orderRequestWithUser(
@@ -537,6 +550,7 @@ func TestHandleGetOrderNotFound(t *testing.T) {
 
 	handler := &OrderHandler{
 		Queries: mock,
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(
@@ -562,6 +576,7 @@ func TestHandleGetOrderNotFound(t *testing.T) {
 func TestHandleUpdateOrderStatusUnauthorized(t *testing.T) {
 	handler := &OrderHandler{
 		Queries: &mockOrderQuerier{},
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(
@@ -620,6 +635,7 @@ func TestHandleUpdateOrderStatusSuccess(t *testing.T) {
 
 	handler := &OrderHandler{
 		Queries: mock,
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(
@@ -652,6 +668,7 @@ func TestHandleUpdateOrderStatusInvalidStatus(t *testing.T) {
 
 	handler := &OrderHandler{
 		Queries: &mockOrderQuerier{},
+		Logger: slog.Default(),
 	}
 
 	req := orderRequestWithUser(
@@ -690,6 +707,7 @@ func TestHandleUpdateOrderStatusSellerNotOwner(t *testing.T) {
 
 	handler := &OrderHandler{
 		Queries: mock,
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(
@@ -736,6 +754,7 @@ func TestHandleUpdateOrderStatusInvalidTransition(t *testing.T) {
 
 	handler := &OrderHandler{
 		Queries: mock,
+		Logger: slog.Default(),
 	}
 
 	req := orderRequestWithUser(
@@ -778,6 +797,7 @@ func TestHandleUpdateOrderStatusDeliveredCannotChange(t *testing.T) {
 
 	handler := &OrderHandler{
 		Queries: mock,
+		Logger: slog.Default(),
 	}
 
 	req := orderRequestWithUser(
@@ -804,6 +824,7 @@ func TestHandleUpdateOrderStatusDeliveredCannotChange(t *testing.T) {
 func TestHandleListSellerOrdersUnauthorized(t *testing.T) {
 	handler := &OrderHandler{
 		Queries: &mockOrderQuerier{},
+		Logger: slog.Default(),
 	}
 
 	req := httptest.NewRequest(
@@ -853,6 +874,7 @@ func TestHandleListSellerOrdersSuccess(t *testing.T) {
 
 	handler := &OrderHandler{
 		Queries: mock,
+		Logger: slog.Default(),
 	}
 
 	req := orderRequestWithUser(
@@ -880,6 +902,7 @@ func TestHandleListSellerOrdersInvalidPage(t *testing.T) {
 
 	handler := &OrderHandler{
 		Queries: &mockOrderQuerier{},
+		Logger: slog.Default(),
 	}
 
 	req := orderRequestWithUser(
@@ -903,6 +926,7 @@ func TestHandleListSellerOrdersInvalidLimit(t *testing.T) {
 
 	handler := &OrderHandler{
 		Queries: &mockOrderQuerier{},
+		Logger: slog.Default(),
 	}
 
 	req := orderRequestWithUser(
