@@ -27,10 +27,7 @@ func main() {
 	defer shutdownObservability()
 	slog.Info("starting AfriMart backend")
 	apicfg := config.SetupAPIConfig(ctx)
-	authHandler := &auth.AuthHandler{
-		Config:  apicfg,
-		Queries: apicfg.Queries,
-	}
+	authHandler := auth.NewAuthHandler(apicfg, apicfg.Queries, slog.Default())
 	shopHandler := &shop.ShopHandler{
 		Config:  apicfg,
 		Queries: apicfg.Queries,
@@ -41,9 +38,7 @@ func main() {
 		Queries:      apicfg.Queries,
 		ImageStorage: apicfg.ImageStorage,
 	}
-	cartHandler := &cart.CartHandler{
-		Queries: apicfg.Queries,
-	}
+	cartHandler := cart.NewCartHandler(apicfg.Queries, slog.Default())
 	orderHandler := &order.OrderHandler{
 		Config:  apicfg,
 		Queries: apicfg.Queries,

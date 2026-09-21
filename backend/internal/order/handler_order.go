@@ -20,6 +20,16 @@ import (
 type OrderHandler struct {
 	Config  *config.ApiConfig
 	Queries OrderQuerier
+	Logger  *slog.Logger // Added logger
+}
+
+// NewOrderHandler is a helper to initialize the handler with dependencies
+func NewOrderHandler(cfg *config.ApiConfig, queries OrderQuerier, logger *slog.Logger) *OrderHandler {
+	return &OrderHandler{
+		Config:  cfg,
+		Queries: queries,
+		Logger:  logger,
+	}
 }
 
 type checkoutResponse struct {
@@ -36,28 +46,20 @@ type checkoutRequest struct {
 }
 
 func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
-	userID, ok := auth.UserIDFromContext(r.Context())
+	ctx := r.Context()
+	
+	userID, ok := auth.UserIDFromContext(ctx)
 	if !ok {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusUnauthorized,
-			"Unauthorized",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "checkout failed: unauthorized")
+		comm.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Unauthorized", nil)
 		return
 	}
+	h.Logger.InfoContext(ctx, "handling checkout request", "user_id", userID)
 
 	var req checkoutRequest
-
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid request body",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "checkout failed: invalid request body", "user_id", userID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
 
@@ -68,149 +70,80 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 	req.DeliveryNotes = strings.TrimSpace(req.DeliveryNotes)
 
 	if req.RecipientName == "" {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Recipient name is required",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "checkout failed: recipient name required", "user_id", userID)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Recipient name is required", nil)
 		return
 	}
-
 	if req.Phone == "" {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Phone is required",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "checkout failed: phone required", "user_id", userID)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Phone is required", nil)
 		return
 	}
-
 	if req.DeliveryAddress == "" {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Delivery address is required",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "checkout failed: delivery address required", "user_id", userID)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Delivery address is required", nil)
 		return
 	}
-
 	if req.DeliveryCity == "" {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Delivery city is required",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "checkout failed: delivery city required", "user_id", userID)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Delivery city is required", nil)
 		return
 	}
 
-	tx, err := h.Config.DB.BeginTx(r.Context(), nil)
+	tx, err := h.Config.DB.BeginTx(ctx, nil)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Failed to start checkout",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "checkout failed: could not start transaction", "user_id", userID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Failed to start checkout", err)
 		return
 	}
-
 	defer tx.Rollback()
 
 	txQueries := database.New(tx)
 
-	cart, err := txQueries.GetCartByUserIDForUpdate(
-		r.Context(),
-		userID,
-	)
+	cart, err := txQueries.GetCartByUserIDForUpdate(ctx, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusNotFound,
-				"Cart not found",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "checkout failed: cart not found", "user_id", userID)
+			comm.RespondErrorWithJson(w, r, http.StatusNotFound, "Cart not found", err)
 			return
 		}
-
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Failed to get cart",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "checkout failed: could not get cart for update", "user_id", userID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Failed to get cart", err)
 		return
 	}
 
-	cartItems, err := h.Config.Queries.GetCartItems(r.Context(), cart.ID)
+	// Note: Using h.Config.Queries here instead of txQueries as per original code
+	cartItems, err := h.Config.Queries.GetCartItems(ctx, cart.ID)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Failed to get cart items",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "checkout failed: could not get cart items", "user_id", userID, "cart_id", cart.ID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Failed to get cart items", err)
 		return
 	}
 
 	if len(cartItems) == 0 {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Cart is empty",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "checkout failed: cart is empty", "user_id", userID, "cart_id", cart.ID)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Cart is empty", nil)
 		return
 	}
 
-	// Calculate the subtotal using the current product prices.
 	var subtotal float64
-
 	for _, item := range cartItems {
 		if item.Status != "active" {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"One or more products are no longer available",
-				nil,
-			)
+			h.Logger.WarnContext(ctx, "checkout failed: product no longer available", "user_id", userID, "product_id", item.ProductID, "product_name", item.ProductName)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "One or more products are no longer available", nil)
 			return
 		}
 
 		if item.Quantity > item.Stock {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Insufficient stock for product: "+item.ProductName,
-				nil,
-			)
+			h.Logger.WarnContext(ctx, "checkout failed: insufficient stock", "user_id", userID, "product_id", item.ProductID, "product_name", item.ProductName, "requested", item.Quantity, "available", item.Stock)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Insufficient stock for product: "+item.ProductName, nil)
 			return
 		}
 
 		price, err := strconv.ParseFloat(item.Price, 64)
 		if err != nil {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusInternalServerError,
-				"Invalid product price",
-				err,
-			)
+			h.Logger.ErrorContext(ctx, "checkout failed: invalid product price in db", "user_id", userID, "product_id", item.ProductID, "price", item.Price, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Invalid product price", err)
 			return
 		}
 
@@ -219,95 +152,61 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 
 	subtotalString := strconv.FormatFloat(subtotal, 'f', 2, 64)
 
-	order, err := txQueries.CreateOrder(
-		r.Context(),
-		database.CreateOrderParams{
-			UserID:          userID,
-			Subtotal:        subtotalString,
-			RecipientName:   req.RecipientName,
-			Phone:           req.Phone,
-			DeliveryAddress: req.DeliveryAddress,
-			DeliveryCity:    req.DeliveryCity,
-			DeliveryNotes: sql.NullString{
-				String: req.DeliveryNotes,
-				Valid:  true,
-			},
+	order, err := txQueries.CreateOrder(ctx, database.CreateOrderParams{
+		UserID:          userID,
+		Subtotal:        subtotalString,
+		RecipientName:   req.RecipientName,
+		Phone:           req.Phone,
+		DeliveryAddress: req.DeliveryAddress,
+		DeliveryCity:    req.DeliveryCity,
+		DeliveryNotes: sql.NullString{
+			String: req.DeliveryNotes,
+			Valid:  true,
 		},
-	)
+	})
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Failed to create order",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "checkout failed: could not create order", "user_id", userID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Failed to create order", err)
 		return
 	}
 
 	orderItems := make([]database.OrderItem, 0, len(cartItems))
 
 	for _, item := range cartItems {
-		orderItem, err := txQueries.CreateOrderItem(
-			r.Context(),
-			database.CreateOrderItemParams{
-				OrderID:   order.ID,
-				ProductID: item.ProductID,
-				Quantity:  item.Quantity,
-				Price:     item.Price,
-			},
-		)
+		orderItem, err := txQueries.CreateOrderItem(ctx, database.CreateOrderItemParams{
+			OrderID:   order.ID,
+			ProductID: item.ProductID,
+			Quantity:  item.Quantity,
+			Price:     item.Price,
+		})
 		if err != nil {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusInternalServerError,
-				"Failed to create order item",
-				err,
-			)
+			h.Logger.ErrorContext(ctx, "checkout failed: could not create order item", "user_id", userID, "order_id", order.ID, "product_id", item.ProductID, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Failed to create order item", err)
 			return
 		}
 
-		_, err = txQueries.ReduceProductStock(
-			r.Context(),
-			database.ReduceProductStockParams{
-				ID:    item.ProductID,
-				Stock: item.Quantity,
-			},
-		)
+		_, err = txQueries.ReduceProductStock(ctx, database.ReduceProductStockParams{
+			ID:    item.ProductID,
+			Stock: item.Quantity,
+		})
 		if err != nil {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Insufficient stock for product: "+item.ProductName,
-				nil,
-			)
+			h.Logger.ErrorContext(ctx, "checkout failed: could not reduce product stock", "user_id", userID, "order_id", order.ID, "product_id", item.ProductID, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Failed to update stock for product: "+item.ProductName, err)
 			return
 		}
 
 		orderItems = append(orderItems, orderItem)
 	}
 
-	if err := txQueries.ClearCart(r.Context(), cart.ID); err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Failed to clear cart",
-			err,
-		)
+	if err := txQueries.ClearCart(ctx, cart.ID); err != nil {
+		h.Logger.ErrorContext(ctx, "checkout failed: could not clear cart", "user_id", userID, "cart_id", cart.ID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Failed to clear cart", err)
 		return
 	}
 
 	if err := tx.Commit(); err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Failed to complete checkout",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "checkout failed: could not commit transaction", "user_id", userID, "order_id", order.ID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Failed to complete checkout", err)
 		return
 	}
 
@@ -319,37 +218,34 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusCreated)
 
-	_ = json.NewEncoder(w).Encode(response)
-}
-
-func (h *OrderHandler) HandleListOrders(w http.ResponseWriter, r *http.Request) {
-	userID, ok := auth.UserIDFromContext(r.Context())
-	if !ok {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusUnauthorized,
-			"Unauthorized",
-			nil,
-		)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.Logger.ErrorContext(ctx, "checkout succeeded but failed to encode response", "user_id", userID, "order_id", order.ID, "error", err)
 		return
 	}
 
+	h.Logger.InfoContext(ctx, "checkout completed successfully", "user_id", userID, "order_id", order.ID, "subtotal", subtotal)
+}
+
+func (h *OrderHandler) HandleListOrders(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	
+	userID, ok := auth.UserIDFromContext(ctx)
+	if !ok {
+		h.Logger.WarnContext(ctx, "list orders failed: unauthorized")
+		comm.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Unauthorized", nil)
+		return
+	}
+	h.Logger.InfoContext(ctx, "handling list orders request", "user_id", userID)
+
 	page := 1
 	limit := 20
-
 	query := r.URL.Query()
 
 	if value := query.Get("page"); value != "" {
 		parsed, err := strconv.Atoi(value)
 		if err != nil || parsed < 1 {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Invalid page",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "list orders failed: invalid page param", "user_id", userID, "page", value, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid page", err)
 			return
 		}
 		page = parsed
@@ -358,13 +254,8 @@ func (h *OrderHandler) HandleListOrders(w http.ResponseWriter, r *http.Request) 
 	if value := query.Get("limit"); value != "" {
 		parsed, err := strconv.Atoi(value)
 		if err != nil || parsed < 1 || parsed > 50 {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Invalid limit",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "list orders failed: invalid limit param", "user_id", userID, "limit", value, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid limit", err)
 			return
 		}
 		limit = parsed
@@ -372,148 +263,114 @@ func (h *OrderHandler) HandleListOrders(w http.ResponseWriter, r *http.Request) 
 
 	offset := (page - 1) * limit
 
-	orders, err := h.Queries.ListOrdersByUser(
-		r.Context(),
-		database.ListOrdersByUserParams{
-			UserID: userID,
-			Limit:  int32(limit),
-			Offset: int32(offset),
-		},
-	)
+	orders, err := h.Queries.ListOrdersByUser(ctx, database.ListOrdersByUserParams{
+		UserID: userID,
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Failed to get orders",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "list orders failed: database error", "user_id", userID, "page", page, "limit", limit, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Failed to get orders", err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+	
+	response := map[string]interface{}{
 		"page":   page,
 		"limit":  limit,
 		"orders": orders,
-	})
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.Logger.ErrorContext(ctx, "list orders succeeded but failed to encode response", "user_id", userID, "error", err)
+		return
+	}
+
+	h.Logger.InfoContext(ctx, "orders listed successfully", "user_id", userID, "page", page, "limit", limit, "count", len(orders))
 }
 
 func (h *OrderHandler) HandleGetOrder(w http.ResponseWriter, r *http.Request) {
-	userID, ok := auth.UserIDFromContext(r.Context())
+	ctx := r.Context()
+	
+	userID, ok := auth.UserIDFromContext(ctx)
 	if !ok {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusUnauthorized,
-			"Unauthorized",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "get order failed: unauthorized")
+		comm.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Unauthorized", nil)
 		return
 	}
 
-	orderID, err := uuid.Parse(r.PathValue("id"))
+	orderIDStr := r.PathValue("id")
+	orderID, err := uuid.Parse(orderIDStr)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid order ID",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "get order failed: invalid order ID format", "user_id", userID, "order_id", orderIDStr, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid order ID", err)
 		return
 	}
+	
+	h.Logger.InfoContext(ctx, "handling get order request", "user_id", userID, "order_id", orderID)
 
-	orderRecord, err := h.Queries.GetOrderByID(
-		r.Context(),
-		database.GetOrderByIDParams{
-			ID:     orderID,
-			UserID: userID,
-		},
-	)
+	orderRecord, err := h.Queries.GetOrderByID(ctx, database.GetOrderByIDParams{
+		ID:     orderID,
+		UserID: userID,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusNotFound,
-				"Order not found",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "get order failed: order not found", "user_id", userID, "order_id", orderID)
+			comm.RespondErrorWithJson(w, r, http.StatusNotFound, "Order not found", err)
 			return
 		}
-
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Failed to get order",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "get order failed: database error", "user_id", userID, "order_id", orderID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Failed to get order", err)
 		return
 	}
 
-	items, err := h.Queries.GetOrderItems(
-		r.Context(),
-		orderID,
-	)
+	items, err := h.Queries.GetOrderItems(ctx, orderID)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Failed to get order items",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "get order failed: could not get order items", "user_id", userID, "order_id", orderID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Failed to get order items", err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+	
+	response := map[string]interface{}{
 		"order": orderRecord,
 		"items": items,
-	})
-}
+	}
 
-func (h *OrderHandler) HandleUpdateOrderStatus(w http.ResponseWriter, r *http.Request) {
-	userID, ok := auth.UserIDFromContext(r.Context())
-	if !ok {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusUnauthorized,
-			"Unauthorized",
-			nil,
-		)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.Logger.ErrorContext(ctx, "get order succeeded but failed to encode response", "user_id", userID, "order_id", orderID, "error", err)
 		return
 	}
 
-	orderID, err := uuid.Parse(r.PathValue("id"))
+	h.Logger.InfoContext(ctx, "order retrieved successfully", "user_id", userID, "order_id", orderID, "item_count", len(items))
+}
+
+func (h *OrderHandler) HandleUpdateOrderStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	
+	userID, ok := auth.UserIDFromContext(ctx)
+	if !ok {
+		h.Logger.WarnContext(ctx, "update order status failed: unauthorized")
+		comm.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Unauthorized", nil)
+		return
+	}
+
+	orderIDStr := r.PathValue("id")
+	orderID, err := uuid.Parse(orderIDStr)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid order ID",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "update order status failed: invalid order ID format", "user_id", userID, "order_id", orderIDStr, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid order ID", err)
 		return
 	}
 
 	var request struct {
 		Status string `json:"status"`
 	}
-
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid request body",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "update order status failed: invalid request body", "user_id", userID, "order_id", orderID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
 
@@ -521,105 +378,79 @@ func (h *OrderHandler) HandleUpdateOrderStatus(w http.ResponseWriter, r *http.Re
 	case "confirmed", "processing", "shipped", "delivered", "cancelled":
 		// Valid status.
 	default:
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid order status",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "update order status failed: invalid status value", "user_id", userID, "order_id", orderID, "status", request.Status)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid order status", nil)
 		return
 	}
 
-	currentStatus, err := h.Queries.VerifyOrderSellerOwnership(
-		r.Context(),
-		database.VerifyOrderSellerOwnershipParams{
-			ID:      orderID,
-			OwnerID: userID,
-		},
-	)
+	h.Logger.InfoContext(ctx, "handling update order status request", "user_id", userID, "order_id", orderID, "requested_status", request.Status)
+
+	currentStatus, err := h.Queries.VerifyOrderSellerOwnership(ctx, database.VerifyOrderSellerOwnershipParams{
+		ID:      orderID,
+		OwnerID: userID,
+	})
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusForbidden,
-			"You do not own this order",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "update order status failed: user does not own this order", "user_id", userID, "order_id", orderID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusForbidden, "You do not own this order", err)
 		return
 	}
 
 	if !isValidStatusTransition(currentStatus, request.Status) {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid order status transition",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "update order status failed: invalid status transition", "user_id", userID, "order_id", orderID, "current_status", currentStatus, "requested_status", request.Status)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid order status transition", nil)
 		return
 	}
 
-	updatedOrder, err := h.Queries.UpdateOrderStatus(
-		r.Context(),
-		database.UpdateOrderStatusParams{
-			ID:     orderID,
-			Status: request.Status,
-		},
-	)
+	updatedOrder, err := h.Queries.UpdateOrderStatus(ctx, database.UpdateOrderStatusParams{
+		ID:     orderID,
+		Status: request.Status,
+	})
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Failed to update order status",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "update order status failed: database error", "user_id", userID, "order_id", orderID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Failed to update order status", err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"order": updatedOrder,
-	})
+	}); err != nil {
+		h.Logger.ErrorContext(ctx, "update order status succeeded but failed to encode response", "user_id", userID, "order_id", orderID, "error", err)
+		return
+	}
+
+	h.Logger.InfoContext(ctx, "order status updated successfully", "user_id", userID, "order_id", orderID, "new_status", request.Status)
 }
 
 func isValidStatusTransition(current, next string) bool {
 	switch current {
 	case "pending":
 		return next == "confirmed" || next == "cancelled"
-
 	case "confirmed":
 		return next == "processing" || next == "cancelled"
-
 	case "processing":
 		return next == "shipped" || next == "cancelled"
-
 	case "shipped":
 		return next == "delivered"
-
 	case "delivered", "cancelled":
 		return false
-
 	default:
 		return false
 	}
 }
 
 func (h *OrderHandler) HandleListSellerOrders(w http.ResponseWriter, r *http.Request) {
-	userID, ok := auth.UserIDFromContext(r.Context())
+	ctx := r.Context()
+	
+	userID, ok := auth.UserIDFromContext(ctx)
 	if !ok {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusUnauthorized,
-			"Authentication required",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "list seller orders failed: unauthorized")
+		comm.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Authentication required", nil)
 		return
 	}
+	h.Logger.InfoContext(ctx, "handling list seller orders request", "user_id", userID)
 
 	page := 1
 	limit := 20
@@ -627,13 +458,8 @@ func (h *OrderHandler) HandleListSellerOrders(w http.ResponseWriter, r *http.Req
 	if value := r.URL.Query().Get("page"); value != "" {
 		parsed, err := strconv.Atoi(value)
 		if err != nil || parsed < 1 {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Invalid page",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "list seller orders failed: invalid page param", "user_id", userID, "page", value, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid page", err)
 			return
 		}
 		page = parsed
@@ -642,13 +468,8 @@ func (h *OrderHandler) HandleListSellerOrders(w http.ResponseWriter, r *http.Req
 	if value := r.URL.Query().Get("limit"); value != "" {
 		parsed, err := strconv.Atoi(value)
 		if err != nil || parsed < 1 || parsed > 50 {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Invalid limit",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "list seller orders failed: invalid limit param", "user_id", userID, "limit", value, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid limit", err)
 			return
 		}
 		limit = parsed
@@ -656,22 +477,14 @@ func (h *OrderHandler) HandleListSellerOrders(w http.ResponseWriter, r *http.Req
 
 	offset := (page - 1) * limit
 
-	orders, err := h.Queries.ListOrdersBySeller(
-		r.Context(),
-		database.ListOrdersBySellerParams{
-			OwnerID: userID,
-			Limit:   int32(limit),
-			Offset:  int32(offset),
-		},
-	)
+	orders, err := h.Queries.ListOrdersBySeller(ctx, database.ListOrdersBySellerParams{
+		OwnerID: userID,
+		Limit:   int32(limit),
+		Offset:  int32(offset),
+	})
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Failed to get seller orders",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "list seller orders failed: database error", "user_id", userID, "page", page, "limit", limit, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Failed to get seller orders", err)
 		return
 	}
 
@@ -684,6 +497,9 @@ func (h *OrderHandler) HandleListSellerOrders(w http.ResponseWriter, r *http.Req
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		slog.ErrorContext(r.Context(), "failed to encode seller orders", "error", err)
+		h.Logger.ErrorContext(ctx, "list seller orders succeeded but failed to encode response", "user_id", userID, "error", err)
+		return
 	}
+
+	h.Logger.InfoContext(ctx, "seller orders listed successfully", "user_id", userID, "page", page, "limit", limit, "count", len(orders))
 }
