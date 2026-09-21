@@ -18,10 +18,9 @@ import (
 type AuthHandler struct {
 	Config  *config.ApiConfig
 	Queries AuthQuerier
-	Logger  *slog.Logger // Added logger
+	Logger  *slog.Logger
 }
 
-// NewAuthHandler is a helper to initialize the handler with dependencies
 func NewAuthHandler(cfg *config.ApiConfig, queries AuthQuerier, logger *slog.Logger) *AuthHandler {
 	return &AuthHandler{
 		Config:  cfg,

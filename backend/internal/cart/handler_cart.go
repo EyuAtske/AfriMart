@@ -17,10 +17,9 @@ import (
 
 type CartHandler struct {
 	Queries CartQuerier
-	Logger  *slog.Logger // Added logger
+	Logger  *slog.Logger
 }
 
-// NewCartHandler is a helper to initialize the handler with dependencies
 func NewCartHandler(queries CartQuerier, logger *slog.Logger) *CartHandler {
 	return &CartHandler{
 		Queries: queries,

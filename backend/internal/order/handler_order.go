@@ -20,10 +20,9 @@ import (
 type OrderHandler struct {
 	Config  *config.ApiConfig
 	Queries OrderQuerier
-	Logger  *slog.Logger // Added logger
+	Logger  *slog.Logger
 }
 
-// NewOrderHandler is a helper to initialize the handler with dependencies
 func NewOrderHandler(cfg *config.ApiConfig, queries OrderQuerier, logger *slog.Logger) *OrderHandler {
 	return &OrderHandler{
 		Config:  cfg,

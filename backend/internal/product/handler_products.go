@@ -25,6 +25,16 @@ type ProductHandler struct {
 	Queries      ProductQuerier
 	ShopQueries  ShopOwnershipQuerier
 	ImageStorage storage.ImageStorage
+	Logger       *slog.Logger 
+}
+
+func NewProductHandler(cfg *config.ApiConfig, queries ProductQuerier, imageStorage storage.ImageStorage, logger *slog.Logger) *ProductHandler {
+	return &ProductHandler{
+		Config:       cfg,
+		Queries:      queries,
+		ImageStorage: imageStorage,
+		Logger:       logger,
+	}
 }
 
 type createProductRequest struct {
@@ -54,32 +64,23 @@ type updateProductRequest struct {
 	Status        string `json:"status"`
 }
 
-func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Request) {
-	userID, ok := auth.UserIDFromContext(r.Context())
+func (h *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	userID, ok := auth.UserIDFromContext(ctx)
 	if !ok {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusUnauthorized,
-			"Error getting user id",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "create product failed: unauthorized")
+		comm.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Error getting user id", nil)
 		return
 	}
+	h.Logger.InfoContext(ctx, "handling create product request", "user_id", userID)
 
-	// Parse multipart form.
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid multipart form",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "create product failed: invalid multipart form", "user_id", userID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid multipart form", err)
 		return
 	}
 
-	// Read product fields.
 	params := createProductRequest{
 		ShopID:        strings.TrimSpace(r.FormValue("shop_id")),
 		CategoryID:    strings.TrimSpace(r.FormValue("category_id")),
@@ -93,396 +94,236 @@ func (apiCfg *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http
 		Status:        strings.TrimSpace(r.FormValue("status")),
 	}
 
-	// Parse stock.
 	stockString := strings.TrimSpace(r.FormValue("stock"))
-
 	stock, err := strconv.ParseInt(stockString, 10, 32)
 	if err != nil || stock < 0 {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Stock must be a valid non-negative integer",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "create product failed: invalid stock", "user_id", userID, "stock", stockString)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Stock must be a valid non-negative integer", nil)
 		return
 	}
-
 	params.Stock = int32(stock)
 
-	// Default status.
 	if params.Status == "" {
 		params.Status = "active"
 	}
-
 	if params.Status != "active" && params.Status != "inactive" {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid product status",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "create product failed: invalid status", "user_id", userID, "status", params.Status)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid product status", nil)
 		return
 	}
-
 	if params.Name == "" {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Product name is required",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "create product failed: name required", "user_id", userID)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Product name is required", nil)
 		return
 	}
 
-	// Validate price.
 	price, err := strconv.ParseFloat(params.Price, 64)
 	if err != nil || price < 0 {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Price must be a valid non-negative number",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "create product failed: invalid price", "user_id", userID, "price", params.Price, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Price must be a valid non-negative number", nil)
 		return
 	}
 
-	// Validate IDs.
 	shopID, err := uuid.Parse(params.ShopID)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid shop ID",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "create product failed: invalid shop ID", "user_id", userID, "shop_id", params.ShopID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid shop ID", err)
 		return
 	}
 
 	categoryID, err := uuid.Parse(params.CategoryID)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid category ID",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "create product failed: invalid category ID", "user_id", userID, "category_id", params.CategoryID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid category ID", err)
 		return
 	}
 
 	subcategoryID, err := uuid.Parse(params.SubcategoryID)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid subcategory ID",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "create product failed: invalid subcategory ID", "user_id", userID, "subcategory_id", params.SubcategoryID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid subcategory ID", err)
 		return
 	}
 
-	// Get uploaded images.
 	files := r.MultipartForm.File["images"]
-
 	if len(files) == 0 {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"At least one product image is required",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "create product failed: no images provided", "user_id", userID)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "At least one product image is required", nil)
 		return
 	}
-
 	if len(files) > maxProductImageCount {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"A product can have at most 10 images",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "create product failed: too many images", "user_id", userID, "count", len(files), "max", maxProductImageCount)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "A product can have at most 10 images", nil)
 		return
 	}
 
-	// Validate every image before creating anything.
 	for _, file := range files {
 		if err := validateProductImage(file); err != nil {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				err.Error(),
-				nil,
-			)
+			h.Logger.WarnContext(ctx, "create product failed: image validation error", "user_id", userID, "filename", file.Filename, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, err.Error(), nil)
 			return
 		}
 	}
 
-	// Verify shop ownership.
-	_, err = apiCfg.ShopQueries.GetShopByIDAndOwnerID(
-		r.Context(),
-		database.GetShopByIDAndOwnerIDParams{
-			ID:      shopID,
-			OwnerID: userID,
-		},
-	)
-
+	_, err = h.ShopQueries.GetShopByIDAndOwnerID(ctx, database.GetShopByIDAndOwnerIDParams{
+		ID:      shopID,
+		OwnerID: userID,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusForbidden,
-				"You do not own this shop",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "create product failed: user does not own shop", "user_id", userID, "shop_id", shopID)
+			comm.RespondErrorWithJson(w, r, http.StatusForbidden, "You do not own this shop", err)
 			return
 		}
-
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not verify shop ownership",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "create product failed: could not verify shop ownership", "user_id", userID, "shop_id", shopID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not verify shop ownership", err)
 		return
 	}
 
-	// Create the product first.
-	product, err := apiCfg.Queries.CreateProduct(
-		r.Context(),
-		database.CreateProductParams{
-			ShopID:        shopID,
-			CategoryID:    categoryID,
-			SubcategoryID: subcategoryID,
-			Name:          params.Name,
-			Description: sql.NullString{
-				String: params.Description,
-				Valid:  params.Description != "",
-			},
-			Brand: sql.NullString{
-				String: params.Brand,
-				Valid:  params.Brand != "",
-			},
-			Color: sql.NullString{
-				String: params.Color,
-				Valid:  params.Color != "",
-			},
-			Size: sql.NullString{
-				String: params.Size,
-				Valid:  params.Size != "",
-			},
-			Price:  params.Price,
-			Stock:  params.Stock,
-			Status: params.Status,
+	product, err := h.Queries.CreateProduct(ctx, database.CreateProductParams{
+		ShopID:        shopID,
+		CategoryID:    categoryID,
+		SubcategoryID: subcategoryID,
+		Name:          params.Name,
+		Description: sql.NullString{
+			String: params.Description,
+			Valid:  params.Description != "",
 		},
-	)
-
+		Brand: sql.NullString{
+			String: params.Brand,
+			Valid:  params.Brand != "",
+		},
+		Color: sql.NullString{
+			String: params.Color,
+			Valid:  params.Color != "",
+		},
+		Size: sql.NullString{
+			String: params.Size,
+			Valid:  params.Size != "",
+		},
+		Price:  params.Price,
+		Stock:  params.Stock,
+		Status: params.Status,
+	})
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not create product",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "create product failed: database error", "user_id", userID, "shop_id", shopID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not create product", err)
 		return
 	}
 
-	// Track uploaded objects so we can clean them up if something fails.
 	uploadedObjects := make([]string, 0, len(files))
-
 	cleanup := func() {
 		for _, objectKey := range uploadedObjects {
-			_ = apiCfg.ImageStorage.Delete(
-				context.Background(),
-				objectKey,
-			)
+			if delErr := h.ImageStorage.Delete(context.Background(), objectKey); delErr != nil {
+				h.Logger.ErrorContext(ctx, "cleanup failed: could not delete orphaned image", "object_key", objectKey, "error", delErr)
+			}
 		}
-
-		_ = apiCfg.Queries.DeleteProduct(
-			context.Background(),
-			product.ID,
-		)
+		if delErr := h.Queries.DeleteProduct(context.Background(), product.ID); delErr != nil {
+			h.Logger.ErrorContext(ctx, "cleanup failed: could not delete orphaned product", "product_id", product.ID, "error", delErr)
+		}
 	}
 
-	// Upload images and create product_images records.
 	for index, file := range files {
 		src, err := file.Open()
 		if err != nil {
+			h.Logger.ErrorContext(ctx, "create product failed: could not open image file", "user_id", userID, "product_id", product.ID, "filename", file.Filename, "error", err)
 			cleanup()
-
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusInternalServerError,
-				"Could not open product image",
-				err,
-			)
+			comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not open product image", err)
 			return
 		}
 
 		contentTypeBuffer := make([]byte, 512)
-
 		n, err := src.Read(contentTypeBuffer)
 		if err != nil {
 			src.Close()
+			h.Logger.ErrorContext(ctx, "create product failed: could not read image file", "user_id", userID, "product_id", product.ID, "filename", file.Filename, "error", err)
 			cleanup()
-
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusInternalServerError,
-				"Could not read product image",
-				err,
-			)
+			comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not read product image", err)
 			return
 		}
 
 		contentType := http.DetectContentType(contentTypeBuffer[:n])
-
-		// Reset file position after MIME detection.
 		if _, err := src.Seek(0, io.SeekStart); err != nil {
 			src.Close()
+			h.Logger.ErrorContext(ctx, "create product failed: could not reset image file", "user_id", userID, "product_id", product.ID, "error", err)
 			cleanup()
-
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusInternalServerError,
-				"Could not reset product image",
-				err,
-			)
+			comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not reset product image", err)
 			return
 		}
 
 		extension := imageExtension(contentType)
+		objectKey := fmt.Sprintf("products/%s/%s%s", product.ID.String(), uuid.New().String(), extension)
 
-		objectKey := fmt.Sprintf(
-			"products/%s/%s%s",
-			product.ID.String(),
-			uuid.New().String(),
-			extension,
-		)
-
-		err = apiCfg.ImageStorage.Upload(
-			r.Context(),
-			objectKey,
-			src,
-			file.Size,
-			contentType,
-		)
-
+		err = h.ImageStorage.Upload(ctx, objectKey, src, file.Size, contentType)
 		src.Close()
 
 		if err != nil {
+			h.Logger.ErrorContext(ctx, "create product failed: storage upload error", "user_id", userID, "product_id", product.ID, "object_key", objectKey, "error", err)
 			cleanup()
-
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusInternalServerError,
-				"Could not upload product image",
-				err,
-			)
+			comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not upload product image", err)
 			return
 		}
 
 		uploadedObjects = append(uploadedObjects, objectKey)
 
-		_, err = apiCfg.Queries.CreateProductImage(
-			r.Context(),
-			database.CreateProductImageParams{
-				ProductID:    product.ID,
-				ObjectKey:    objectKey,
-				DisplayOrder: int32(index),
-			},
-		)
-
+		_, err = h.Queries.CreateProductImage(ctx, database.CreateProductImageParams{
+			ProductID:    product.ID,
+			ObjectKey:    objectKey,
+			DisplayOrder: int32(index),
+		})
 		if err != nil {
+			h.Logger.ErrorContext(ctx, "create product failed: database error saving image", "user_id", userID, "product_id", product.ID, "object_key", objectKey, "error", err)
 			cleanup()
-
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusInternalServerError,
-				"Could not save product image",
-				err,
-			)
+			comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not save product image", err)
 			return
 		}
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
 
 	response := struct {
 		Product database.Product        `json:"product"`
 		Images  []database.ProductImage `json:"images"`
 	}{
 		Product: product,
-		Images:  nil,
 	}
 
-	response.Images, err = apiCfg.Queries.GetProductImages(
-		r.Context(),
-		product.ID,
-	)
-
+	response.Images, err = h.Queries.GetProductImages(ctx, product.ID)
 	if err != nil {
+		h.Logger.ErrorContext(ctx, "create product succeeded but failed to fetch images for response", "user_id", userID, "product_id", product.ID, "error", err)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.Logger.ErrorContext(ctx, "create product succeeded but failed to encode response", "user_id", userID, "product_id", product.ID, "error", err)
 		return
 	}
 
-	_ = json.NewEncoder(w).Encode(response)
+	h.Logger.InfoContext(ctx, "product created successfully", "user_id", userID, "product_id", product.ID, "shop_id", shopID, "image_count", len(response.Images))
 }
 
-func (apiCfg *ProductHandler) HandleGetProduct(w http.ResponseWriter, r *http.Request) {
+func (h *ProductHandler) HandleGetProduct(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	productIDString := strings.TrimSpace(r.PathValue("id"))
 
 	productID, err := uuid.Parse(productIDString)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid product ID",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "get product failed: invalid product ID", "product_id", productIDString, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid product ID", err)
 		return
 	}
 
-	product, err := apiCfg.Queries.GetProduct(
-		r.Context(),
-		productID,
-	)
+	h.Logger.InfoContext(ctx, "handling get product request", "product_id", productID)
+
+	product, err := h.Queries.GetProduct(ctx, productID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusNotFound,
-				"Product not found",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "get product failed: product not found", "product_id", productID)
+			comm.RespondErrorWithJson(w, r, http.StatusNotFound, "Product not found", err)
 			return
 		}
-
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not get product",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "get product failed: database error", "product_id", productID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not get product", err)
 		return
 	}
 
@@ -490,103 +331,61 @@ func (apiCfg *ProductHandler) HandleGetProduct(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(product); err != nil {
-		return
+		h.Logger.ErrorContext(ctx, "get product succeeded but failed to encode response", "product_id", productID, "error", err)
 	}
 }
 
-func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http.Request) {
-	userID, ok := auth.UserIDFromContext(r.Context())
+func (h *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	userID, ok := auth.UserIDFromContext(ctx)
 	if !ok {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusUnauthorized,
-			"Error getting user id",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "update product failed: unauthorized")
+		comm.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Error getting user id", nil)
 		return
 	}
 
 	productIDString := strings.TrimSpace(r.PathValue("id"))
-
 	productID, err := uuid.Parse(productIDString)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid product ID",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "update product failed: invalid product ID", "user_id", userID, "product_id", productIDString, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid product ID", err)
 		return
 	}
 
-	existingProduct, err := apiCfg.Queries.GetProduct(
-		r.Context(),
-		productID,
-	)
+	h.Logger.InfoContext(ctx, "handling update product request", "user_id", userID, "product_id", productID)
+
+	existingProduct, err := h.Queries.GetProduct(ctx, productID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusNotFound,
-				"Product not found",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "update product failed: product not found", "user_id", userID, "product_id", productID)
+			comm.RespondErrorWithJson(w, r, http.StatusNotFound, "Product not found", err)
 			return
 		}
-
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not get product",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "update product failed: database error fetching product", "user_id", userID, "product_id", productID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not get product", err)
 		return
 	}
 
-	_, err = apiCfg.ShopQueries.GetShopByIDAndOwnerID(
-		r.Context(),
-		database.GetShopByIDAndOwnerIDParams{
-			ID:      existingProduct.ShopID,
-			OwnerID: userID,
-		},
-	)
-
+	_, err = h.ShopQueries.GetShopByIDAndOwnerID(ctx, database.GetShopByIDAndOwnerIDParams{
+		ID:      existingProduct.ShopID,
+		OwnerID: userID,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusForbidden,
-				"You do not own this product's shop",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "update product failed: user does not own shop", "user_id", userID, "product_id", productID, "shop_id", existingProduct.ShopID)
+			comm.RespondErrorWithJson(w, r, http.StatusForbidden, "You do not own this product's shop", err)
 			return
 		}
-
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not verify shop ownership",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "update product failed: could not verify shop ownership", "user_id", userID, "product_id", productID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not verify shop ownership", err)
 		return
 	}
 
 	var params updateProductRequest
-
 	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Error decoding params",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "update product failed: invalid request body", "user_id", userID, "product_id", productID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Error decoding params", err)
 		return
 	}
 
@@ -603,113 +402,71 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 	if params.Status == "" {
 		params.Status = "active"
 	}
-
 	if params.Status != "active" && params.Status != "inactive" {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid product status",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "update product failed: invalid status", "user_id", userID, "product_id", productID, "status", params.Status)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid product status", nil)
 		return
 	}
-
 	if params.Name == "" {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Product name is required",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "update product failed: name required", "user_id", userID, "product_id", productID)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Product name is required", nil)
 		return
 	}
 
 	price, err := strconv.ParseFloat(params.Price, 64)
 	if err != nil || price < 0 {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Price must be a valid non-negative number",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "update product failed: invalid price", "user_id", userID, "product_id", productID, "price", params.Price, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Price must be a valid non-negative number", nil)
 		return
 	}
-
 	if params.Stock < 0 {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Stock cannot be negative",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "update product failed: invalid stock", "user_id", userID, "product_id", productID, "stock", params.Stock)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Stock cannot be negative", nil)
 		return
 	}
 
 	categoryID, err := uuid.Parse(params.CategoryID)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid category ID",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "update product failed: invalid category ID", "user_id", userID, "product_id", productID, "category_id", params.CategoryID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid category ID", err)
 		return
 	}
 
 	subcategoryID, err := uuid.Parse(params.SubcategoryID)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid subcategory ID",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "update product failed: invalid subcategory ID", "user_id", userID, "product_id", productID, "subcategory_id", params.SubcategoryID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid subcategory ID", err)
 		return
 	}
 
-	product, err := apiCfg.Queries.UpdateProduct(
-		r.Context(),
-		database.UpdateProductParams{
-			ID:            productID,
-			CategoryID:    categoryID,
-			SubcategoryID: subcategoryID,
-			Name:          params.Name,
-			Description: sql.NullString{
-				String: params.Description,
-				Valid:  params.Description != "",
-			},
-			Brand: sql.NullString{
-				String: params.Brand,
-				Valid:  params.Brand != "",
-			},
-			Color: sql.NullString{
-				String: params.Color,
-				Valid:  params.Color != "",
-			},
-			Size: sql.NullString{
-				String: params.Size,
-				Valid:  params.Size != "",
-			},
-			Price:  params.Price,
-			Stock:  params.Stock,
-			Status: params.Status,
+	product, err := h.Queries.UpdateProduct(ctx, database.UpdateProductParams{
+		ID:            productID,
+		CategoryID:    categoryID,
+		SubcategoryID: subcategoryID,
+		Name:          params.Name,
+		Description: sql.NullString{
+			String: params.Description,
+			Valid:  params.Description != "",
 		},
-	)
-
+		Brand: sql.NullString{
+			String: params.Brand,
+			Valid:  params.Brand != "",
+		},
+		Color: sql.NullString{
+			String: params.Color,
+			Valid:  params.Color != "",
+		},
+		Size: sql.NullString{
+			String: params.Size,
+			Valid:  params.Size != "",
+		},
+		Price:  params.Price,
+		Stock:  params.Stock,
+		Status: params.Status,
+	})
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not update product",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "update product failed: database error", "user_id", userID, "product_id", productID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not update product", err)
 		return
 	}
 
@@ -717,993 +474,611 @@ func (apiCfg *ProductHandler) HandleUpdateProduct(w http.ResponseWriter, r *http
 	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(product); err != nil {
+		h.Logger.ErrorContext(ctx, "update product succeeded but failed to encode response", "user_id", userID, "product_id", productID, "error", err)
 		return
 	}
+
+	h.Logger.InfoContext(ctx, "product updated successfully", "user_id", userID, "product_id", productID)
 }
 
-func (apiCfg *ProductHandler) HandleDeleteProduct(w http.ResponseWriter, r *http.Request) {
-	userID, ok := auth.UserIDFromContext(r.Context())
+func (h *ProductHandler) HandleDeleteProduct(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	userID, ok := auth.UserIDFromContext(ctx)
 	if !ok {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusUnauthorized,
-			"Error getting user id",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "delete product failed: unauthorized")
+		comm.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Error getting user id", nil)
 		return
 	}
 
 	productIDString := strings.TrimSpace(r.PathValue("id"))
-
 	productID, err := uuid.Parse(productIDString)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid product ID",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "delete product failed: invalid product ID", "user_id", userID, "product_id", productIDString, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid product ID", err)
 		return
 	}
 
-	existingProduct, err := apiCfg.Queries.GetProduct(
-		r.Context(),
-		productID,
-	)
+	h.Logger.InfoContext(ctx, "handling delete product request", "user_id", userID, "product_id", productID)
+
+	existingProduct, err := h.Queries.GetProduct(ctx, productID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusNotFound,
-				"Product not found",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "delete product failed: product not found", "user_id", userID, "product_id", productID)
+			comm.RespondErrorWithJson(w, r, http.StatusNotFound, "Product not found", err)
 			return
 		}
-
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not get product",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "delete product failed: database error fetching product", "user_id", userID, "product_id", productID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not get product", err)
 		return
 	}
 
-	_, err = apiCfg.ShopQueries.GetShopByIDAndOwnerID(
-		r.Context(),
-		database.GetShopByIDAndOwnerIDParams{
-			ID:      existingProduct.ShopID,
-			OwnerID: userID,
-		},
-	)
-
+	_, err = h.ShopQueries.GetShopByIDAndOwnerID(ctx, database.GetShopByIDAndOwnerIDParams{
+		ID:      existingProduct.ShopID,
+		OwnerID: userID,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusForbidden,
-				"You do not own this product's shop",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "delete product failed: user does not own shop", "user_id", userID, "product_id", productID, "shop_id", existingProduct.ShopID)
+			comm.RespondErrorWithJson(w, r, http.StatusForbidden, "You do not own this product's shop", err)
 			return
 		}
-
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not verify shop ownership",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "delete product failed: could not verify shop ownership", "user_id", userID, "product_id", productID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not verify shop ownership", err)
 		return
 	}
 
-	images, err := apiCfg.Queries.GetProductImages(
-		r.Context(),
-		productID,
-	)
+	images, err := h.Queries.GetProductImages(ctx, productID)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not get product images",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "delete product failed: could not fetch product images", "user_id", userID, "product_id", productID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not get product images", err)
 		return
 	}
 
 	for _, image := range images {
-		if err := apiCfg.ImageStorage.Delete(
-			r.Context(),
-			image.ObjectKey,
-		); err != nil {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusInternalServerError,
-				"Could not delete product image",
-				err,
-			)
-			return
+		if err := h.ImageStorage.Delete(ctx, image.ObjectKey); err != nil {
+			h.Logger.ErrorContext(ctx, "delete product: failed to delete image from storage", "user_id", userID, "product_id", productID, "object_key", image.ObjectKey, "error", err)
+			// Continue to try deleting the DB record anyway
 		}
 	}
 
-	err = apiCfg.Queries.DeleteProduct(
-		r.Context(),
-		productID,
-	)
+	err = h.Queries.DeleteProduct(ctx, productID)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not delete product",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "delete product failed: database error", "user_id", userID, "product_id", productID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not delete product", err)
 		return
 	}
 
+	h.Logger.InfoContext(ctx, "product deleted successfully", "user_id", userID, "product_id", productID, "images_deleted", len(images))
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *ProductHandler) HandleListProducts(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	h.Logger.InfoContext(ctx, "handling list products request")
+
 	query := r.URL.Query()
 	search := strings.TrimSpace(query.Get("search"))
 	brand := strings.TrimSpace(query.Get("brand"))
 	color := strings.TrimSpace(query.Get("color"))
 	size := strings.TrimSpace(query.Get("size"))
+	
 	var categoryID uuid.NullUUID
 	if category := query.Get("category_id"); category != "" {
 		id, err := uuid.Parse(category)
 		if err != nil {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Invalid category_id",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "list products failed: invalid category_id", "category_id", category, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid category_id", err)
 			return
 		}
-
-		categoryID = uuid.NullUUID{
-			UUID:  id,
-			Valid: true,
-		}
+		categoryID = uuid.NullUUID{UUID: id, Valid: true}
 	}
 
-	// Subcategory
 	var subcategoryID uuid.NullUUID
 	if subcategory := query.Get("subcategory_id"); subcategory != "" {
 		id, err := uuid.Parse(subcategory)
 		if err != nil {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Invalid subcategory_id",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "list products failed: invalid subcategory_id", "subcategory_id", subcategory, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid subcategory_id", err)
 			return
 		}
-
-		subcategoryID = uuid.NullUUID{
-			UUID:  id,
-			Valid: true,
-		}
+		subcategoryID = uuid.NullUUID{UUID: id, Valid: true}
 	}
 
-	// Minimum price
 	var minPrice sql.NullString
 	if value := query.Get("min_price"); value != "" {
 		if _, err := strconv.ParseFloat(value, 64); err != nil {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Invalid min_price",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "list products failed: invalid min_price", "min_price", value, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid min_price", err)
 			return
 		}
-
-		minPrice = sql.NullString{
-			String: value,
-			Valid:  true,
-		}
+		minPrice = sql.NullString{String: value, Valid: true}
 	}
 
-	// Maximum price
 	var maxPrice sql.NullString
 	if value := query.Get("max_price"); value != "" {
 		if _, err := strconv.ParseFloat(value, 64); err != nil {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Invalid max_price",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "list products failed: invalid max_price", "max_price", value, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid max_price", err)
 			return
 		}
-
-		maxPrice = sql.NullString{
-			String: value,
-			Valid:  true,
-		}
+		maxPrice = sql.NullString{String: value, Valid: true}
 	}
 
-	// Pagination
 	limit := 20
 	offset := 0
 
 	if value := query.Get("limit"); value != "" {
 		parsed, err := strconv.Atoi(value)
 		if err != nil || parsed <= 0 {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Invalid limit",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "list products failed: invalid limit", "limit", value, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid limit", err)
 			return
 		}
-
 		limit = parsed
 	}
 
 	if value := query.Get("offset"); value != "" {
 		parsed, err := strconv.Atoi(value)
 		if err != nil || parsed < 0 {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Invalid offset",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "list products failed: invalid offset", "offset", value, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid offset", err)
 			return
 		}
-
 		offset = parsed
 	}
 
-	products, err := h.Queries.ListProducts(
-		r.Context(),
-		database.ListProductsParams{
-			Search:        search,
-			CategoryID:    categoryID,
-			SubcategoryID: subcategoryID,
-			Brand:         brand,
-			Color:         color,
-			Size:          size,
-			MinPrice:      minPrice,
-			MaxPrice:      maxPrice,
-			PageOffset:    int32(offset),
-			PageLimit:     int32(limit),
-		},
-	)
+	products, err := h.Queries.ListProducts(ctx, database.ListProductsParams{
+		Search:        search,
+		CategoryID:    categoryID,
+		SubcategoryID: subcategoryID,
+		Brand:         brand,
+		Color:         color,
+		Size:          size,
+		MinPrice:      minPrice,
+		MaxPrice:      maxPrice,
+		PageOffset:    int32(offset),
+		PageLimit:     int32(limit),
+	})
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Failed to retrieve products",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "list products failed: database error", "limit", limit, "offset", offset, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Failed to retrieve products", err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-
 	if err := json.NewEncoder(w).Encode(products); err != nil {
+		h.Logger.ErrorContext(ctx, "list products succeeded but failed to encode response", "error", err)
 		return
 	}
+
+	h.Logger.InfoContext(ctx, "products listed successfully", "count", len(products), "limit", limit, "offset", offset)
 }
 
-func (apiCfg *ProductHandler) HandleListProductsByShop(w http.ResponseWriter, r *http.Request) {
-	userID, ok := auth.UserIDFromContext(r.Context())
-	if !ok {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusUnauthorized,
-			"Error getting user id",
-			nil,
-		)
-		return
-	}
-
-	shopIDString := strings.TrimSpace(r.PathValue("shop_id"))
-
-	shopID, err := uuid.Parse(shopIDString)
-	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid shop ID",
-			err,
-		)
-		return
-	}
-
-	_, err = apiCfg.ShopQueries.GetShopByIDAndOwnerID(
-		r.Context(),
-		database.GetShopByIDAndOwnerIDParams{
-			ID:      shopID,
-			OwnerID: userID,
-		},
-	)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusForbidden,
-				"You do not own this shop",
-				err,
-			)
-			return
-		}
-
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not verify shop ownership",
-			err,
-		)
-		return
-	}
-
-	limit := 20
-	offset := 0
-
-	if value := strings.TrimSpace(r.URL.Query().Get("limit")); value != "" {
-		parsedLimit, err := strconv.Atoi(value)
-		if err != nil || parsedLimit <= 0 {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Invalid limit",
-				err,
-			)
-			return
-		}
-
-		limit = parsedLimit
-	}
-
-	if value := strings.TrimSpace(r.URL.Query().Get("offset")); value != "" {
-		parsedOffset, err := strconv.Atoi(value)
-		if err != nil || parsedOffset < 0 {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Invalid offset",
-				err,
-			)
-			return
-		}
-
-		offset = parsedOffset
-	}
-
-	products, err := apiCfg.Queries.ListProductsByShop(
-		r.Context(),
-		database.ListProductsByShopParams{
-			ShopID: shopID,
-			Limit:  int32(limit),
-			Offset: int32(offset),
-		},
-	)
-	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not list products by shop",
-			err,
-		)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	if err := json.NewEncoder(w).Encode(products); err != nil {
-		return
-	}
-}
-
-func (apiCfg *ProductHandler) HandleListProductsByCategory(w http.ResponseWriter, r *http.Request) {
-	categoryIDString := strings.TrimSpace(r.PathValue("category_id"))
-
-	categoryID, err := uuid.Parse(categoryIDString)
-	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid category ID",
-			err,
-		)
-		return
-	}
-
-	limit := 20
-	offset := 0
-
-	if value := strings.TrimSpace(r.URL.Query().Get("limit")); value != "" {
-		parsedLimit, err := strconv.Atoi(value)
-		if err != nil || parsedLimit <= 0 {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Invalid limit",
-				err,
-			)
-			return
-		}
-
-		limit = parsedLimit
-	}
-
-	if value := strings.TrimSpace(r.URL.Query().Get("offset")); value != "" {
-		parsedOffset, err := strconv.Atoi(value)
-		if err != nil || parsedOffset < 0 {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Invalid offset",
-				err,
-			)
-			return
-		}
-
-		offset = parsedOffset
-	}
-
-	products, err := apiCfg.Queries.ListProductsByCategory(
-		r.Context(),
-		database.ListProductsByCategoryParams{
-			CategoryID: categoryID,
-			Limit:      int32(limit),
-			Offset:     int32(offset),
-		},
-	)
-	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not list products by category",
-			err,
-		)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	if err := json.NewEncoder(w).Encode(products); err != nil {
-		return
-	}
-}
-
-func (apiCfg *ProductHandler) HandleListProductsBySubcategory(w http.ResponseWriter, r *http.Request) {
-	subcategoryIDString := strings.TrimSpace(r.PathValue("subcategory_id"))
-
-	subcategoryID, err := uuid.Parse(subcategoryIDString)
-	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid subcategory ID",
-			err,
-		)
-		return
-	}
-
-	limit := 20
-	offset := 0
-
-	if value := strings.TrimSpace(r.URL.Query().Get("limit")); value != "" {
-		parsedLimit, err := strconv.Atoi(value)
-		if err != nil || parsedLimit <= 0 {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Invalid limit",
-				err,
-			)
-			return
-		}
-
-		limit = parsedLimit
-	}
-
-	if value := strings.TrimSpace(r.URL.Query().Get("offset")); value != "" {
-		parsedOffset, err := strconv.Atoi(value)
-		if err != nil || parsedOffset < 0 {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusBadRequest,
-				"Invalid offset",
-				err,
-			)
-			return
-		}
-
-		offset = parsedOffset
-	}
-
-	products, err := apiCfg.Queries.ListProductsBySubcategory(
-		r.Context(),
-		database.ListProductsBySubcategoryParams{
-			SubcategoryID: subcategoryID,
-			Limit:         int32(limit),
-			Offset:        int32(offset),
-		},
-	)
-	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not list products by subcategory",
-			err,
-		)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-
-	if err := json.NewEncoder(w).Encode(products); err != nil {
-		return
-	}
-}
-
-func (apiCfg *ProductHandler) HandleUpdateProductImage(w http.ResponseWriter, r *http.Request) {
+func (h *ProductHandler) HandleListProductsByShop(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	userID, ok := auth.UserIDFromContext(ctx)
 	if !ok {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusUnauthorized,
-			"Unauthorized",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "list products by shop failed: unauthorized")
+		comm.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Error getting user id", nil)
 		return
 	}
 
-	productID, err := uuid.Parse(r.PathValue("id"))
+	shopIDString := strings.TrimSpace(r.PathValue("shop_id"))
+	shopID, err := uuid.Parse(shopIDString)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid product ID",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "list products by shop failed: invalid shop ID", "user_id", userID, "shop_id", shopIDString, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid shop ID", err)
 		return
 	}
 
-	imageID, err := uuid.Parse(r.PathValue("imageID"))
-	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid image ID",
-			err,
-		)
-		return
-	}
+	h.Logger.InfoContext(ctx, "handling list products by shop request", "user_id", userID, "shop_id", shopID)
 
-	// Get the product first so we can verify ownership.
-	product, err := apiCfg.Queries.GetProduct(ctx, productID)
+	_, err = h.ShopQueries.GetShopByIDAndOwnerID(ctx, database.GetShopByIDAndOwnerIDParams{
+		ID:      shopID,
+		OwnerID: userID,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusNotFound,
-				"Product not found",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "list products by shop failed: user does not own shop", "user_id", userID, "shop_id", shopID)
+			comm.RespondErrorWithJson(w, r, http.StatusForbidden, "You do not own this shop", err)
 			return
 		}
-
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not get product",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "list products by shop failed: could not verify shop ownership", "user_id", userID, "shop_id", shopID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not verify shop ownership", err)
 		return
 	}
 
-	// Verify that the authenticated user owns the shop.
-	_, err = apiCfg.ShopQueries.GetShopByIDAndOwnerID(
-		ctx,
-		database.GetShopByIDAndOwnerIDParams{
-			ID:      product.ShopID,
-			OwnerID: userID,
-		},
-	)
+	limit := 20
+	offset := 0
+
+	if value := strings.TrimSpace(r.URL.Query().Get("limit")); value != "" {
+		parsedLimit, err := strconv.Atoi(value)
+		if err != nil || parsedLimit <= 0 {
+			h.Logger.WarnContext(ctx, "list products by shop failed: invalid limit", "user_id", userID, "shop_id", shopID, "limit", value, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid limit", err)
+			return
+		}
+		limit = parsedLimit
+	}
+
+	if value := strings.TrimSpace(r.URL.Query().Get("offset")); value != "" {
+		parsedOffset, err := strconv.Atoi(value)
+		if err != nil || parsedOffset < 0 {
+			h.Logger.WarnContext(ctx, "list products by shop failed: invalid offset", "user_id", userID, "shop_id", shopID, "offset", value, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid offset", err)
+			return
+		}
+		offset = parsedOffset
+	}
+
+	products, err := h.Queries.ListProductsByShop(ctx, database.ListProductsByShopParams{
+		ShopID: shopID,
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusForbidden,
-			"You do not own this product",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "list products by shop failed: database error", "user_id", userID, "shop_id", shopID, "limit", limit, "offset", offset, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not list products by shop", err)
 		return
 	}
 
-	// Get the existing image.
-	oldImage, err := apiCfg.Queries.GetProductImage(
-		ctx,
-		database.GetProductImageParams{
-			ID:        imageID,
-			ProductID: productID,
-		},
-	)
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(products); err != nil {
+		h.Logger.ErrorContext(ctx, "list products by shop succeeded but failed to encode response", "user_id", userID, "shop_id", shopID, "error", err)
+		return
+	}
+
+	h.Logger.InfoContext(ctx, "products listed by shop successfully", "user_id", userID, "shop_id", shopID, "count", len(products))
+}
+
+func (h *ProductHandler) HandleListProductsByCategory(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	categoryIDString := strings.TrimSpace(r.PathValue("category_id"))
+
+	categoryID, err := uuid.Parse(categoryIDString)
+	if err != nil {
+		h.Logger.WarnContext(ctx, "list products by category failed: invalid category ID", "category_id", categoryIDString, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid category ID", err)
+		return
+	}
+
+	h.Logger.InfoContext(ctx, "handling list products by category request", "category_id", categoryID)
+
+	limit := 20
+	offset := 0
+
+	if value := strings.TrimSpace(r.URL.Query().Get("limit")); value != "" {
+		parsedLimit, err := strconv.Atoi(value)
+		if err != nil || parsedLimit <= 0 {
+			h.Logger.WarnContext(ctx, "list products by category failed: invalid limit", "category_id", categoryID, "limit", value, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid limit", err)
+			return
+		}
+		limit = parsedLimit
+	}
+
+	if value := strings.TrimSpace(r.URL.Query().Get("offset")); value != "" {
+		parsedOffset, err := strconv.Atoi(value)
+		if err != nil || parsedOffset < 0 {
+			h.Logger.WarnContext(ctx, "list products by category failed: invalid offset", "category_id", categoryID, "offset", value, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid offset", err)
+			return
+		}
+		offset = parsedOffset
+	}
+
+	products, err := h.Queries.ListProductsByCategory(ctx, database.ListProductsByCategoryParams{
+		CategoryID: categoryID,
+		Limit:      int32(limit),
+		Offset:     int32(offset),
+	})
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "list products by category failed: database error", "category_id", categoryID, "limit", limit, "offset", offset, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not list products by category", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(products); err != nil {
+		h.Logger.ErrorContext(ctx, "list products by category succeeded but failed to encode response", "category_id", categoryID, "error", err)
+		return
+	}
+
+	h.Logger.InfoContext(ctx, "products listed by category successfully", "category_id", categoryID, "count", len(products))
+}
+
+func (h *ProductHandler) HandleListProductsBySubcategory(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	subcategoryIDString := strings.TrimSpace(r.PathValue("subcategory_id"))
+
+	subcategoryID, err := uuid.Parse(subcategoryIDString)
+	if err != nil {
+		h.Logger.WarnContext(ctx, "list products by subcategory failed: invalid subcategory ID", "subcategory_id", subcategoryIDString, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid subcategory ID", err)
+		return
+	}
+
+	h.Logger.InfoContext(ctx, "handling list products by subcategory request", "subcategory_id", subcategoryID)
+
+	limit := 20
+	offset := 0
+
+	if value := strings.TrimSpace(r.URL.Query().Get("limit")); value != "" {
+		parsedLimit, err := strconv.Atoi(value)
+		if err != nil || parsedLimit <= 0 {
+			h.Logger.WarnContext(ctx, "list products by subcategory failed: invalid limit", "subcategory_id", subcategoryID, "limit", value, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid limit", err)
+			return
+		}
+		limit = parsedLimit
+	}
+
+	if value := strings.TrimSpace(r.URL.Query().Get("offset")); value != "" {
+		parsedOffset, err := strconv.Atoi(value)
+		if err != nil || parsedOffset < 0 {
+			h.Logger.WarnContext(ctx, "list products by subcategory failed: invalid offset", "subcategory_id", subcategoryID, "offset", value, "error", err)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid offset", err)
+			return
+		}
+		offset = parsedOffset
+	}
+
+	products, err := h.Queries.ListProductsBySubcategory(ctx, database.ListProductsBySubcategoryParams{
+		SubcategoryID: subcategoryID,
+		Limit:         int32(limit),
+		Offset:        int32(offset),
+	})
+	if err != nil {
+		h.Logger.ErrorContext(ctx, "list products by subcategory failed: database error", "subcategory_id", subcategoryID, "limit", limit, "offset", offset, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not list products by subcategory", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(products); err != nil {
+		h.Logger.ErrorContext(ctx, "list products by subcategory succeeded but failed to encode response", "subcategory_id", subcategoryID, "error", err)
+		return
+	}
+
+	h.Logger.InfoContext(ctx, "products listed by subcategory successfully", "subcategory_id", subcategoryID, "count", len(products))
+}
+
+func (h *ProductHandler) HandleUpdateProductImage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	userID, ok := auth.UserIDFromContext(ctx)
+	if !ok {
+		h.Logger.WarnContext(ctx, "update product image failed: unauthorized")
+		comm.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Unauthorized", nil)
+		return
+	}
+
+	productIDStr := r.PathValue("id")
+	productID, err := uuid.Parse(productIDStr)
+	if err != nil {
+		h.Logger.WarnContext(ctx, "update product image failed: invalid product ID", "user_id", userID, "product_id", productIDStr, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid product ID", err)
+		return
+	}
+
+	imageIDStr := r.PathValue("imageID")
+	imageID, err := uuid.Parse(imageIDStr)
+	if err != nil {
+		h.Logger.WarnContext(ctx, "update product image failed: invalid image ID", "user_id", userID, "product_id", productID, "image_id", imageIDStr, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid image ID", err)
+		return
+	}
+
+	h.Logger.InfoContext(ctx, "handling update product image request", "user_id", userID, "product_id", productID, "image_id", imageID)
+
+	product, err := h.Queries.GetProduct(ctx, productID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusNotFound,
-				"Product image not found",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "update product image failed: product not found", "user_id", userID, "product_id", productID)
+			comm.RespondErrorWithJson(w, r, http.StatusNotFound, "Product not found", err)
 			return
 		}
-
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not get product image",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "update product image failed: database error fetching product", "user_id", userID, "product_id", productID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not get product", err)
 		return
 	}
 
-	// Expect exactly one image file.
+	_, err = h.ShopQueries.GetShopByIDAndOwnerID(ctx, database.GetShopByIDAndOwnerIDParams{
+		ID:      product.ShopID,
+		OwnerID: userID,
+	})
+	if err != nil {
+		h.Logger.WarnContext(ctx, "update product image failed: user does not own shop", "user_id", userID, "product_id", productID, "shop_id", product.ShopID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusForbidden, "You do not own this product", err)
+		return
+	}
+
+	oldImage, err := h.Queries.GetProductImage(ctx, database.GetProductImageParams{
+		ID:        imageID,
+		ProductID: productID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			h.Logger.WarnContext(ctx, "update product image failed: image not found", "user_id", userID, "product_id", productID, "image_id", imageID)
+			comm.RespondErrorWithJson(w, r, http.StatusNotFound, "Product image not found", err)
+			return
+		}
+		h.Logger.ErrorContext(ctx, "update product image failed: database error fetching image", "user_id", userID, "product_id", productID, "image_id", imageID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not get product image", err)
+		return
+	}
+
 	if err := r.ParseMultipartForm(8 << 20); err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid multipart form",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "update product image failed: invalid multipart form", "user_id", userID, "product_id", productID, "image_id", imageID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid multipart form", err)
 		return
 	}
 
 	files := r.MultipartForm.File["image"]
-
 	if len(files) != 1 {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Exactly one image is required",
-			errors.New("expected one image file"),
-		)
+		h.Logger.WarnContext(ctx, "update product image failed: expected exactly one image", "user_id", userID, "product_id", productID, "image_id", imageID, "count", len(files))
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Exactly one image is required", errors.New("expected one image file"))
 		return
 	}
 
 	file := files[0]
-
-	// Validate the new image before uploading anything.
 	if err := validateProductImage(file); err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			err.Error(),
-			err,
-		)
+		h.Logger.WarnContext(ctx, "update product image failed: image validation error", "user_id", userID, "product_id", productID, "image_id", imageID, "filename", file.Filename, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, err.Error(), err)
 		return
 	}
 
 	src, err := file.Open()
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not open image",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "update product image failed: could not open image file", "user_id", userID, "product_id", productID, "image_id", imageID, "filename", file.Filename, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not open image", err)
 		return
 	}
 	defer src.Close()
 
 	buffer := make([]byte, 512)
-
 	n, err := src.Read(buffer)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not read image",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "update product image failed: could not read image file", "user_id", userID, "product_id", productID, "image_id", imageID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not read image", err)
 		return
 	}
 
 	contentType := http.DetectContentType(buffer[:n])
-
 	if _, err := src.Seek(0, io.SeekStart); err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not reset image",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "update product image failed: could not reset image file", "user_id", userID, "product_id", productID, "image_id", imageID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not reset image", err)
 		return
 	}
 
 	extension := imageExtension(contentType)
-
 	if extension == "" {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Unsupported image type",
-			errors.New("unsupported image type"),
-		)
+		h.Logger.WarnContext(ctx, "update product image failed: unsupported image type", "user_id", userID, "product_id", productID, "image_id", imageID, "content_type", contentType)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Unsupported image type", errors.New("unsupported image type"))
 		return
 	}
 
-	// Generate a completely new object key.
-	newObjectKey := fmt.Sprintf(
-		"products/%s/%s%s",
-		productID.String(),
-		uuid.New().String(),
-		extension,
-	)
+	newObjectKey := fmt.Sprintf("products/%s/%s%s", productID.String(), uuid.New().String(), extension)
 
-	// Upload the new image first.
-	if err := apiCfg.ImageStorage.Upload(
-		ctx,
-		newObjectKey,
-		src,
-		file.Size,
-		contentType,
-	); err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not upload image",
-			err,
-		)
+	if err := h.ImageStorage.Upload(ctx, newObjectKey, src, file.Size, contentType); err != nil {
+		h.Logger.ErrorContext(ctx, "update product image failed: storage upload error", "user_id", userID, "product_id", productID, "image_id", imageID, "object_key", newObjectKey, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not upload image", err)
 		return
 	}
 
-	// Update the database to point to the new object.
-	updatedImage, err := apiCfg.Queries.UpdateProductImage(
-		ctx,
-		database.UpdateProductImageParams{
-			ID:        imageID,
-			ProductID: productID,
-			ObjectKey: newObjectKey,
-		},
-	)
+	updatedImage, err := h.Queries.UpdateProductImage(ctx, database.UpdateProductImageParams{
+		ID:        imageID,
+		ProductID: productID,
+		ObjectKey: newObjectKey,
+	})
 	if err != nil {
-		// Database update failed, so remove the newly uploaded object.
-		_ = apiCfg.ImageStorage.Delete(ctx, newObjectKey)
-
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not update product image",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "update product image failed: database error, rolling back storage", "user_id", userID, "product_id", productID, "image_id", imageID, "object_key", newObjectKey, "error", err)
+		if delErr := h.ImageStorage.Delete(ctx, newObjectKey); delErr != nil {
+			h.Logger.ErrorContext(ctx, "rollback failed: could not delete newly uploaded image", "object_key", newObjectKey, "error", delErr)
+		}
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not update product image", err)
 		return
 	}
 
-	// Database now points to the new object, so the old object
-	// is no longer needed.
-	if err := apiCfg.ImageStorage.Delete(ctx, oldImage.ObjectKey); err != nil {
-		// The DB update succeeded, so don't roll it back.
-		// The old object is now just an orphaned storage object.
-		slog.ErrorContext(
-			ctx,
-			"failed to delete old product image",
-			"object_key", oldImage.ObjectKey,
-			"error", err,
-		)
+	if err := h.ImageStorage.Delete(ctx, oldImage.ObjectKey); err != nil {
+		h.Logger.ErrorContext(ctx, "update product image succeeded but failed to delete old image from storage", "user_id", userID, "product_id", productID, "image_id", imageID, "old_object_key", oldImage.ObjectKey, "error", err)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-
-	if err := json.NewEncoder(w).Encode(map[string]any{
-			"image": updatedImage,
-		}); err != nil {
+	if err := json.NewEncoder(w).Encode(map[string]any{"image": updatedImage}); err != nil {
+		h.Logger.ErrorContext(ctx, "update product image succeeded but failed to encode response", "user_id", userID, "product_id", productID, "image_id", imageID, "error", err)
 		return
 	}
+
+	h.Logger.InfoContext(ctx, "product image updated successfully", "user_id", userID, "product_id", productID, "image_id", imageID, "new_object_key", newObjectKey)
 }
 
-func (apiCfg *ProductHandler) HandleDeleteProductImage(w http.ResponseWriter, r *http.Request) {
+func (h *ProductHandler) HandleDeleteProductImage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	userID, ok := auth.UserIDFromContext(ctx)
 	if !ok {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusUnauthorized,
-			"Unauthorized",
-			nil,
-		)
+		h.Logger.WarnContext(ctx, "delete product image failed: unauthorized")
+		comm.RespondErrorWithJson(w, r, http.StatusUnauthorized, "Unauthorized", nil)
 		return
 	}
 
-	productID, err := uuid.Parse(r.PathValue("id"))
+	productIDStr := r.PathValue("id")
+	productID, err := uuid.Parse(productIDStr)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid product ID",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "delete product image failed: invalid product ID", "user_id", userID, "product_id", productIDStr, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid product ID", err)
 		return
 	}
 
-	imageID, err := uuid.Parse(r.PathValue("imageID"))
+	imageIDStr := r.PathValue("imageID")
+	imageID, err := uuid.Parse(imageIDStr)
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusBadRequest,
-			"Invalid image ID",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "delete product image failed: invalid image ID", "user_id", userID, "product_id", productID, "image_id", imageIDStr, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid image ID", err)
 		return
 	}
 
-	// Get the product so we can verify ownership.
-	product, err := apiCfg.Queries.GetProduct(ctx, productID)
+	h.Logger.InfoContext(ctx, "handling delete product image request", "user_id", userID, "product_id", productID, "image_id", imageID)
+
+	product, err := h.Queries.GetProduct(ctx, productID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusNotFound,
-				"Product not found",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "delete product image failed: product not found", "user_id", userID, "product_id", productID)
+			comm.RespondErrorWithJson(w, r, http.StatusNotFound, "Product not found", err)
 			return
 		}
-
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not get product",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "delete product image failed: database error fetching product", "user_id", userID, "product_id", productID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not get product", err)
 		return
 	}
 
-	// Verify product ownership through the shop.
-	_, err = apiCfg.ShopQueries.GetShopByIDAndOwnerID(
-		ctx,
-		database.GetShopByIDAndOwnerIDParams{
-			ID:      product.ShopID,
-			OwnerID: userID,
-		},
-	)
+	_, err = h.ShopQueries.GetShopByIDAndOwnerID(ctx, database.GetShopByIDAndOwnerIDParams{
+		ID:      product.ShopID,
+		OwnerID: userID,
+	})
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusForbidden,
-			"You do not own this product",
-			err,
-		)
+		h.Logger.WarnContext(ctx, "delete product image failed: user does not own shop", "user_id", userID, "product_id", productID, "shop_id", product.ShopID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusForbidden, "You do not own this product", err)
 		return
 	}
 
-	// Get the image.
-	image, err := apiCfg.Queries.GetProductImage(
-		ctx,
-		database.GetProductImageParams{
-			ID:        imageID,
-			ProductID: productID,
-		},
-	)
+	image, err := h.Queries.GetProductImage(ctx, database.GetProductImageParams{
+		ID:        imageID,
+		ProductID: productID,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusNotFound,
-				"Product image not found",
-				err,
-			)
+			h.Logger.WarnContext(ctx, "delete product image failed: image not found", "user_id", userID, "product_id", productID, "image_id", imageID)
+			comm.RespondErrorWithJson(w, r, http.StatusNotFound, "Product image not found", err)
 			return
 		}
-
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not get product image",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "delete product image failed: database error fetching image", "user_id", userID, "product_id", productID, "image_id", imageID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not get product image", err)
 		return
 	}
 
-	// Delete the database record first.
-	// This prevents the database from continuing to reference
-	// an object that has already been deleted from MinIO.
-	_, err = apiCfg.Queries.DeleteProductImage(
-		ctx,
-		database.DeleteProductImageParams{
-			ID:        imageID,
-			ProductID: productID,
-		},
-	)
+	_, err = h.Queries.DeleteProductImage(ctx, database.DeleteProductImageParams{
+		ID:        imageID,
+		ProductID: productID,
+	})
 	if err != nil {
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not delete product image",
-			err,
-		)
+		h.Logger.ErrorContext(ctx, "delete product image failed: database error", "user_id", userID, "product_id", productID, "image_id", imageID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not delete product image", err)
 		return
 	}
 
-	// Now remove the actual object from MinIO.
-	if err := apiCfg.ImageStorage.Delete(ctx, image.ObjectKey); err != nil {
-		slog.ErrorContext(
-			ctx,
-			"failed to delete product image from storage",
-			"object_key", image.ObjectKey,
-			"error", err,
-		)
-
-		// The database deletion already succeeded.
-		// Don't report the entire operation as failed.
+	if err := h.ImageStorage.Delete(ctx, image.ObjectKey); err != nil {
+		h.Logger.ErrorContext(ctx, "delete product image succeeded in DB but failed to delete from storage", "user_id", userID, "product_id", productID, "image_id", imageID, "object_key", image.ObjectKey, "error", err)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-
-	if err := json.NewEncoder(w).Encode(map[string]any{
-			"message": "Product image deleted successfully",
-		}); err != nil {
+	if err := json.NewEncoder(w).Encode(map[string]any{"message": "Product image deleted successfully"}); err != nil {
+		h.Logger.ErrorContext(ctx, "delete product image succeeded but failed to encode response", "user_id", userID, "product_id", productID, "image_id", imageID, "error", err)
 		return
 	}
+
+	h.Logger.InfoContext(ctx, "product image deleted successfully", "user_id", userID, "product_id", productID, "image_id", imageID)
 }
