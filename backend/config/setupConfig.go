@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -58,6 +59,11 @@ func SetupAPIConfig(ctx context.Context) *ApiConfig {
 		os.Getenv("MINIO_BUCKET"),
 		false,
 	)
+
+	if err != nil {
+		fmt.Printf("initialize MinIO storage: %s", err)
+		return nil
+	}
 
 	return &ApiConfig{
 		DB:           dbConn,
