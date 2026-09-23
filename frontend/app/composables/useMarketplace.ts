@@ -38,6 +38,31 @@ export const useMarketplace = () => {
     return addReviewToStore(typeof productId === 'number' ? productId : (parseInt(String(productId), 10) || Date.now()), rating, comment, authorName, orderId)
   }
 
+  const fetchProducts = async () => {
+    try {
+      const res = await productRepo.getProducts({ page: 1, pageSize: 50 })
+      if (res?.data) {
+        products.value = res.data
+      }
+      return res?.data || []
+    } catch (err: any) {
+      console.warn('Failed to fetch marketplace products:', err?.message || err)
+      return []
+    }
+  }
+
+  try {
+    if (import.meta.client) {
+      const productsHydrated = useState<boolean>('marketplace-products-hydrated', () => false)
+      if (!productsHydrated.value) {
+        productsHydrated.value = true
+        fetchProducts()
+      }
+    }
+  } catch {
+    // Vitest/headless context
+  }
+
   const filterProducts = (filters: ProductFilterParams, customList?: Product[]) => {
     const search = filters.search?.trim().toLowerCase() || ''
     const category = filters.category || 'All'
@@ -423,6 +448,7 @@ export const useMarketplace = () => {
     retryPostCheckoutRefresh,
     fetchUserOrders,
     fetchSellerOrders,
+    fetchProducts,
     updateOrderStatus,
     getOrderProducts,
     isOwnProduct,
