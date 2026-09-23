@@ -29,7 +29,7 @@ func main() {
 	apicfg := config.SetupAPIConfig(ctx)
 	authHandler := auth.NewAuthHandler(apicfg, apicfg.Queries, slog.Default())
 	shopHandler := shop.NewShopHandler(apicfg, apicfg.Queries, slog.Default())
-	productHandler := product.NewProductHandler(apicfg, apicfg.Queries, apicfg.ImageStorage, slog.Default())
+	productHandler := product.NewProductHandler(apicfg, apicfg.Queries, apicfg.Queries, apicfg.ImageStorage, slog.Default())
 	cartHandler := cart.NewCartHandler(apicfg.Queries, slog.Default())
 	orderHandler := order.NewOrderHandler(apicfg, apicfg.Queries, slog.Default())
 	servermux := http.NewServeMux()

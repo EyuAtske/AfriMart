@@ -511,6 +511,7 @@ func TestHandleCreateProduct_ShopNotOwned(t *testing.T) {
 	_ = writer.WriteField("size", "42")
 	_ = writer.WriteField("price", "2500")
 	_ = writer.WriteField("stock", "10")
+	_ = writer.WriteField("gender", "men")
 	_ = writer.WriteField("status", "active")
 
 	part, err := writer.CreateFormFile("images", "shoe.png")

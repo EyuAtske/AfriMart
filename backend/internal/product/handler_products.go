@@ -71,10 +71,11 @@ func (h *ProductHandler) enrichProductsWithImages(ctx context.Context, products 
 	return result, nil
 }
 
-func NewProductHandler(cfg *config.ApiConfig, queries ProductQuerier, imageStorage storage.ImageStorage, logger *slog.Logger) *ProductHandler {
+func NewProductHandler(cfg *config.ApiConfig, queries ProductQuerier, shopQueries ShopOwnershipQuerier, imageStorage storage.ImageStorage, logger *slog.Logger) *ProductHandler {
 	return &ProductHandler{
 		Config:       cfg,
 		Queries:      queries,
+		ShopQueries:  shopQueries,
 		ImageStorage: imageStorage,
 		Logger:       logger,
 	}
@@ -135,6 +136,7 @@ func (h *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Requ
 		Color:         strings.TrimSpace(r.FormValue("color")),
 		Size:          strings.TrimSpace(r.FormValue("size")),
 		Price:         strings.TrimSpace(r.FormValue("price")),
+		Gender:        strings.TrimSpace(r.FormValue("gender")),
 		Status:        strings.TrimSpace(r.FormValue("status")),
 	}
 
