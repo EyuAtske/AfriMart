@@ -11,6 +11,11 @@ services:
       SECRET_KEY: "afrimart-secret"
       RABBITMQ_URL: "amqp://admin:admin@rabbitmq:5672/"
       OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: "minio"
+      MINIO_SECRET_KEY: "minio123"
+      MINIO_BUCKET: "afrimart-images"
+      MINIO_USE_SSL: "false"
     depends_on:
       - postgres
       - rabbitmq
