@@ -25,6 +25,13 @@ function selectItem(index: number) {
   selectedIndex.value = index
 }
 
+function handleImgError(event: Event) {
+  const target = event.target as HTMLImageElement
+  if (target && !target.src.endsWith('/images/shop.jpg')) {
+    target.src = '/images/shop.jpg'
+  }
+}
+
 // Reset selection when media changes
 watch(
   () => props.media,
@@ -46,6 +53,7 @@ watch(
         v-if="selectedItem?.type === 'image'"
         :src="selectedItem.url"
         :alt="selectedItem.alt || selectedItem.fileName"
+        @error="handleImgError"
         class="aspect-[4/5] sm:aspect-auto sm:min-h-[380px] sm:max-h-[700px] w-full object-cover object-top"
       />
 
@@ -82,6 +90,7 @@ watch(
           v-if="item.type === 'image'"
           :src="item.url"
           :alt="item.alt || item.fileName"
+          @error="handleImgError"
           class="h-full w-full object-cover"
         />
 
@@ -121,6 +130,7 @@ watch(
     <img
       :src="fallbackImage"
       alt="Product image"
+      @error="handleImgError"
       class="aspect-[4/5] sm:aspect-auto sm:min-h-[380px] sm:max-h-[700px] w-full object-cover object-top"
     />
   </div>

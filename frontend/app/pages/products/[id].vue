@@ -1,13 +1,17 @@
 <script setup lang="ts">
 const route = useRoute()
 const router = useRouter()
-const { addToCart, getProductReviews } = useMarketplace()
+const { addToCart, getProductReviews, isOwnProduct } = useMarketplace()
 const { productRepo } = useRepositories()
 const { gtag } = useGtag()
 
-const productId = computed(() => Number(route.params.id))
+const productId = computed(() => String(route.params.id || ''))
 const quantity = ref(1)
 const added = ref(false)
+const actionError = ref('')
+
+const isSelfProduct = computed(() => product.value ? isOwnProduct(product.value) : false)
+const isSoldOut = computed(() => product.value ? product.value.stock <= 0 : false)
 
 const productReviews = computed(() =>
   product.value ? getProductReviews(product.value.id) : []
@@ -27,24 +31,21 @@ const calculatedRating = computed(() => {
   return (sum / approvedReviews.value.length).toFixed(1)
 })
 
-const { data: product, error } = await useAsyncData(
+const { data: product, pending, error, refresh } = await useAsyncData(
   `product-detail-${route.params.id}`,
   async () => {
-    const id = Number(route.params.id)
-    if (isNaN(id)) {
-      throw createError({ statusCode: 404, statusMessage: 'Invalid Product ID', fatal: true })
+    const id = String(route.params.id || '').replace(/[()[\]<>{}`'"]/g, '').trim()
+    if (!id) {
+      throw createError({ statusCode: 404, statusMessage: 'Invalid Product ID', fatal: false })
     }
     const found = await productRepo.getProductById(id)
     if (!found) {
-      throw createError({ statusCode: 404, statusMessage: 'Product not found', fatal: true })
+      throw createError({ statusCode: 404, statusMessage: 'Product not found', fatal: false })
     }
     return found
   }
 )
 
-if (error.value || !product.value) {
-  throw createError({ statusCode: 404, statusMessage: 'Product not found', fatal: true })
-}
 if (import.meta.client && product.value) {
   gtag('event', 'view_item', {
     currency: 'ETB',
@@ -72,31 +73,69 @@ const { data: relatedProducts } = await useAsyncData(
   `product-related-${route.params.id}`,
   async () => {
     if (!product.value) return []
-    const res = await productRepo.getProducts({ category: product.value.category, pageSize: 5 })
-    return res.data.filter(item => item.id !== product.value?.id).slice(0, 4)
+    try {
+      const res = await productRepo.getProducts({ category: product.value.category, pageSize: 5 })
+      return res.data.filter(item => String(item.id) !== String(product.value?.id)).slice(0, 4)
+    } catch {
+      return []
+    }
   }
 )
 
 const { flyToCart } = useFlyToCart()
 const galleryContainerEl = ref<HTMLElement | null>(null)
 
-const addSelectedQuantity = () => {
+const addSelectedQuantity = async () => {
   if (!product.value) return
+  actionError.value = ''
+  added.value = false
 
-  flyToCart(galleryContainerEl.value, product.value.image)
-
-  for (let index = 0; index < quantity.value; index += 1) {
-    addToCart(product.value.id)
+  if (isSelfProduct.value) {
+    actionError.value = 'You cannot purchase products listed by your own shop.'
+    return
   }
 
-  added.value = true
+  if (isSoldOut.value) {
+    actionError.value = 'This product is currently sold out.'
+    return
+  }
+
+  try {
+    flyToCart(galleryContainerEl.value, product.value.image)
+
+    for (let index = 0; index < quantity.value; index += 1) {
+      await addToCart(product.value.id)
+    }
+
+    added.value = true
+  } catch (err: any) {
+    actionError.value = err?.message || 'Failed to add item to cart'
+  }
 }
 </script>
 
 <template>
   <main class="min-h-screen bg-[#f5f1e9] px-3 py-8 sm:px-6 sm:py-16 lg:px-12 lg:py-20">
+    <!-- Loading State -->
+    <div v-if="pending" class="mx-auto max-w-7xl py-12 text-center">
+      <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#806344] border-r-transparent align-[-0.125em]"></div>
+      <p class="mt-4 text-sm text-[#756a60]">Loading product details...</p>
+    </div>
+
+    <!-- Error State with Retry -->
+    <div v-else-if="error && !product && error.statusCode !== 404" class="mx-auto max-w-xl py-12 text-center">
+      <UiAppAlert variant="error" class="mb-6">
+        {{ error.statusMessage || 'Unable to load product details. Please try again.' }}
+      </UiAppAlert>
+      <div class="flex justify-center gap-4">
+        <UiAppButton variant="secondary" @click="() => refresh()">Retry</UiAppButton>
+        <UiAppButton to="/products" variant="ghost">Back to products</UiAppButton>
+      </div>
+    </div>
+
+    <!-- Product Content -->
     <section
-      v-if="product"
+      v-else-if="product"
       class="mx-auto max-w-7xl"
     >
       <button
@@ -134,7 +173,22 @@ const addSelectedQuantity = () => {
               ★ {{ calculatedRating }} Rating
             </span>
 
-            <span class="rounded-full border border-[#d9d0c4] px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-xs text-[#665c53]">
+            <span
+              v-if="isSoldOut"
+              class="rounded-full bg-red-100 text-red-800 border border-red-300 px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-xs font-bold uppercase tracking-wider"
+            >
+              Sold Out
+            </span>
+            <span
+              v-else-if="isSelfProduct"
+              class="rounded-full bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-xs font-semibold"
+            >
+              Your Product
+            </span>
+            <span
+              v-else
+              class="rounded-full border border-[#d9d0c4] px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-xs text-[#665c53]"
+            >
               {{ product.stock }} in stock
             </span>
           </div>
@@ -144,6 +198,13 @@ const addSelectedQuantity = () => {
           </p>
 
           <UiAppCard class="mt-3 sm:mt-8 p-2.5 sm:p-5">
+            <UiAppAlert v-if="isSelfProduct" variant="warning" class="mb-3 text-xs sm:text-sm">
+              This item is listed by your shop. Sellers cannot purchase their own products.
+            </UiAppAlert>
+            <UiAppAlert v-else-if="isSoldOut" variant="error" class="mb-3 text-xs sm:text-sm">
+              This product is currently sold out.
+            </UiAppAlert>
+
             <div class="flex flex-col gap-2.5 sm:flex-row sm:items-end">
               <label class="space-y-1 sm:space-y-2 sm:w-28">
                 <span class="block text-[10px] sm:text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]">
@@ -155,7 +216,8 @@ const addSelectedQuantity = () => {
                   type="number"
                   min="1"
                   :max="product.stock"
-                  class="h-8 sm:h-12 w-full rounded-md border border-[#cfc4b5] bg-[#f5f1e9] px-2 text-xs sm:text-sm text-[#211f1d] outline-none transition hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
+                  :disabled="isSoldOut || isSelfProduct"
+                  class="h-8 sm:h-12 w-full rounded-md border border-[#cfc4b5] bg-[#f5f1e9] px-2 text-xs sm:text-sm text-[#211f1d] outline-none transition hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15 disabled:opacity-50"
                 />
               </label>
 
@@ -163,9 +225,12 @@ const addSelectedQuantity = () => {
                 <UiAppButton
                   class="flex-1 text-xs sm:text-sm h-8 sm:h-12"
                   variant="secondary"
+                  :disabled="isSoldOut || isSelfProduct"
                   @click="addSelectedQuantity"
                 >
-                  Add to cart
+                  <template v-if="isSoldOut">Sold Out</template>
+                  <template v-else-if="isSelfProduct">Your Product</template>
+                  <template v-else>Add to cart</template>
                 </UiAppButton>
 
                 <UiAppButton
@@ -180,7 +245,15 @@ const addSelectedQuantity = () => {
           </UiAppCard>
 
           <UiAppAlert
-            v-if="added"
+            v-if="actionError"
+            variant="error"
+            class="mt-3 text-xs sm:text-sm"
+          >
+            {{ actionError }}
+          </UiAppAlert>
+
+          <UiAppAlert
+            v-else-if="added"
             variant="success"
             class="mt-3 text-xs sm:text-sm"
           >

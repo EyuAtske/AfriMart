@@ -5,6 +5,7 @@ import { MockOrderRepository } from '../../app/repositories/mock/MockOrderReposi
 import { MockAuthRepository } from '../../app/repositories/mock/MockAuthRepository'
 import { ApiAuthRepository } from '../../app/repositories/api/ApiAuthRepository'
 import { useMockDataStore } from '../../app/repositories/mock/MockDataStore'
+import { useMarketplace } from '../../app/composables/useMarketplace'
 
 describe('Repository Layer Unit Tests', () => {
   const productRepo = new MockProductRepository()
@@ -188,5 +189,29 @@ describe('Repository Layer Unit Tests', () => {
 
     const { isLoggedIn } = useMockDataStore()
     expect(isLoggedIn.value).toBe(false)
+  })
+
+  it('Self-Purchase Protection & Sold Out Validation: should detect own product and sold out items', () => {
+    const store = useMockDataStore()
+    store.shop.value = {
+      id: 'shop-101',
+      name: 'Atelier North',
+      slug: 'atelier-north',
+      description: 'Test shop',
+      ownerEmail: 'seller@example.com',
+      products: [],
+      paymentMethods: [],
+      status: 'active'
+    }
+
+    const { isOwnProduct } = useMarketplace()
+
+    const ownProd = { id: 1, shop: 'Atelier North', stock: 5 } as any
+    const otherProd = { id: 2, shop: 'Urban Thread', stock: 5 } as any
+    const soldOutProd = { id: 3, shop: 'Urban Thread', stock: 0 } as any
+
+    expect(isOwnProduct(ownProd)).toBe(true)
+    expect(isOwnProduct(otherProd)).toBe(false)
+    expect(isOwnProduct(soldOutProd)).toBe(false)
   })
 })

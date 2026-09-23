@@ -1,5 +1,5 @@
 -- +goose Up
-
+DROP TABLE IF EXISTS shops;
 CREATE TABLE shops (
     id UUID PRIMARY KEY,
     owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,

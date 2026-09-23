@@ -63,7 +63,7 @@ export class MockProductRepository implements IProductRepository {
       price: dto.price,
       stock: dto.stock,
       rating: 'New',
-      image: dto.image,
+      image: dto.image || '/images/shop.jpg',
       status: dto.status || 'Active',
       media: dto.media
     }

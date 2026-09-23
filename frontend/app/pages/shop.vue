@@ -4,7 +4,8 @@ import EditShopModal from '~/components/marketplace/EditShopModal.vue'
 import EditProductModal from '~/components/marketplace/EditProductModal.vue'
 import MediaUploader from '~/components/marketplace/MediaUploader.vue'
 import type { SellerProduct } from '~/composables/useSellerShop'
-import { CATEGORY_SUBCATEGORIES, type ProductCategory, type ProductSubCategory, type ProductMedia } from '~/types/product'
+import { MAIN_CATEGORIES, GENDERS, HIERARCHICAL_ITEMS, type ProductCategory, type ProductGender, type ProductSubCategory, type ProductMedia } from '~/types/product'
+import { extractError } from '~/repositories/api/apiHelpers'
 
 definePageMeta({
   middleware: 'auth'
@@ -13,7 +14,10 @@ const { gtag } = useGtag()
 const { shop, hasShop, createShop, addProduct, deleteSellerProduct, toggleProductStatus } = useSellerShop()
 const { showToast } = useToast()
 
-const categories: ProductCategory[] = ['Men', 'Women', 'Kids', 'Shoes', 'Accessories']
+const isSubmitting = ref(false)
+
+const categories = MAIN_CATEGORIES
+const genders = GENDERS
 
 const shopForm = reactive({
   name: '',
@@ -24,6 +28,7 @@ const productForm = reactive<{
   name: string
   description: string
   category: ProductCategory
+  gender: ProductGender
   subCategory: ProductSubCategory
   price: number
   stock: number
@@ -31,22 +36,24 @@ const productForm = reactive<{
 }>({
   name: '',
   description: '',
-  category: categories[0] as ProductCategory,
-  subCategory: CATEGORY_SUBCATEGORIES[categories[0] as ProductCategory][0] as ProductSubCategory,
+  category: 'Clothing',
+  gender: 'Men',
+  subCategory: 'T-Shirts',
   price: 1500,
   stock: 1,
   image: ''
 })
 
 const availableSubCategories = computed(() => {
-  if (!productForm.category) return []
-  return CATEGORY_SUBCATEGORIES[productForm.category] || []
+  const cat = (productForm.category === 'Accessories' ? 'Accessories' : 'Clothing') as 'Clothing' | 'Accessories'
+  const gen = (productForm.gender || 'Men') as ProductGender
+  return HIERARCHICAL_ITEMS[cat]?.[gen] || []
 })
 
-watch(() => productForm.category, (newCat) => {
-  const subs = CATEGORY_SUBCATEGORIES[newCat] || []
+watch([() => productForm.category, () => productForm.gender], () => {
+  const subs = availableSubCategories.value
   if (!subs.includes(productForm.subCategory)) {
-    productForm.subCategory = subs[0] as ProductSubCategory
+    productForm.subCategory = (subs[0] || 'Other') as ProductSubCategory
   }
 })
 
@@ -59,6 +66,26 @@ const editingProduct = ref<SellerProduct | null>(null)
 
 const shopError = ref('')
 const productError = ref('')
+
+const fieldErrors = reactive({
+  name: '',
+  description: '',
+  category: '',
+  subCategory: '',
+  price: '',
+  stock: '',
+  media: ''
+})
+
+const clearFieldErrors = () => {
+  fieldErrors.name = ''
+  fieldErrors.description = ''
+  fieldErrors.category = ''
+  fieldErrors.subCategory = ''
+  fieldErrors.price = ''
+  fieldErrors.stock = ''
+  fieldErrors.media = ''
+}
 
 const submitShop = () => {
   shopError.value = ''
@@ -78,52 +105,102 @@ const submitShop = () => {
   showToast('Shop created successfully!')
 }
 
-const submitProduct = () => {
+const submitProduct = async () => {
   productError.value = ''
+  clearFieldErrors()
+
+  let isValid = true
+
+  if (!productForm.name.trim()) {
+    fieldErrors.name = 'Product name is required.'
+    isValid = false
+  }
+
+  if (!productForm.description.trim()) {
+    fieldErrors.description = 'Product description is required.'
+    isValid = false
+  }
+
+  if (!productForm.category) {
+    fieldErrors.category = 'Category is required.'
+    isValid = false
+  }
+
+  if (!productForm.subCategory) {
+    fieldErrors.subCategory = 'Item type is required.'
+    isValid = false
+  }
+
+  if (productForm.price === null || productForm.price === undefined || isNaN(productForm.price) || productForm.price < 0) {
+    fieldErrors.price = 'Price must be a valid non-negative number.'
+    isValid = false
+  }
+
+  if (productForm.stock === null || productForm.stock === undefined || isNaN(productForm.stock) || productForm.stock < 1) {
+    fieldErrors.stock = 'Stock must be at least 1.'
+    isValid = false
+  }
 
   const hasMedia = productMedia.value.length > 0
   const primaryImage = productMedia.value.find(m => m.isPrimary)
   const coverUrl = primaryImage?.url || productMedia.value[0]?.url || productForm.image
 
-  if (
-    !productForm.name.trim() ||
-    !productForm.description.trim() ||
-    !productForm.category ||
-    productForm.price < 1 ||
-    productForm.stock < 1 ||
-    (!hasMedia && !productForm.image)
-  ) {
-    productError.value = 'Please upload at least one image and complete every product field.'
+  if (!hasMedia && !productForm.image) {
+    fieldErrors.media = 'At least one product image is required.'
+    isValid = false
+  } else if (productMedia.value.length > 10) {
+    fieldErrors.media = 'A maximum of 10 images can be uploaded.'
+    isValid = false
+  }
+
+  if (!isValid) {
+    productError.value = 'Please fix the highlighted field errors below.'
     return
   }
 
-  addProduct({
-    name: productForm.name,
-    description: productForm.description,
-    category: productForm.category as ProductCategory,
-    subCategory: productForm.subCategory,
-    price: productForm.price,
-    stock: productForm.stock,
-    image: coverUrl || '',
-    media: hasMedia ? productMedia.value : undefined
-  })
+  isSubmitting.value = true
 
-  gtag('event', 'product_created', {
-    product_name: productForm.name,
-    category: productForm.category,
-    price: productForm.price
-  })
+  try {
+    const created = await addProduct({
+      name: productForm.name.trim(),
+      description: productForm.description.trim(),
+      category: productForm.category,
+      gender: productForm.gender,
+      subCategory: productForm.subCategory,
+      price: productForm.price,
+      stock: productForm.stock,
+      image: coverUrl || '',
+      media: hasMedia ? productMedia.value : undefined
+    })
 
-  showToast(`Added product "${productForm.name}" to marketplace!`)
+    if (!created) {
+      throw new Error('Failed to create product.')
+    }
 
-  productForm.name = ''
-  productForm.description = ''
-  productForm.category = categories[0] || 'Men'
-  productForm.subCategory = (CATEGORY_SUBCATEGORIES[categories[0] || 'Men']?.[0] || 'T-Shirts') as ProductSubCategory
-  productForm.price = 1500
-  productForm.stock = 1
-  productForm.image = ''
-  productMedia.value = []
+    gtag('event', 'product_created', {
+      product_name: productForm.name,
+      category: productForm.category,
+      price: productForm.price
+    })
+
+    showToast(`Added product "${productForm.name}" to marketplace!`)
+
+    productForm.name = ''
+    productForm.description = ''
+    productForm.category = 'Clothing'
+    productForm.gender = 'Men'
+    productForm.subCategory = 'T-Shirts'
+    productForm.price = 1500
+    productForm.stock = 1
+    productForm.image = ''
+    productMedia.value = []
+    clearFieldErrors()
+  } catch (err: any) {
+    productError.value = extractError(err, 'Failed to publish product. Please try again.')
+    showToast(productError.value, 'error')
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 const openProductEdit = (product: SellerProduct) => {
@@ -357,15 +434,25 @@ const totalInventoryValue = computed(() => {
               class="grid gap-6 lg:grid-cols-[0.8fr_1fr]"
               @submit.prevent="submitProduct"
             >
-              <MediaUploader v-model="productMedia" />
+              <div>
+                <MediaUploader v-model="productMedia" />
+                <p v-if="fieldErrors.media" class="mt-2 text-xs font-medium text-red-600">
+                  {{ fieldErrors.media }}
+                </p>
+              </div>
 
               <div class="space-y-5">
-                <AuthInput
-                  v-model="productForm.name"
-                  label="Product name"
-                  placeholder="Name your product"
-                  name="product-name"
-                />
+                <div>
+                  <AuthInput
+                    v-model="productForm.name"
+                    label="Product name"
+                    placeholder="Name your product"
+                    name="product-name"
+                  />
+                  <p v-if="fieldErrors.name" class="mt-1 text-xs font-medium text-red-600">
+                    {{ fieldErrors.name }}
+                  </p>
+                </div>
 
                 <div class="space-y-2">
                   <label
@@ -382,15 +469,18 @@ const totalInventoryValue = computed(() => {
                     placeholder="Describe size, condition, fabric, and anything buyers should know"
                     class="w-full rounded-md border border-[#cfc4b5] bg-[#faf8f4] px-4 py-3 text-sm text-[#211f1d] outline-none transition-all placeholder:text-[#92877b] hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
                   />
+                  <p v-if="fieldErrors.description" class="mt-1 text-xs font-medium text-red-600">
+                    {{ fieldErrors.description }}
+                  </p>
                 </div>
 
-                <div class="grid gap-5 sm:grid-cols-2">
+                <div class="grid gap-5 sm:grid-cols-3">
                   <div class="space-y-2">
                     <label
                       for="product-category"
                       class="block text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]"
                     >
-                      Gender / Category
+                      Category
                     </label>
 
                     <select
@@ -404,6 +494,32 @@ const totalInventoryValue = computed(() => {
                         :value="category"
                       >
                         {{ category }}
+                      </option>
+                    </select>
+                    <p v-if="fieldErrors.category" class="mt-1 text-xs font-medium text-red-600">
+                      {{ fieldErrors.category }}
+                    </p>
+                  </div>
+
+                  <div class="space-y-2">
+                    <label
+                      for="product-gender"
+                      class="block text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]"
+                    >
+                      Gender
+                    </label>
+
+                    <select
+                      id="product-gender"
+                      v-model="productForm.gender"
+                      class="h-12 w-full rounded-md border border-[#cfc4b5] bg-[#faf8f4] px-4 text-sm text-[#211f1d] outline-none transition-all hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
+                    >
+                      <option
+                        v-for="gender in genders"
+                        :key="gender"
+                        :value="gender"
+                      >
+                        {{ gender }}
                       </option>
                     </select>
                   </div>
@@ -429,37 +545,54 @@ const totalInventoryValue = computed(() => {
                         {{ subCat }}
                       </option>
                     </select>
+                    <p v-if="fieldErrors.subCategory" class="mt-1 text-xs font-medium text-red-600">
+                      {{ fieldErrors.subCategory }}
+                    </p>
                   </div>
                 </div>
 
                 <div class="grid gap-5 sm:grid-cols-2">
-                  <label class="space-y-2">
-                    <span class="block text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]">
+                  <div class="space-y-2">
+                    <label
+                      for="product-price"
+                      class="block text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]"
+                    >
                       Price (ETB)
-                    </span>
+                    </label>
 
                     <input
+                      id="product-price"
                       v-model.number="productForm.price"
                       type="number"
-                      min="1"
-                      step="50"
+                      min="0"
+                      step="any"
                       class="h-12 w-full rounded-md border border-[#cfc4b5] bg-[#faf8f4] px-4 text-sm text-[#211f1d] outline-none transition-all hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
                     />
-                  </label>
+                    <p v-if="fieldErrors.price" class="mt-1 text-xs font-medium text-red-600">
+                      {{ fieldErrors.price }}
+                    </p>
+                  </div>
 
-                  <label class="space-y-2">
-                    <span class="block text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]">
+                  <div class="space-y-2">
+                    <label
+                      for="product-stock"
+                      class="block text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]"
+                    >
                       Stock
-                    </span>
+                    </label>
 
                     <input
+                      id="product-stock"
                       v-model.number="productForm.stock"
                       type="number"
                       min="1"
                       step="1"
                       class="h-12 w-full rounded-md border border-[#cfc4b5] bg-[#faf8f4] px-4 text-sm text-[#211f1d] outline-none transition-all hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
                     />
-                  </label>
+                    <p v-if="fieldErrors.stock" class="mt-1 text-xs font-medium text-red-600">
+                      {{ fieldErrors.stock }}
+                    </p>
+                  </div>
                 </div>
 
                 <UiAppAlert v-if="productError">
@@ -469,8 +602,9 @@ const totalInventoryValue = computed(() => {
                 <UiAppButton
                   type="submit"
                   variant="secondary"
+                  :loading="isSubmitting"
                 >
-                  List product
+                  {{ isSubmitting ? 'Publishing product…' : 'List product' }}
                 </UiAppButton>
               </div>
             </form>

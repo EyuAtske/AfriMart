@@ -52,8 +52,8 @@ jobs:
       - name: Type check
         run: pnpm exec nuxt typecheck
 
-  frontend-build:
-    name: Frontend Build
+  frontend-test:
+    name: Frontend Unit Tests
     runs-on: ubuntu-latest
     needs: frontend-check
 
@@ -85,6 +85,43 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Run Vitest Unit Tests
+        run: pnpm test
+
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    needs: [frontend-check, frontend-test]
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Verify Node and pnpm versions
+        run: |
+          node -v
+          pnpm -v
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Build Nuxt application
         run: pnpm build
+
 

@@ -42,8 +42,8 @@ function mapBackendOrder(raw: any): MarketplaceOrder {
     backendId: strId,
     buyerName: o.recipient_name || o.buyer_name || o.buyerName || 'Valued Customer',
     items: (rawItems || []).map((item: any) => ({
-      productId: typeof item.product_id === 'number' ? item.product_id : (parseInt(String(item.product_id), 10) || 0),
-      quantity: item.quantity || 1
+      productId: item.product_id || item.ProductID || item.productId || 0,
+      quantity: item.quantity || item.Quantity || 1
     })),
     deliveryAddress: o.delivery_address || o.deliveryAddress || '',
     deliveryCity: o.delivery_city || o.deliveryCity || 'Addis Ababa',

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const router = useRouter()
-
+const { $posthog } = useNuxtApp()
 const searchQuery = ref('')
 const isFocused = ref(false)
 
@@ -51,6 +51,12 @@ const performSearch = (query = searchQuery.value) => {
   if (!cleanedQuery) return
 
   saveRecentSearch(cleanedQuery)
+
+  if (import.meta.client) {
+    $posthog?.capture('search_performed', {
+      search_query: cleanedQuery
+    })
+  }
 
   searchQuery.value = cleanedQuery
   isFocused.value = false

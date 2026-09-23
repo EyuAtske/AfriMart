@@ -6,7 +6,7 @@ const ACCEPTED_VIDEO_TYPES = ['video/mp4', 'video/webm']
 const ALL_ACCEPTED_TYPES = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES]
 
 const MAX_FILES = 10
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024   // 10 MB
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024    // 5 MB (matches backend limit)
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024   // 50 MB
 
 function formatFileSize(bytes: number): string {
@@ -46,7 +46,7 @@ export class MockMediaRepository implements IMediaRepository {
       const maxSize = mediaType === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE
       if (file.size > maxSize) {
         errors.push(
-          `"${file.name}" — too large (${formatFileSize(file.size)}). Max ${mediaType === 'image' ? '10 MB' : '50 MB'}.`
+          `"${file.name}" — too large (${formatFileSize(file.size)}). Max ${mediaType === 'image' ? '5 MB' : '50 MB'}.`
         )
         continue
       }
@@ -73,7 +73,8 @@ export class MockMediaRepository implements IMediaRepository {
         position: uploaded.length,
         isPrimary: uploaded.length === 0 && mediaType === 'image',
         fileName: file.name,
-        fileSize: file.size
+        fileSize: file.size,
+        file
       })
     }
 

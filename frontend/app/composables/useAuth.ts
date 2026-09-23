@@ -13,15 +13,23 @@ export const useAuth = () => {
 
   // Restore session from persisted tokens on first load (client-side only)
   const sessionRestored = useState<boolean>('auth-session-restored', () => false)
-  if (import.meta.client && !sessionRestored.value && !isLoggedIn.value) {
+  const authLoading = useState<boolean>('auth-loading', () => true)
+
+  if (import.meta.client && !sessionRestored.value) {
     sessionRestored.value = true
-    authRepo.getCurrentSession().then((currentUser) => {
-      if (currentUser) {
-        syncCartFromBackend().catch(() => {})
-      }
-    }).catch(() => {
-      // Silently fail — user stays logged out
-    })
+
+    authRepo.getCurrentSession()
+      .then((currentUser) => {
+        if (currentUser) {
+          syncCartFromBackend().catch(() => { })
+        }
+      })
+      .catch(() => {
+        // Silently fail — user stays logged out
+      })
+      .finally(() => {
+        authLoading.value = false
+      })
   }
 
   const login = async (credentials: LoginDTO) => {
@@ -79,6 +87,7 @@ export const useAuth = () => {
   return {
     isLoggedIn,
     user,
+    authLoading,
     login,
     register,
     logout,
