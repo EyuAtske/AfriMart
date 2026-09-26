@@ -185,6 +185,10 @@ const submitProduct = async () => {
 
     showToast(`Added product "${productForm.name}" to marketplace!`)
 
+    // Invalidate useAsyncData caches so landing page and products page fetch fresh data
+    clearNuxtData('home-featured-products')
+    clearNuxtData('products-catalog-list')
+
     productForm.name = ''
     productForm.description = ''
     productForm.category = 'Clothing'

@@ -57,7 +57,7 @@ const adjustStock = (id: number | string, currentStock: number, delta: number) =
 <template>
   <main class="min-h-screen bg-[#f5f1e9] px-4 py-20 sm:px-6 lg:px-12">
     <div class="mx-auto flex max-w-6xl flex-col gap-10 lg:flex-row">
-      <AccountSidebar active="shop" />
+      <AccountSidebar active="seller-products" />
 
       <section class="min-w-0 flex-1">
         <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

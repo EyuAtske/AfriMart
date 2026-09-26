@@ -43,9 +43,10 @@ export class MockProductRepository implements IProductRepository {
     }
   }
 
-  async getProductById(id: number): Promise<Product | null> {
+  async getProductById(id: number | string): Promise<Product | null> {
     const { products } = useMockDataStore()
-    const found = products.value.find(p => p.id === id)
+    const strId = String(id)
+    const found = products.value.find(p => String(p.id) === strId)
     return found ? { ...found } : null
   }
 
@@ -77,9 +78,10 @@ export class MockProductRepository implements IProductRepository {
     return { ...newProduct }
   }
 
-  async updateProduct(id: number, dto: UpdateProductDTO): Promise<Product | null> {
+  async updateProduct(id: number | string, dto: UpdateProductDTO): Promise<Product | null> {
     const { products, shop } = useMockDataStore()
-    const index = products.value.findIndex(p => p.id === id)
+    const strId = String(id)
+    const index = products.value.findIndex(p => String(p.id) === strId)
     const current = products.value[index]
 
     if (index === -1 || !current) return null
@@ -92,7 +94,7 @@ export class MockProductRepository implements IProductRepository {
     products.value[index] = updated
 
     if (shop.value) {
-      const shopItemIndex = shop.value.products.findIndex(p => p.id === id)
+      const shopItemIndex = shop.value.products.findIndex(p => String(p.id) === strId)
       if (shopItemIndex !== -1) {
         shop.value.products[shopItemIndex] = { ...updated }
       }
@@ -101,23 +103,23 @@ export class MockProductRepository implements IProductRepository {
     return { ...updated }
   }
 
-  async deleteProduct(id: number): Promise<boolean> {
+  async deleteProduct(id: number | string): Promise<boolean> {
     const { products, cart, shop } = useMockDataStore()
+    const strId = String(id)
     const initialLen = products.value.length
 
-    products.value = products.value.filter(p => p.id !== id)
-    cart.value = cart.value.filter(item => item.productId !== id)
+    products.value = products.value.filter(p => String(p.id) !== strId)
+    cart.value = cart.value.filter(item => String(item.productId) !== strId)
 
     if (shop.value) {
-      shop.value.products = shop.value.products.filter(p => p.id !== id)
+      shop.value.products = shop.value.products.filter(p => String(p.id) !== strId)
     }
 
     return products.value.length < initialLen
   }
 
-  async toggleProductStatus(id: number): Promise<Product | null> {
-    const { products } = useMockDataStore()
-    const product = products.value.find(p => p.id === id)
+  async toggleProductStatus(id: number | string): Promise<Product | null> {
+    const product = await this.getProductById(id)
     if (!product) return null
 
     const nextStatus = product.status === 'Active' ? 'Draft' : 'Active'

@@ -9,6 +9,7 @@ export const formatPrice = (amount: number) =>
 
 export const useMarketplace = () => {
   const { products, cart, orders, reviews, addReview: addReviewToStore } = useMockDataStore()
+  const { productRepo, cartRepo, orderRepo } = useRepositories()
   let gtag: any = () => {}
   try {
     const g = useGtag()

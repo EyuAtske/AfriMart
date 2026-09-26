@@ -12,9 +12,8 @@ useSeoMeta({
 })
 
 const route = useRoute()
-const { categories, filterProducts } = useMarketplace()
+const { categories, filterProducts, products: marketplaceProducts } = useMarketplace()
 const { productRepo } = useRepositories()
-
 
 const search = ref(typeof route.query.search === 'string' ? route.query.search : '')
 const selectedCategory = ref(
@@ -51,13 +50,19 @@ watch([search, selectedCategory], () => {
   visibleCount.value = itemsPerPage
 })
 
+const catalogProducts = computed(() => {
+  return marketplaceProducts.value && marketplaceProducts.value.length > 0
+    ? marketplaceProducts.value
+    : (asyncProducts.value || [])
+})
+
 const filteredProducts = computed(() =>
   filterProducts(
     {
       search: search.value,
       category: selectedCategory.value
     },
-    asyncProducts.value || []
+    catalogProducts.value
   )
 )
 
@@ -153,7 +158,7 @@ const handleSearch = () => {
 
       <!-- Empty Catalog State (0 items in entire catalog) -->
       <UiAppEmptyState
-        v-else-if="!asyncProducts || asyncProducts.length === 0"
+        v-else-if="!catalogProducts || catalogProducts.length === 0"
         title="Catalog is empty"
         description="No products are available in the marketplace yet. Check back soon or list your own products!"
         action-label="Open your shop"

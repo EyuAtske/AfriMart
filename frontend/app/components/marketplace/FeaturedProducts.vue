@@ -10,13 +10,25 @@ const props = withDefaults(
   }
 )
 
-const { products } = useMarketplace()
+const { productRepo } = useRepositories()
+const { products: marketplaceProducts } = useMarketplace()
 
-const featuredProducts = computed(() =>
-  products.value
+const { data: apiProducts, pending, error } = await useAsyncData(
+  'home-featured-products',
+  async () => {
+    const res = await productRepo.getProducts({ page: 1, pageSize: 50 })
+    return res.data
+  }
+)
+
+const featuredProducts = computed(() => {
+  const source = marketplaceProducts.value && marketplaceProducts.value.length > 0
+    ? marketplaceProducts.value
+    : (apiProducts.value || [])
+  return source
     .filter(product => product.status === 'Active')
     .slice(0, props.limit)
-)
+})
 </script>
 
 <template>
@@ -58,8 +70,18 @@ const featuredProducts = computed(() =>
       </NuxtLink>
     </div>
 
+    <!-- Loading State -->
+    <div v-if="pending" class="py-12 text-center">
+      <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#806344] border-r-transparent align-[-0.125em]"></div>
+      <p class="mt-4 text-sm text-[#756a60]">Loading products...</p>
+    </div>
+
     <!-- Products -->
-    <ProductGrid :products="featuredProducts" />
-    
+    <ProductGrid v-else-if="featuredProducts.length" :products="featuredProducts" />
+
+    <!-- Empty state -->
+    <p v-else class="py-12 text-center text-sm text-[#756a60]">
+      No products available yet. Check back soon!
+    </p>
   </section>
 </template>

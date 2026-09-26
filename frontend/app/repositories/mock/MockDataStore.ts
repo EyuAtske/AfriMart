@@ -33,164 +33,7 @@ export const initialMockReviews: ProductReview[] = [
   }
 ]
 
-export const initialMockProducts: Product[] = [
-  {
-    id: 1,
-    shop: 'Atelier North',
-    name: 'Shirt for men',
-    description: 'A clean everyday shirt with a relaxed fit and soft cotton feel.',
-    category: 'Men',
-    subCategory: 'Shirts',
-    price: 1400,
-    stock: 12,
-    rating: '4.8',
-    image: '/images/product1.jpg',
-    status: 'Active'
-  },
-  {
-    id: 2,
-    shop: 'Beyond Score',
-    name: 'Tank Tops',
-    description: 'Lightweight tank tops made for warm days and easy layering.',
-    category: 'Women',
-    subCategory: 'Tops',
-    price: 2500,
-    stock: 8,
-    rating: '4.9',
-    image: '/images/product2.jpg',
-    status: 'Active'
-  },
-  {
-    id: 3,
-    shop: 'True Form',
-    name: 'Casual Outfit Set',
-    description: 'Matched casual set with a tidy silhouette for daily wear.',
-    category: 'Women',
-    subCategory: 'Dresses',
-    price: 3500,
-    stock: 6,
-    rating: '4.6',
-    image: '/images/product3.jpg',
-    status: 'Active'
-  },
-  {
-    id: 4,
-    shop: 'Minimal Studio',
-    name: 'Everyday fit for kids',
-    description: 'Comfortable kids outfit built for school days and weekends.',
-    category: 'Kids',
-    subCategory: 'T-Shirts',
-    price: 2900,
-    stock: 14,
-    rating: '4.8',
-    image: '/images/product4.jpg',
-    status: 'Active'
-  },
-  {
-    id: 5,
-    shop: 'Atelier North',
-    name: 'Cute dress for kids',
-    description: 'Soft dress with a cheerful cut and easy movement.',
-    category: 'Kids',
-    subCategory: 'Dresses',
-    price: 3800,
-    stock: 5,
-    rating: '4.7',
-    image: '/images/product5.jpg',
-    status: 'Active'
-  },
-  {
-    id: 6,
-    shop: 'Urban Thread',
-    name: 'Hoodie',
-    description: 'Warm hoodie with a soft inner layer and simple streetwear shape.',
-    category: 'Men',
-    subCategory: 'Hoodies',
-    price: 4700,
-    stock: 9,
-    rating: '4.8',
-    image: '/images/product6.jpg',
-    status: 'Active'
-  },
-  {
-    id: 7,
-    shop: 'Mara Studio',
-    name: 'Classic cotton shirt',
-    description: 'Crisp shirt with a polished collar and breathable fabric.',
-    category: 'Men',
-    subCategory: 'Shirts',
-    price: 1550,
-    stock: 11,
-    rating: '4.9',
-    image: '/images/product7.jpg',
-    status: 'Active'
-  },
-  {
-    id: 8,
-    shop: 'Saba Edit',
-    name: 'Relaxed Denim',
-    description: 'Easy denim piece with a flattering relaxed shape.',
-    category: 'Women',
-    subCategory: 'Jeans',
-    price: 5200,
-    stock: 4,
-    rating: '4.7',
-    image: '/images/product8.jpg',
-    status: 'Active'
-  },
-  {
-    id: 9,
-    shop: 'Minimal Studio',
-    name: 'Watch for women',
-    description: 'A slim everyday watch with a clean face and subtle finish.',
-    category: 'Accessories',
-    subCategory: 'Watches',
-    price: 2500,
-    stock: 7,
-    rating: '4.9',
-    image: '/images/product9.jpg',
-    status: 'Active'
-  },
-  {
-    id: 10,
-    shop: 'Mara Studio',
-    name: 'Hat',
-    description: 'Simple everyday hat for sun coverage and finishing an outfit.',
-    category: 'Accessories',
-    subCategory: 'Hats',
-    price: 1100,
-    stock: 16,
-    rating: '4.8',
-    image: '/images/product10.jpg',
-    status: 'Active'
-  },
-  {
-    id: 11,
-    shop: 'Urban Thread',
-    name: 'Clean everyday sneakers',
-    description: 'Low-profile sneakers that pair easily with relaxed denim and casual outfits.',
-    category: 'Shoes',
-    subCategory: 'Sneakers',
-    price: 4300,
-    stock: 10,
-    rating: '4.7',
-    image: '/images/product6.jpg',
-    status: 'Active'
-  },
-  {
-    id: 12,
-    shop: 'Saba Edit',
-    name: 'Soft city sandals',
-    description: 'Comfortable sandals for warm days, errands, and weekend styling.',
-    category: 'Shoes',
-    subCategory: 'Sandals',
-    price: 2600,
-    stock: 7,
-    rating: '4.6',
-    image: '/images/product3.jpg',
-    status: 'Active'
-  }
-]
+export const initialMockProducts: Product[] = []
 
 export const initialMockUsers: User[] = [
   { id: 'usr-1', username: 'tayeb', name: 'Taye Bekele', email: 'taye@example.com', role: 'buyer', created_at: '2026-03-02' },
@@ -304,7 +147,7 @@ export const initialMockOrders: MarketplaceOrder[] = [
   }
 ]
 
-import { ref, type Ref } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 
 const vitestStore = new Map<string, Ref<any>>()
 
@@ -322,13 +165,42 @@ const safeState = <T>(key: string, init: () => T): Ref<T> => {
   return vitestStore.get(key)! as Ref<T>
 }
 
-export const initialMockCart: CartItem[] = [
-  {
-    productId: 1,
-    quantity: 1,
-    backendItemId: 'mock-item-1'
+export const initialMockCart: CartItem[] = []
+
+const STORAGE_KEYS = {
+  USERS: 'afrimart_mock_users',
+  PRODUCTS: 'afrimart_mock_products',
+  ORDERS: 'afrimart_mock_orders',
+  CART: 'afrimart_mock_cart',
+  SHOP: 'afrimart_mock_shop',
+  USER: 'afrimart_mock_user',
+  IS_LOGGED_IN: 'afrimart_mock_is_logged_in',
+  REVIEWS: 'afrimart_mock_reviews'
+}
+
+let isClientInitialized = false
+
+function getItemFromStorage<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined' || !window.localStorage) return fallback
+  try {
+    const item = localStorage.getItem(key)
+    if (item !== null) {
+      return JSON.parse(item)
+    }
+  } catch (e) {
+    console.warn(`Error reading ${key} from localStorage:`, e)
   }
-]
+  return fallback
+}
+
+function setItemInStorage<T>(key: string, value: T): void {
+  if (typeof window === 'undefined' || !window.localStorage) return
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch (e) {
+    console.warn(`Error writing ${key} to localStorage:`, e)
+  }
+}
 
 export const useMockDataStore = () => {
   let isApiMode = false
@@ -353,12 +225,97 @@ export const useMockDataStore = () => {
   const isLoggedIn = safeState<boolean>('mock-ds-is-logged-in', () => false)
   const reviews = safeState<ProductReview[]>('mock-ds-reviews', () => (isApiMode ? [] : [...initialMockReviews]))
 
-  const addReview = (productId: number, rating: number, comment: string, authorName?: string, orderId?: number | string) => {
+  if (typeof window !== 'undefined' && !isClientInitialized) {
+    isClientInitialized = true
+
+    // Restore stored values if available in browser localStorage
+    const savedProducts = getItemFromStorage<Product[] | null>(STORAGE_KEYS.PRODUCTS, null)
+    if (savedProducts && Array.isArray(savedProducts)) {
+      const userProducts = savedProducts.filter(p => typeof p.id === 'number' ? p.id > 12 : true)
+      products.value = userProducts
+      setItemInStorage(STORAGE_KEYS.PRODUCTS, userProducts)
+    } else {
+      products.value = []
+      setItemInStorage(STORAGE_KEYS.PRODUCTS, [])
+    }
+
+    const savedShop = getItemFromStorage<Shop | null>(STORAGE_KEYS.SHOP, null)
+    if (savedShop) {
+      shop.value = savedShop
+    }
+
+    const savedOrders = getItemFromStorage<MarketplaceOrder[] | null>(STORAGE_KEYS.ORDERS, null)
+    if (savedOrders && Array.isArray(savedOrders)) {
+      orders.value = savedOrders
+    }
+
+    const savedCart = getItemFromStorage<CartItem[] | null>(STORAGE_KEYS.CART, null)
+    if (savedCart && Array.isArray(savedCart)) {
+      const validCart = savedCart.filter(item => products.value.some(p => String(p.id) === String(item.productId)))
+      cart.value = validCart
+      setItemInStorage(STORAGE_KEYS.CART, validCart)
+    } else {
+      cart.value = []
+      setItemInStorage(STORAGE_KEYS.CART, [])
+    }
+
+    const savedUser = getItemFromStorage<User | null>(STORAGE_KEYS.USER, null)
+    if (savedUser && savedUser.username) {
+      user.value = savedUser
+    }
+
+    const savedLoggedIn = getItemFromStorage<boolean | null>(STORAGE_KEYS.IS_LOGGED_IN, null)
+    if (savedLoggedIn !== null) {
+      isLoggedIn.value = savedLoggedIn
+    }
+
+    const savedReviews = getItemFromStorage<ProductReview[] | null>(STORAGE_KEYS.REVIEWS, null)
+    if (savedReviews && Array.isArray(savedReviews)) {
+      reviews.value = savedReviews
+    }
+
+    // Persist changes to localStorage automatically
+    watch(products, (val) => setItemInStorage(STORAGE_KEYS.PRODUCTS, val), { deep: true })
+    watch(shop, (val) => setItemInStorage(STORAGE_KEYS.SHOP, val), { deep: true })
+    watch(orders, (val) => setItemInStorage(STORAGE_KEYS.ORDERS, val), { deep: true })
+    watch(cart, (val) => setItemInStorage(STORAGE_KEYS.CART, val), { deep: true })
+    watch(user, (val) => setItemInStorage(STORAGE_KEYS.USER, val), { deep: true })
+    watch(isLoggedIn, (val) => setItemInStorage(STORAGE_KEYS.IS_LOGGED_IN, val))
+    watch(reviews, (val) => setItemInStorage(STORAGE_KEYS.REVIEWS, val), { deep: true })
+
+    // Synchronize changes across multiple open tabs
+    if (typeof window.addEventListener === 'function') {
+      window.addEventListener('storage', (e) => {
+        if (!e.key || e.newValue === null) return
+        try {
+          if (e.key === STORAGE_KEYS.PRODUCTS) {
+            products.value = JSON.parse(e.newValue)
+          } else if (e.key === STORAGE_KEYS.SHOP) {
+            shop.value = JSON.parse(e.newValue)
+          } else if (e.key === STORAGE_KEYS.ORDERS) {
+            orders.value = JSON.parse(e.newValue)
+          } else if (e.key === STORAGE_KEYS.CART) {
+            cart.value = JSON.parse(e.newValue)
+          } else if (e.key === STORAGE_KEYS.REVIEWS) {
+            reviews.value = JSON.parse(e.newValue)
+          } else if (e.key === STORAGE_KEYS.USER) {
+            user.value = JSON.parse(e.newValue)
+          } else if (e.key === STORAGE_KEYS.IS_LOGGED_IN) {
+            isLoggedIn.value = JSON.parse(e.newValue)
+          }
+        } catch {
+          // ignore invalid JSON parsing
+        }
+      })
+    }
+  }
+
+  const addReview = (productId: number | string, rating: number, comment: string, authorName?: string, orderId?: number | string) => {
     const author = authorName || user.value.name || user.value.username || 'Verified Buyer'
 
     // Prevent duplicate review for the same product by the same author
     const existing = reviews.value.find(
-      r => r.productId === productId && r.author === author && (orderId ? String(r.orderId) === String(orderId) : true)
+      r => String(r.productId) === String(productId) && r.author === author && (orderId ? String(r.orderId) === String(orderId) : true)
     )
     if (existing) {
       return existing
@@ -366,7 +323,7 @@ export const useMockDataStore = () => {
 
     const newReview: ProductReview = {
       id: Date.now(),
-      productId,
+      productId: typeof productId === 'number' ? productId : (parseInt(String(productId), 10) || Date.now()),
       orderId,
       author,
       rating,
@@ -390,4 +347,5 @@ export const useMockDataStore = () => {
     addReview
   }
 }
+
 
