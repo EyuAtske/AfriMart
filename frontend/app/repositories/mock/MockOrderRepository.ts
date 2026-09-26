@@ -13,9 +13,9 @@ export class MockOrderRepository implements IOrderRepository {
     return [...orders.value]
   }
 
-  async getOrderById(id: number): Promise<MarketplaceOrder | null> {
+  async getOrderById(id: number | string): Promise<MarketplaceOrder | null> {
     const { orders } = useMockDataStore()
-    const found = orders.value.find(o => o.id === id)
+    const found = orders.value.find(o => String(o.id) === String(id) || o.backendId === String(id))
     return found ? { ...found } : null
   }
 
@@ -46,9 +46,9 @@ export class MockOrderRepository implements IOrderRepository {
     return { ...order }
   }
 
-  async updateOrderStatus(orderId: number, status: OrderStatus): Promise<MarketplaceOrder | null> {
+  async updateOrderStatus(orderId: number | string, status: OrderStatus): Promise<MarketplaceOrder | null> {
     const { orders } = useMockDataStore()
-    const order = orders.value.find(o => o.id === orderId)
+    const order = orders.value.find(o => String(o.id) === String(orderId) || o.backendId === String(orderId))
     if (order) {
       order.status = status
       return { ...order }

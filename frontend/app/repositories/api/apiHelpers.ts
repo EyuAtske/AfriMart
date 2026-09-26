@@ -4,6 +4,9 @@
 let inMemoryAccessToken: string | null = null
 let inMemoryRefreshToken: string | null = null
 
+const TOKEN_KEY = 'afrimart_access_token'
+const REFRESH_KEY = 'afrimart_refresh_token'
+
 export function getApiBase(): string {
   const config = useRuntimeConfig()
   return ((config.public?.apiBase as string) || '').replace(/\/$/, '')
@@ -11,29 +14,90 @@ export function getApiBase(): string {
 
 export function getAccessToken(): string | null {
   if (!import.meta.client) return null
-  return inMemoryAccessToken
+  if (inMemoryAccessToken) return inMemoryAccessToken
+  try {
+    const cookie = useCookie<string | null>(TOKEN_KEY)
+    if (cookie.value) {
+      inMemoryAccessToken = cookie.value.replace(/[\r\n]/g, '').trim()
+      return inMemoryAccessToken
+    }
+  } catch {
+    // ignore cookie error
+  }
+  try {
+    const stored = localStorage.getItem(TOKEN_KEY)
+    if (stored) {
+      inMemoryAccessToken = stored.replace(/[\r\n]/g, '').trim()
+      return inMemoryAccessToken
+    }
+  } catch {
+    // ignore storage error
+  }
+  return null
 }
 
 export function setAccessToken(token: string | null): void {
   if (!import.meta.client) return
-  // Sanitize token to prevent header injection vulnerabilities
-  inMemoryAccessToken = token ? token.replace(/[\r\n]/g, '').trim() : null
+  const clean = token ? token.replace(/[\r\n]/g, '').trim() : null
+  inMemoryAccessToken = clean
+  try {
+    const cookie = useCookie<string | null>(TOKEN_KEY, { sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 })
+    cookie.value = clean
+  } catch {}
+  try {
+    if (clean) localStorage.setItem(TOKEN_KEY, clean)
+    else localStorage.removeItem(TOKEN_KEY)
+  } catch {}
 }
 
 export function getRefreshTokenValue(): string | null {
   if (!import.meta.client) return null
-  return inMemoryRefreshToken
+  if (inMemoryRefreshToken) return inMemoryRefreshToken
+  try {
+    const cookie = useCookie<string | null>(REFRESH_KEY)
+    if (cookie.value) {
+      inMemoryRefreshToken = cookie.value.replace(/[\r\n]/g, '').trim()
+      return inMemoryRefreshToken
+    }
+  } catch {}
+  try {
+    const stored = localStorage.getItem(REFRESH_KEY)
+    if (stored) {
+      inMemoryRefreshToken = stored.replace(/[\r\n]/g, '').trim()
+      return inMemoryRefreshToken
+    }
+  } catch {}
+  return null
 }
 
 export function setRefreshToken(token: string | null): void {
   if (!import.meta.client) return
-  inMemoryRefreshToken = token ? token.replace(/[\r\n]/g, '').trim() : null
+  const clean = token ? token.replace(/[\r\n]/g, '').trim() : null
+  inMemoryRefreshToken = clean
+  try {
+    const cookie = useCookie<string | null>(REFRESH_KEY, { sameSite: 'lax', maxAge: 60 * 60 * 24 * 30 })
+    cookie.value = clean
+  } catch {}
+  try {
+    if (clean) localStorage.setItem(REFRESH_KEY, clean)
+    else localStorage.removeItem(REFRESH_KEY)
+  } catch {}
 }
 
 export function clearTokens(): void {
   if (!import.meta.client) return
   inMemoryAccessToken = null
   inMemoryRefreshToken = null
+  try {
+    const cookieToken = useCookie<string | null>(TOKEN_KEY)
+    cookieToken.value = null
+    const cookieRefresh = useCookie<string | null>(REFRESH_KEY)
+    cookieRefresh.value = null
+  } catch {}
+  try {
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(REFRESH_KEY)
+  } catch {}
 }
 
 /**
@@ -113,8 +177,12 @@ function clearSessionAndRedirect(): void {
   } catch {
     // Guard against contexts where the composable is unavailable
   }
-  if (import.meta.client) {
-    navigateTo('/account')
+  if (import.meta.client && typeof navigateTo === 'function') {
+    try {
+      navigateTo('/account')
+    } catch {
+      // Guard against environments without Nuxt app context
+    }
   }
 }
 
@@ -147,6 +215,17 @@ async function tryRefreshToken(): Promise<boolean> {
 }
 
 /**
+ * Sanitizes endpoint paths to prevent Markdown syntax, brackets, parentheses,
+ * angle brackets, quotes, and path traversal in request URLs.
+ */
+export function sanitizeEndpoint(endpoint: string): string {
+  return endpoint
+    .replace(/[()[\]<>{}`'"]/g, '')
+    .replace(/^\//, '')
+    .replace(/\.\.\//g, '')
+}
+
+/**
  * Performs an authenticated fetch.
  * - On 401: attempts token refresh, retries once; on final failure clears
  *   session state and redirects to /account.
@@ -158,12 +237,13 @@ export async function authenticatedFetch<T>(endpoint: string, options: Record<st
   }
 
   const apiBase = getApiBase()
-  const cleanEndpoint = endpoint.replace(/^\//, '').replace(/\.\.\//g, '') // Strip relative path traversal
+  const cleanEndpoint = sanitizeEndpoint(endpoint)
   const url = `${apiBase}/${cleanEndpoint}`
 
   const token = getAccessToken()
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers || {})
   }
   if (token) {

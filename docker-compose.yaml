@@ -162,13 +162,13 @@ services:
   migrate:
     image: golang:1.22-alpine
     container_name: afrimart-migrate
+    volumes:
+      - ./sql/schema:/sql/schema:ro
     command: >
       sh -c "
         go install github.com/pressly/goose/v3/cmd/goose@v3.20.0 &&
         goose -dir /sql/schema postgres 'postgres://postgres:postgres@postgres:5432/afrimart?sslmode=disable' up
       "
-    volumes:
-      - ./sql:/sql
     depends_on:
       postgres:
         condition: service_healthy

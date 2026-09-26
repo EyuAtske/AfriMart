@@ -17,7 +17,11 @@ const emit = defineEmits<{
 }>()
 
 const { flyToCart } = useFlyToCart()
+const { isOwnProduct } = useMarketplace()
 const imageEl = ref<HTMLImageElement | null>(null)
+
+const isSelfProduct = computed(() => isOwnProduct({ id: props.id, shop: props.shop } as any))
+const isSoldOut = computed(() => props.stock !== undefined && props.stock <= 0)
 
 const displayImage = computed(() => {
   if (props.media?.length) {
@@ -27,7 +31,15 @@ const displayImage = computed(() => {
   return props.image
 })
 
+const onImageError = (event: Event) => {
+  const target = event.target as HTMLImageElement
+  if (target && !target.src.endsWith('/images/shop.jpg')) {
+    target.src = '/images/shop.jpg'
+  }
+}
+
 const handleAddToCart = () => {
+  if (isSoldOut.value || isSelfProduct.value) return
   flyToCart(imageEl.value, displayImage.value)
   emit('addToCart', props.id)
 }
@@ -44,11 +56,29 @@ const handleAddToCart = () => {
           ref="imageEl"
           :src="displayImage"
           :alt="name"
+          @error="onImageError"
           class="block h-auto w-full transition duration-700 group-hover:scale-105"
         />
 
+        <!-- SOLD OUT Badge -->
         <span
-          v-if="stock !== undefined"
+          v-if="isSoldOut"
+          class="absolute left-3 top-3 rounded-full bg-red-700 text-white px-3 py-1 text-xs font-bold uppercase tracking-wider shadow"
+        >
+          Sold Out
+        </span>
+
+        <!-- YOUR PRODUCT Badge -->
+        <span
+          v-else-if="isSelfProduct"
+          class="absolute left-3 top-3 rounded-full bg-[#806344] text-white px-3 py-1 text-xs font-semibold uppercase tracking-wider shadow"
+        >
+          Your Product
+        </span>
+
+        <!-- Stock Badge -->
+        <span
+          v-else-if="stock !== undefined"
           class="absolute left-3 top-3 rounded-full bg-[#faf8f4]/95 px-3 py-1 text-xs font-medium uppercase tracking-[0.12em] text-[#5d4b37]"
         >
           {{ stock }} left
@@ -85,9 +115,12 @@ const handleAddToCart = () => {
       <UiAppButton
         class="mt-3 sm:mt-4 w-full text-xs"
         size="small"
+        :disabled="isSoldOut || isSelfProduct"
         @click="handleAddToCart"
       >
-        Add to cart
+        <template v-if="isSoldOut">Sold Out</template>
+        <template v-else-if="isSelfProduct">Your Product</template>
+        <template v-else>Add to cart</template>
       </UiAppButton>
     </div>
   </article>

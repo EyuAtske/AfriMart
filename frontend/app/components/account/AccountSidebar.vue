@@ -1,6 +1,6 @@
 <script setup lang="ts">
 defineProps<{
-  active: 'profile' | 'orders' | 'shop' | 'payments' | 'seller-orders'
+  active: 'profile' | 'orders' | 'shop' | 'payments' | 'seller-orders' | 'seller-products'
 }>()
 
 const { logout } = useAuth()
@@ -10,6 +10,7 @@ const allItems = [
   { key: 'profile', label: 'Profile', to: '/profile' },
   { key: 'orders', label: 'My Orders', to: '/orders' },
   { key: 'shop', label: 'My Shop', to: '/shop' },
+  { key: 'seller-products', label: 'Listed Products', to: '/seller/products', requiresShop: true },
   { key: 'seller-orders', label: 'Seller Orders', to: '/seller/orders', requiresShop: true },
   { key: 'payments', label: 'Payments', to: '/payments', requiresShop: true }
 ] as const

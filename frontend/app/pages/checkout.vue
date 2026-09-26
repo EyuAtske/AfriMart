@@ -5,9 +5,9 @@ definePageMeta({
 
 const router = useRouter()
 const { user } = useAuth()
-const { cartProducts, cartSubtotal, createOrder, retryPostCheckoutRefresh } = useMarketplace()
+const { cartProducts, cartSubtotal, createOrder, retryPostCheckoutRefresh, isOwnProduct } = useMarketplace()
 const { gtag } = useGtag()
-
+const { $posthog } = useNuxtApp()
 const checkoutForm = reactive({
   fullName: '',
   phone: '',
@@ -68,6 +68,18 @@ const handlePlaceOrder = async () => {
   refreshWarning.value = ''
   orderSuccess.value = false
 
+  const selfItem = cartProducts.value.find(item => item && isOwnProduct(item.product))
+  if (selfItem) {
+    errorMessage.value = `You cannot purchase "${selfItem.product.name}" because it is listed by your own shop.`
+    return
+  }
+
+  const soldOutItem = cartProducts.value.find(item => item && item.product.stock < item.quantity)
+  if (soldOutItem) {
+    errorMessage.value = `"${soldOutItem.product.name}" is sold out or has insufficient stock (${soldOutItem.product.stock} available).`
+    return
+  }
+
   if (!checkoutForm.fullName.trim()) {
     errorMessage.value = 'Please enter recipient name for delivery.'
     return
@@ -97,6 +109,20 @@ const handlePlaceOrder = async () => {
 
     if (result?.order) {
       createdOrderId.value = result.order.backendId || String(result.order.id)
+      if (import.meta.client) {
+      $posthog?.capture('purchase_completed', {
+      order_id: createdOrderId.value,
+      currency: 'ETB',
+      value: orderTotal.value,
+      items: cartProducts.value.map(item => ({
+      product_id: String(item.product.id),
+      product_name: item.product.name,
+      category: item.product.category,
+      price: Number(item.product.price),
+      quantity: item.quantity
+    }))
+  })
+}
 
       if (result.refreshError) {
         // Order confirmed, but data refresh failed — stay on page with warning

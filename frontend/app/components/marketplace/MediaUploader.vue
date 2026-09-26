@@ -19,10 +19,22 @@ const emit = defineEmits<{
 
 const { mediaRepo } = useRepositories()
 
+
+
 const mediaItems = ref<ProductMedia[]>([...props.existing])
 const errors = ref<string[]>([])
 const isDraggingOver = ref(false)
 const isUploading = ref(false)
+
+onBeforeUnmount(() => {
+  if (import.meta.client) {
+    for (const item of mediaItems.value) {
+      if (item.url?.startsWith('blob:')) {
+        URL.revokeObjectURL(item.url)
+      }
+    }
+  }
+})
 
 // Sync existing prop on mount (edit mode)
 watch(
@@ -210,7 +222,10 @@ const acceptString = ALL_ACCEPTED_TYPES.join(',')
           Drag files here or click to browse
         </span>
         <span class="mt-1.5 block text-xs leading-5 text-[#756a60]">
-          Images: JPEG, PNG, WebP (max 10 MB) · Videos: MP4, WebM (max 50 MB) · Up to {{ MAX_FILES }} files
+          Images: JPEG, PNG, WebP (max 5 MB) · Up to {{ MAX_FILES }} files
+        </span>
+        <span v-if="mediaItems.length" class="mt-1 block text-xs font-semibold text-[#806344]">
+          {{ mediaItems.length }} of {{ MAX_FILES }} images selected
         </span>
       </template>
 

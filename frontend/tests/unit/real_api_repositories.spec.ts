@@ -106,6 +106,20 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
 
       expect(isLoggedIn.value).toBe(false)
     })
+
+    it('authenticatedFetch: should sanitize endpoint with Markdown brackets or parentheses', async () => {
+      apiHelpers.setAccessToken('active-access-token')
+      let calledUrl = ''
+
+      vi.stubGlobal('$fetch', vi.fn().mockImplementation((url: string) => {
+        calledUrl = url
+        return Promise.resolve({ ok: true })
+      }))
+      vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBase: 'http://localhost:8080' } }))
+
+      await apiHelpers.authenticatedFetch('[api]/(user)/profile')
+      expect(calledUrl).toBe('http://localhost:8080/api/user/profile')
+    })
   })
 
   describe('ApiShopRepository', () => {
@@ -121,9 +135,19 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
       UpdatedAt: '2026-09-01T10:00:00Z'
     }
 
-    it('getMyShop: should fetch and map Go backend PascalCase shop response', async () => {
-      vi.stubGlobal('$fetch', vi.fn().mockImplementation((url: string) => {
+    it('getMyShop: should return null when not authenticated', async () => {
+      apiHelpers.clearTokens()
+      const shop = await shopRepo.getMyShop()
+      expect(shop).toBeNull()
+    })
+
+    it('getMyShop: should fetch and map Go backend PascalCase shop response when authenticated', async () => {
+      apiHelpers.setAccessToken('valid-seller-token')
+      let capturedHeader = ''
+
+      vi.stubGlobal('$fetch', vi.fn().mockImplementation((url: string, opts: any) => {
         if (url.includes('/api/shops/me')) {
+          capturedHeader = opts?.headers?.Authorization || ''
           return Promise.resolve(mockBackendShop)
         }
         return Promise.reject(new Error(`Unexpected fetch URL: ${url}`))
@@ -137,6 +161,23 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
       expect(shop?.name).toBe('Addis Craft Market')
       expect(shop?.description).toBe('Traditional Ethiopian crafts and textiles')
       expect(shop?.status).toBe('active')
+      expect(capturedHeader).toBe('Bearer valid-seller-token')
+    })
+
+    it('getMyShop: should display clear login message on 401 response', async () => {
+      apiHelpers.setAccessToken('expired-or-invalid-token')
+
+      vi.stubGlobal('$fetch', vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/shops/me')) {
+          const err: any = new Error('Unauthorized')
+          err.statusCode = 401
+          return Promise.reject(err)
+        }
+        return Promise.reject(new Error(`Unexpected fetch URL: ${url}`))
+      }))
+      vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBase: 'http://localhost:8080' } }))
+
+      await expect(shopRepo.getMyShop()).rejects.toThrow('Please log in to access your seller shop.')
     })
 
     it('createShop: should POST /api/shops and update user role to seller', async () => {
@@ -285,6 +326,53 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
       expect(result.data[0].stock).toBe(15)
     })
 
+    it('getProducts: should map backend ProductWithImages response wrapper with media list', async () => {
+      const wrappedProduct = {
+        product: mockBackendProduct,
+        images: [
+          {
+            ID: 'img-1',
+            ProductID: 'prod-uuid-555',
+            ObjectKey: 'https://images.example.com/scarf-1.jpg',
+            DisplayOrder: 0
+          },
+          {
+            ID: 'img-2',
+            ProductID: 'prod-uuid-555',
+            ObjectKey: 'products/prod-uuid-555/scarf-2.jpg',
+            DisplayOrder: 1
+          }
+        ]
+      }
+
+      vi.stubGlobal('$fetch', vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/products')) {
+          return Promise.resolve([wrappedProduct])
+        }
+        return Promise.reject(new Error(`Unexpected fetch URL: ${url}`))
+      }))
+      vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBase: 'http://localhost:8080' } }))
+
+      const result = await productRepo.getProducts()
+
+      expect(result.data.length).toBe(1)
+      expect(result.data[0].id).toBe('prod-uuid-555')
+      expect(result.data[0].image).toBe('https://images.example.com/scarf-1.jpg')
+      expect(result.data[0].media?.length).toBe(2)
+      // ObjectKey is mapped to accessible MinIO image URL:
+      expect(result.data[0].media?.[1].url).toBe('http://localhost:9000/afrimart-images/products/prod-uuid-555/scarf-2.jpg')
+    })
+
+    it('getProducts: should throw clear error on API failure', async () => {
+      vi.stubGlobal('$fetch', vi.fn().mockRejectedValue({
+        statusCode: 500,
+        message: 'Internal Server Error'
+      }))
+      vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBase: 'http://localhost:8080' } }))
+
+      await expect(productRepo.getProducts()).rejects.toThrow('Something went wrong. Please try again later.')
+    })
+
     it('getProductById: should fetch single product from GET /api/products/{id}', async () => {
       vi.stubGlobal('$fetch', vi.fn().mockImplementation((url: string) => {
         if (url.includes('/api/products/prod-uuid-555')) {
@@ -301,7 +389,18 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
       expect(product?.price).toBe(250.50)
     })
 
-    it('createProduct: should POST /api/products and map response', async () => {
+    it('getProductById: should return null when backend returns 400 Invalid product ID', async () => {
+      vi.stubGlobal('$fetch', vi.fn().mockRejectedValue({
+        statusCode: 400,
+        data: { error: 'Invalid product ID' }
+      }))
+      vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBase: 'http://localhost:8080' } }))
+
+      const product = await productRepo.getProductById('not-a-uuid')
+      expect(product).toBeNull()
+    })
+
+    it('createProduct: should POST /api/products as multipart FormData and map response', async () => {
       const { shop } = useMockDataStore()
       shop.value = {
         id: 'shop-uuid-999',
@@ -315,29 +414,106 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
         backendId: 'shop-uuid-999'
       }
 
+      let capturedBody: any = null
       vi.stubGlobal('$fetch', vi.fn().mockImplementation((url: string, opts: any) => {
         if (url.includes('/api/shops/me')) {
           return Promise.resolve(mockBackendShop)
         }
         if (url.includes('/api/products') && opts?.method === 'POST') {
-          return Promise.resolve(mockBackendProduct)
+          capturedBody = opts?.body
+          return Promise.resolve({
+            product: mockBackendProduct,
+            images: [
+              {
+                ID: 'img-uuid-1',
+                ProductID: 'prod-uuid-555',
+                ObjectKey: 'products/prod-uuid-555/image.png',
+                DisplayOrder: 0
+              }
+            ]
+          })
         }
         return Promise.reject(new Error(`Unexpected fetch URL: ${url}`))
       }))
       vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBase: 'http://localhost:8080' } }))
 
+      const testFile = new File(['fake image bytes'], 'kente.png', { type: 'image/png' })
+
       const newProduct = await productRepo.createProduct('seller@afrimart.com', {
         name: 'Handwoven Kente Scarf',
         description: 'Authentic handwoven silk and cotton Kente scarf',
         category: 'Men',
+        categoryId: '11111111-1111-4111-8111-111111111111',
+        subcategoryId: '22222222-2222-4222-8222-222222222222',
         price: 250.50,
         stock: 15,
-        image: '/images/kente.png'
+        files: [testFile]
       })
 
       expect(newProduct.id).toBe('prod-uuid-555')
       expect(newProduct.name).toBe('Handwoven Kente Scarf')
       expect(newProduct.price).toBe(250.50)
+      expect(capturedBody).toBeInstanceOf(FormData)
+      expect(capturedBody.get('name')).toBe('Handwoven Kente Scarf')
+      expect(capturedBody.get('category_id')).toBe('11111111-1111-4111-8111-111111111111')
+      expect(capturedBody.get('price')).toBe('250.5')
+      expect(capturedBody.get('status')).toBe('active')
+    })
+
+    it('createProduct: should throw when category setup is not ready', async () => {
+      const { shop } = useMockDataStore()
+      shop.value = {
+        id: 'shop-uuid-999',
+        name: 'AfriMart Artisan Studio',
+        slug: 'afrimart-artisan-studio',
+        description: 'Studio desc',
+        ownerEmail: 'seller@afrimart.com',
+        products: [],
+        paymentMethods: [],
+        status: 'active',
+        backendId: 'shop-uuid-999'
+      }
+
+      const testFile = new File(['fake image'], 'kente.png', { type: 'image/png' })
+
+      await expect(
+        productRepo.createProduct('seller@afrimart.com', {
+          name: 'Handwoven Kente Scarf',
+          description: 'Description',
+          category: 'Men',
+          price: 100,
+          stock: 5,
+          files: [testFile]
+        })
+      ).rejects.toThrow('Please select a valid category and subcategory.')
+    })
+
+    it('createProduct: should throw when no image files are provided', async () => {
+      const { shop } = useMockDataStore()
+      shop.value = {
+        id: 'shop-uuid-999',
+        name: 'AfriMart Artisan Studio',
+        slug: 'afrimart-artisan-studio',
+        description: 'Studio desc',
+        ownerEmail: 'seller@afrimart.com',
+        products: [],
+        paymentMethods: [],
+        status: 'active',
+        backendId: 'shop-uuid-999'
+      }
+
+      await expect(
+        productRepo.createProduct('seller@afrimart.com', {
+          name: 'Handwoven Kente Scarf',
+          description: 'Description',
+          category: 'Men',
+          categoryId: '11111111-1111-4111-8111-111111111111',
+          subcategoryId: '22222222-2222-4222-8222-222222222222',
+          price: 100,
+          stock: 5,
+          files: []
+        })
+      ).rejects.toThrow('At least one product image is required (max 10 images, max 5 MB each).')
     })
 
     it('updateProduct: should PUT /api/products/{id} with updated product attributes', async () => {

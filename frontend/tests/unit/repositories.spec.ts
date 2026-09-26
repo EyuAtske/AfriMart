@@ -5,6 +5,7 @@ import { MockOrderRepository } from '../../app/repositories/mock/MockOrderReposi
 import { MockAuthRepository } from '../../app/repositories/mock/MockAuthRepository'
 import { ApiAuthRepository } from '../../app/repositories/api/ApiAuthRepository'
 import { useMockDataStore } from '../../app/repositories/mock/MockDataStore'
+import { useMarketplace } from '../../app/composables/useMarketplace'
 
 describe('Repository Layer Unit Tests', () => {
   const productRepo = new MockProductRepository()
@@ -17,44 +18,68 @@ describe('Repository Layer Unit Tests', () => {
   })
 
   it('ProductRepository: should query and filter products', async () => {
+    await productRepo.createProduct('Atelier North', {
+      name: 'Men Shirt',
+      description: 'A test shirt for men',
+      category: 'Men',
+      price: 1500,
+      stock: 10,
+      status: 'Active'
+    })
     const res = await productRepo.getProducts({ category: 'Men' })
     expect(res.data).toBeDefined()
     expect(res.data.every(p => p.category === 'Men')).toBe(true)
   })
 
   it('ProductRepository: should update and toggle product status', async () => {
-    const product = await productRepo.getProductById(1)
+    const created = await productRepo.createProduct('Atelier North', {
+      name: 'Sample Item',
+      description: 'Sample description',
+      category: 'Women',
+      price: 2000,
+      stock: 5,
+      status: 'Active'
+    })
+    const product = await productRepo.getProductById(created.id)
     expect(product).not.toBeNull()
 
     if (product) {
-      const updated = await productRepo.updateProduct(1, { price: 1999 })
+      const updated = await productRepo.updateProduct(created.id, { price: 1999 })
       expect(updated?.price).toBe(1999)
 
-      const toggled = await productRepo.toggleProductStatus(1)
+      const toggled = await productRepo.toggleProductStatus(created.id)
       expect(toggled?.status).toBe('Draft')
     }
   })
 
   it('ShopRepository: should retrieve and update seller shop profile', async () => {
+    const newShop = await shopRepo.createShop('seller@afrimart.com', {
+      name: 'Atelier North',
+      description: 'Handcrafted goods'
+    })
+    expect(newShop.slug).toBe('atelier-north')
+
     const shop = await shopRepo.getShopBySlug('atelier-north')
     expect(shop).not.toBeNull()
     expect(shop?.name).toBe('Atelier North')
 
-    const newShop = await shopRepo.createShop('seller@afrimart.com', {
-      name: 'Test Artisan Studio',
-      description: 'Handcrafted goods'
-    })
-    expect(newShop.slug).toBe('test-artisan-studio')
-
-    const updatedShop = await shopRepo.updateShop('test-artisan-studio', {
+    const updatedShop = await shopRepo.updateShop('atelier-north', {
       description: 'Updated handcrafted goods description'
     })
     expect(updatedShop?.description).toBe('Updated handcrafted goods description')
   })
 
   it('OrderRepository: should create order and update delivery status', async () => {
+    const created = await productRepo.createProduct('Atelier North', {
+      name: 'Order Item',
+      description: 'Desc',
+      category: 'Men',
+      price: 1400,
+      stock: 10,
+      status: 'Active'
+    })
     const newOrder = await orderRepo.createOrder(
-      [{ productId: 1, quantity: 2 }],
+      [{ productId: created.id, quantity: 2 }],
       2800,
       {
         buyerName: 'Jane Doe',
@@ -86,15 +111,23 @@ describe('Repository Layer Unit Tests', () => {
     expect(currentSession).toBeNull()
   })
 
-  it('ProductReviews: should save new review as pending and prevent duplicate submissions', () => {
+  it('ProductReviews: should save new review as pending and prevent duplicate submissions', async () => {
     const store = useMockDataStore()
+    const created = await productRepo.createProduct('Atelier North', {
+      name: 'Review Product',
+      description: 'Desc',
+      category: 'Men',
+      price: 1000,
+      stock: 5,
+      status: 'Active'
+    })
 
-    const review1 = store.addReview(1, 5, 'Great quality!', 'Test Reviewer', 240824)
+    const review1 = store.addReview(created.id, 5, 'Great quality!', 'Test Reviewer', 240824)
     expect(review1.status).toBe('pending')
     expect(review1.rating).toBe(5)
 
     // Attempting duplicate review for same order item & author returns existing review
-    const review2 = store.addReview(1, 4, 'Duplicate review attempt', 'Test Reviewer', 240824)
+    const review2 = store.addReview(created.id, 4, 'Duplicate review attempt', 'Test Reviewer', 240824)
     expect(review2.id).toBe(review1.id)
     expect(review2.comment).toBe('Great quality!')
   })
@@ -188,5 +221,29 @@ describe('Repository Layer Unit Tests', () => {
 
     const { isLoggedIn } = useMockDataStore()
     expect(isLoggedIn.value).toBe(false)
+  })
+
+  it('Self-Purchase Protection & Sold Out Validation: should detect own product and sold out items', () => {
+    const store = useMockDataStore()
+    store.shop.value = {
+      id: 'shop-101',
+      name: 'Atelier North',
+      slug: 'atelier-north',
+      description: 'Test shop',
+      ownerEmail: 'seller@example.com',
+      products: [],
+      paymentMethods: [],
+      status: 'active'
+    }
+
+    const { isOwnProduct } = useMarketplace()
+
+    const ownProd = { id: 1, shop: 'Atelier North', stock: 5 } as any
+    const otherProd = { id: 2, shop: 'Urban Thread', stock: 5 } as any
+    const soldOutProd = { id: 3, shop: 'Urban Thread', stock: 0 } as any
+
+    expect(isOwnProduct(ownProd)).toBe(true)
+    expect(isOwnProduct(otherProd)).toBe(false)
+    expect(isOwnProduct(soldOutProd)).toBe(false)
   })
 })

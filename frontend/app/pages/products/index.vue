@@ -12,9 +12,8 @@ useSeoMeta({
 })
 
 const route = useRoute()
-const { categories, filterProducts } = useMarketplace()
+const { categories, filterProducts, products: marketplaceProducts } = useMarketplace()
 const { productRepo } = useRepositories()
-
 
 const search = ref(typeof route.query.search === 'string' ? route.query.search : '')
 const selectedCategory = ref(
@@ -23,7 +22,7 @@ const selectedCategory = ref(
 const itemsPerPage = 6
 const visibleCount = ref(itemsPerPage)
 
-const { data: asyncProducts } = await useAsyncData(
+const { data: asyncProducts, pending, error, refresh } = await useAsyncData(
   'products-catalog-list',
   async () => {
     const res = await productRepo.getProducts({ page: 1, pageSize: 50 })
@@ -51,13 +50,19 @@ watch([search, selectedCategory], () => {
   visibleCount.value = itemsPerPage
 })
 
+const catalogProducts = computed(() => {
+  return marketplaceProducts.value && marketplaceProducts.value.length > 0
+    ? marketplaceProducts.value
+    : (asyncProducts.value || [])
+})
+
 const filteredProducts = computed(() =>
   filterProducts(
     {
       search: search.value,
       category: selectedCategory.value
     },
-    asyncProducts.value || []
+    catalogProducts.value
   )
 )
 
@@ -107,7 +112,7 @@ const handleSearch = () => {
           </p>
         </div>
 
-        <UiAppBadge variant="dark">
+        <UiAppBadge v-if="!pending && !error" variant="dark">
           Showing {{ displayedProducts.length }} of {{ filteredProducts.length }} items
         </UiAppBadge>
       </div>
@@ -137,7 +142,31 @@ const handleSearch = () => {
         </div>
       </UiAppCard>
 
-      <template v-if="filteredProducts.length">
+      <!-- Loading State -->
+      <div v-if="pending" class="py-16 text-center">
+        <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[#806344] border-r-transparent align-[-0.125em]"></div>
+        <p class="mt-4 text-sm text-[#756a60]">Loading catalog products...</p>
+      </div>
+
+      <!-- Error State with Retry -->
+      <div v-else-if="error" class="py-12 text-center">
+        <UiAppAlert variant="error" class="mb-6 max-w-xl mx-auto">
+          {{ error.message || 'Unable to retrieve products from the server. Please try again.' }}
+        </UiAppAlert>
+        <UiAppButton variant="secondary" @click="() => refresh()">Retry</UiAppButton>
+      </div>
+
+      <!-- Empty Catalog State (0 items in entire catalog) -->
+      <UiAppEmptyState
+        v-else-if="!catalogProducts || catalogProducts.length === 0"
+        title="Catalog is empty"
+        description="No products are available in the marketplace yet. Check back soon or list your own products!"
+        action-label="Open your shop"
+        action-to="/sell"
+      />
+
+      <!-- Filtered Products Grid -->
+      <template v-else-if="filteredProducts.length">
         <ProductGrid :products="displayedProducts" />
 
         <LoadMoreButton
@@ -146,6 +175,7 @@ const handleSearch = () => {
         />
       </template>
 
+      <!-- Filtered Empty State (search/filter matched 0) -->
       <UiAppEmptyState
         v-else
         title="No products found"

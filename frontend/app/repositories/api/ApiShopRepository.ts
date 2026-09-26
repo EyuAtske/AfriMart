@@ -1,7 +1,7 @@
 import type { IShopRepository } from '../interfaces/IShopRepository'
 import type { Shop, CreateShopDTO, UpdateShopDTO } from '~/types/shop'
 import { useMockDataStore } from '../mock/MockDataStore'
-import { authenticatedFetch, extractError } from './apiHelpers'
+import { authenticatedFetch, extractError, getAccessToken } from './apiHelpers'
 
 /**
  * Raw shape returned by the Go backend for a Shop.
@@ -38,6 +38,11 @@ function mapBackendShop(raw: BackendShopResponse): Shop {
 export class ApiShopRepository implements IShopRepository {
 
   async getMyShop(): Promise<Shop | null> {
+    const token = getAccessToken()
+    if (!token) {
+      return null
+    }
+
     try {
       const res = await authenticatedFetch<BackendShopResponse>('api/shops/me', {
         method: 'GET'
@@ -48,6 +53,9 @@ export class ApiShopRepository implements IShopRepository {
       const status = err?.response?.status || err?.statusCode || err?.status
       // 404 means user has no shop — not an error
       if (status === 404) return null
+      if (status === 401) {
+        throw new Error('Please log in to access your seller shop.')
+      }
       throw new Error(extractError(err, 'Failed to fetch your shop'))
     }
   }

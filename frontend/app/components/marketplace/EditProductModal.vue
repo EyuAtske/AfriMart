@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { SellerProduct } from '~/composables/useSellerShop'
-import { CATEGORY_SUBCATEGORIES, type ProductCategory, type ProductSubCategory, type ProductMedia } from '~/types/product'
+import { MAIN_CATEGORIES, GENDERS, HIERARCHICAL_ITEMS, type ProductCategory, type ProductGender, type ProductSubCategory, type ProductMedia } from '~/types/product'
 
 const props = defineProps<{
   isOpen: boolean
@@ -14,12 +14,14 @@ const emit = defineEmits<{
 const { updateSellerProduct } = useSellerShop()
 const { showToast } = useToast()
 
-const categories: ProductCategory[] = ['Men', 'Women', 'Kids', 'Shoes', 'Accessories']
+const categories = MAIN_CATEGORIES
+const genders = GENDERS
 
 const form = reactive<{
   name: string
   description: string
   category: ProductCategory
+  gender: ProductGender
   subCategory: ProductSubCategory
   price: number
   stock: number
@@ -28,8 +30,9 @@ const form = reactive<{
 }>({
   name: '',
   description: '',
-  category: (categories[0] || 'Men') as ProductCategory,
-  subCategory: (CATEGORY_SUBCATEGORIES[categories[0] || 'Men']?.[0] || 'T-Shirts') as ProductSubCategory,
+  category: 'Clothing',
+  gender: 'Men',
+  subCategory: 'T-Shirts',
   price: 1000,
   stock: 1,
   image: '',
@@ -37,12 +40,13 @@ const form = reactive<{
 })
 
 const availableSubCategories = computed(() => {
-  if (!form.category) return []
-  return CATEGORY_SUBCATEGORIES[form.category] || []
+  const cat = (form.category === 'Accessories' ? 'Accessories' : 'Clothing') as 'Clothing' | 'Accessories'
+  const gen = (form.gender || 'Men') as ProductGender
+  return HIERARCHICAL_ITEMS[cat]?.[gen] || []
 })
 
-watch(() => form.category, (newCat) => {
-  const subs = CATEGORY_SUBCATEGORIES[newCat] || []
+watch([() => form.category, () => form.gender], () => {
+  const subs = availableSubCategories.value
   if (!subs.includes(form.subCategory)) {
     form.subCategory = (subs[0] || 'Other') as ProductSubCategory
   }
@@ -58,8 +62,14 @@ watch(
     if (newProduct) {
       form.name = newProduct.name
       form.description = newProduct.description
-      form.category = newProduct.category
-      form.subCategory = (newProduct.subCategory || CATEGORY_SUBCATEGORIES[newProduct.category]?.[0] || 'Other') as ProductSubCategory
+      // Map legacy category if needed
+      if (newProduct.category === 'Accessories') {
+        form.category = 'Accessories'
+      } else {
+        form.category = 'Clothing'
+      }
+      form.gender = (newProduct.gender || (['Men', 'Women', 'Kids'].includes(newProduct.category as string) ? newProduct.category : 'Men')) as ProductGender
+      form.subCategory = (newProduct.subCategory || availableSubCategories.value[0] || 'Other') as ProductSubCategory
       form.price = newProduct.price
       form.stock = newProduct.stock
       form.image = newProduct.image
@@ -80,7 +90,8 @@ const submit = () => {
   if (
     !form.name.trim() ||
     !form.description.trim() ||
-    form.price < 1 ||
+    form.price < 0 ||
+    isNaN(form.price) ||
     form.stock < 0 ||
     (!formMedia.value.length && !form.image)
   ) {
@@ -95,7 +106,8 @@ const submit = () => {
   updateSellerProduct(props.product.id, {
     name: form.name.trim(),
     description: form.description.trim(),
-    category: form.category as ProductCategory,
+    category: form.category,
+    gender: form.gender,
     subCategory: form.subCategory,
     price: form.price,
     stock: form.stock,
@@ -127,7 +139,7 @@ const submit = () => {
           name="edit-product-name"
         />
 
-        <div class="grid gap-4 sm:grid-cols-3">
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div class="space-y-2">
             <label class="block text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]">
               Category
@@ -138,6 +150,20 @@ const submit = () => {
             >
               <option v-for="cat in categories" :key="cat" :value="cat">
                 {{ cat }}
+              </option>
+            </select>
+          </div>
+
+          <div class="space-y-2">
+            <label class="block text-xs font-medium uppercase tracking-[0.16em] text-[#4d4035]">
+              Gender
+            </label>
+            <select
+              v-model="form.gender"
+              :class="selectClasses"
+            >
+              <option v-for="gen in genders" :key="gen" :value="gen">
+                {{ gen }}
               </option>
             </select>
           </div>
@@ -190,8 +216,8 @@ const submit = () => {
           <input
             v-model.number="form.price"
             type="number"
-            min="1"
-            step="50"
+            min="0"
+            step="any"
             class="h-12 w-full rounded-md border border-[#cfc4b5] bg-[#faf8f4] px-4 text-sm text-[#211f1d] outline-none transition-all hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
           />
         </label>

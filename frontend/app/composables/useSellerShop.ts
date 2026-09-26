@@ -1,4 +1,4 @@
-import type { Product, ProductCategory, ProductSubCategory, CreateProductDTO, UpdateProductDTO, ProductMedia } from '~/types/product'
+import type { Product, ProductCategory, ProductGender, ProductSubCategory, CreateProductDTO, UpdateProductDTO, ProductMedia } from '~/types/product'
 import type { Shop, CreateShopDTO, UpdateShopDTO, PaymentMethod } from '~/types/shop'
 import { useMockDataStore } from '~/repositories/mock/MockDataStore'
 import { useRepositories } from '~/composables/useRepositories'
@@ -36,34 +36,53 @@ export const useSellerShop = () => {
     return shopRepo.updateShop(shop.value.slug, details)
   }
 
-  const addProduct = (product: {
+  const addProduct = async (product: {
     name: string
     description: string
     category: ProductCategory
+    categoryId?: string
+    gender?: ProductGender
     subCategory?: ProductSubCategory
+    subcategoryId?: string
+    brand?: string
+    color?: string
+    size?: string
     price: number
     stock: number
-    image: string
+    image?: string
     media?: ProductMedia[]
+    files?: File[]
   }) => {
-    if (!shop.value) return null
+    if (!shop.value) {
+      throw new Error('You must create a shop before creating products.')
+    }
+
+    // Extract File objects from media items if files not directly passed
+    const files = product.files || product.media?.map(m => m.file).filter((f): f is File => f instanceof File) || []
 
     // Derive image from primary media for backward compat
     const primaryMedia = product.media?.find(m => m.isPrimary)
-    const image = primaryMedia?.url || product.image
+    const image = primaryMedia?.url || product.image || ''
 
     const dto: CreateProductDTO = {
       name: product.name,
       description: product.description,
       category: product.category,
+      categoryId: product.categoryId,
+      gender: product.gender,
       subCategory: product.subCategory,
+      subcategoryId: product.subcategoryId,
+      brand: product.brand,
+      color: product.color,
+      size: product.size,
       price: product.price,
       stock: product.stock,
       image,
       status: 'Active',
-      media: product.media
+      media: product.media,
+      files
     }
-    return productRepo.createProduct(shop.value.name, dto)
+    return await productRepo.createProduct(shop.value.name, dto)
   }
 
   const updateSellerProduct = (id: number | string, updates: UpdateProductDTO) => {

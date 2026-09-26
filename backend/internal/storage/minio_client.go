@@ -40,6 +40,19 @@ func NewMinioStorage(
 		}
 	}
 
+	policy := fmt.Sprintf(`{
+		"Version": "2012-10-17",
+		"Statement": [
+			{
+				"Effect": "Allow",
+				"Principal": {"AWS": ["*"]},
+				"Action": ["s3:GetObject"],
+				"Resource": ["arn:aws:s3:::%s/*"]
+			}
+		]
+	}`, bucket)
+	_ = client.SetBucketPolicy(ctx, bucket, policy)
+
 	return &MinioStorage{
 		Client: client,
 		Bucket: bucket,

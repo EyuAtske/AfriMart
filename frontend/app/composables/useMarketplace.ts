@@ -1,3 +1,4 @@
+import { computed } from 'vue'
 import type { Product, ProductFilterParams } from '~/types/product'
 import type { MarketplaceOrder, OrderStatus, PaymentStatus, CartItem, CartProductItem, CreateOrderDTO } from '~/types/order'
 import { useMockDataStore } from '~/repositories/mock/MockDataStore'
@@ -8,8 +9,14 @@ export const formatPrice = (amount: number) =>
 
 export const useMarketplace = () => {
   const { products, cart, orders, reviews, addReview: addReviewToStore } = useMockDataStore()
-  const { productRepo, orderRepo, cartRepo } = useRepositories()
-  const { gtag } = useGtag()
+  const { productRepo, cartRepo, orderRepo } = useRepositories()
+  let gtag: any = () => {}
+  try {
+    const g = useGtag()
+    if (g?.gtag) gtag = g.gtag
+  } catch {
+    // headless/test context
+  }
 
   const categories = computed(() => [
     'All',
@@ -32,6 +39,31 @@ export const useMarketplace = () => {
     return addReviewToStore(typeof productId === 'number' ? productId : (parseInt(String(productId), 10) || Date.now()), rating, comment, authorName, orderId)
   }
 
+  const fetchProducts = async () => {
+    try {
+      const res = await productRepo.getProducts({ page: 1, pageSize: 50 })
+      if (res?.data) {
+        products.value = res.data
+      }
+      return res?.data || []
+    } catch (err: any) {
+      console.warn('Failed to fetch marketplace products:', err?.message || err)
+      return []
+    }
+  }
+
+  try {
+    if (import.meta.client) {
+      const productsHydrated = useState<boolean>('marketplace-products-hydrated', () => false)
+      if (!productsHydrated.value) {
+        productsHydrated.value = true
+        fetchProducts()
+      }
+    }
+  } catch {
+    // Vitest/headless context
+  }
+
   const filterProducts = (filters: ProductFilterParams, customList?: Product[]) => {
     const search = filters.search?.trim().toLowerCase() || ''
     const category = filters.category || 'All'
@@ -46,7 +78,8 @@ export const useMarketplace = () => {
 
       const matchesCategory = category === 'All' ||
         product.category === category ||
-        product.subCategory === category
+        product.subCategory === category ||
+        product.gender === category
 
       return product.status === 'Active' && matchesSearch && matchesCategory
     })
@@ -69,9 +102,50 @@ export const useMarketplace = () => {
     }
   }
 
+  const isOwnProduct = (target: number | string | Product): boolean => {
+    const { shop } = useMockDataStore()
+    if (!shop.value) return false
+
+    let targetShopName = ''
+    let targetShopId = ''
+
+    if (typeof target === 'object' && target !== null) {
+      targetShopName = target.shop || ''
+      targetShopId = String((target as any).shopId || (target as any).ShopID || (target as any).backendId || '')
+    } else {
+      const found = getProduct(target)
+      if (found) {
+        targetShopName = found.shop || ''
+        targetShopId = String((found as any).shopId || (found as any).ShopID || (found as any).backendId || '')
+      }
+    }
+
+    const sellerShopName = (shop.value.name || '').trim().toLowerCase()
+    const pShopName = targetShopName.trim().toLowerCase()
+
+    if (sellerShopName && pShopName && sellerShopName === pShopName) {
+      return true
+    }
+
+    const sellerShopId = String(shop.value.backendId || shop.value.id || '')
+    if (sellerShopId && targetShopId && sellerShopId === targetShopId) {
+      return true
+    }
+
+    return false
+  }
+
   const addToCart = async (productId: number | string) => {
     const product = getProduct(productId)
-    if (!product || product.stock < 1) return
+    if (!product) return
+
+    if (isOwnProduct(product)) {
+      throw new Error('You cannot purchase items listed by your own shop.')
+    }
+
+    if (product.stock < 1) {
+      throw new Error('This item is currently sold out.')
+    }
 
     const existingIndex = cart.value.findIndex(item => String(item.productId) === String(productId))
     const prevCart = [...cart.value]
@@ -257,6 +331,12 @@ export const useMarketplace = () => {
       failures.push('orders')
     }
 
+    try {
+      await productRepo.getProducts({ page: 1, pageSize: 50 })
+    } catch {
+      failures.push('products')
+    }
+
     const refreshError = failures.length
       ? `Order placed, but latest ${failures.join(' and ')} data could not be refreshed.`
       : null
@@ -265,7 +345,7 @@ export const useMarketplace = () => {
   }
 
   /**
-   * Retry cart + order refetch after a successful checkout.
+   * Retry cart + order + product refetch after a successful checkout.
    * Throws if any refetch still fails.
    */
   const retryPostCheckoutRefresh = async () => {
@@ -293,6 +373,12 @@ export const useMarketplace = () => {
       }
     } catch {
       errors.push('orders')
+    }
+
+    try {
+      await productRepo.getProducts({ page: 1, pageSize: 50 })
+    } catch {
+      errors.push('products')
     }
 
     if (errors.length) {
@@ -363,8 +449,10 @@ export const useMarketplace = () => {
     retryPostCheckoutRefresh,
     fetchUserOrders,
     fetchSellerOrders,
+    fetchProducts,
     updateOrderStatus,
     getOrderProducts,
+    isOwnProduct,
     updateProduct,
     deleteProduct,
     toggleProductStatus,

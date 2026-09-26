@@ -1,5 +1,5 @@
 -- +goose Up
-
+DROP TABLE IF EXISTS users;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE users (
