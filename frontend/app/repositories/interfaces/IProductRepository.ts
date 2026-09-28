@@ -3,6 +3,7 @@ import type { PaginatedResponse } from '~/types/api'
 
 export interface IProductRepository {
   getProducts(params?: ProductFilterParams): Promise<PaginatedResponse<Product>>
+  getProductsByShop(shopId: string, limit?: number, offset?: number): Promise<Product[]>
   getProductById(id: number | string): Promise<Product | null>
   createProduct(shopName: string, dto: CreateProductDTO): Promise<Product>
   updateProduct(id: number | string, dto: UpdateProductDTO): Promise<Product | null>

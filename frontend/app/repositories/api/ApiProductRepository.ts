@@ -176,6 +176,7 @@ export class ApiProductRepository implements IProductRepository {
     }
 
     if (params.category && params.category !== 'All') {
+      await ensureCategoryCatalog()
       const catId = resolveCategoryId(params.category)
       if (catId && isValidUuid(catId)) {
         queryParams.category_id = catId
@@ -207,6 +208,35 @@ export class ApiProductRepository implements IProductRepository {
       }
     } catch (err: any) {
       throw new Error(extractError(err, 'Failed to fetch products'))
+    }
+  }
+
+  async getProductsByShop(shopId: string, limit: number = 1000, offset: number = 0): Promise<Product[]> {
+    const strShopId = String(shopId).trim().replace(/[()[\]<>{}`'"]/g, '')
+    if (!strShopId) return []
+
+    try {
+      const queryParams = new URLSearchParams({
+        limit: String(limit),
+        offset: String(offset)
+      })
+      const res = await authenticatedFetch<any[]>(`api/shops/${encodeURIComponent(strShopId)}/products?${queryParams.toString()}`, {
+        method: 'GET'
+      })
+      const rawList = res || []
+      const { shop } = useMockDataStore()
+      const shopName = shop.value?.name || 'Shop'
+      const data = rawList.map(p => mapBackendProduct(p, shopName))
+
+      if (shop.value && (shop.value.backendId === strShopId || shop.value.id === strShopId)) {
+        shop.value.products = data
+      }
+
+      return data
+    } catch (err: any) {
+      const status = err?.response?.status || err?.statusCode || err?.status
+      if (status === 404) return []
+      throw new Error(extractError(err, 'Failed to fetch shop products'))
     }
   }
 
@@ -249,6 +279,7 @@ export class ApiProductRepository implements IProductRepository {
       const apiShopRepo = new (await import('./ApiShopRepository')).ApiShopRepository()
       const myShop = await apiShopRepo.getMyShop()
       if (myShop) {
+        shop.value = myShop
         shopId = myShop.backendId || myShop.id
       }
     }
@@ -356,7 +387,9 @@ export class ApiProductRepository implements IProductRepository {
       // Update local reactive store as well
       products.value.unshift(created)
       if (shop.value) {
-        shop.value.products.unshift(created)
+        if (!shop.value.products.some(p => String(p.id) === String(created.id))) {
+          shop.value.products.unshift(created)
+        }
       }
 
       return created

@@ -43,6 +43,21 @@ export class MockProductRepository implements IProductRepository {
     }
   }
 
+  async getProductsByShop(shopId: string, limit: number = 100, offset: number = 0): Promise<Product[]> {
+    const { products, shop } = useMockDataStore()
+    const target = (shopId || '').toLowerCase()
+    const shopName = (shop.value?.name || '').toLowerCase()
+    const shopSlug = (shop.value?.slug || '').toLowerCase()
+    const shopBackendId = (shop.value?.backendId || '').toLowerCase()
+    const shopIdStr = String(shop.value?.id || '').toLowerCase()
+
+    const matched = products.value.filter(p => {
+      const pShop = (p.shop || '').toLowerCase()
+      return pShop === target || (shopName && pShop === shopName) || (shopSlug && pShop === shopSlug) || (shopBackendId && target === shopBackendId) || (shopIdStr && target === shopIdStr)
+    })
+    return matched.slice(offset, offset + limit)
+  }
+
   async getProductById(id: number | string): Promise<Product | null> {
     const { products } = useMockDataStore()
     const strId = String(id)

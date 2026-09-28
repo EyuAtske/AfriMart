@@ -7,8 +7,12 @@ definePageMeta({
   middleware: 'auth'
 })
 
-const { shop, hasShop, deleteSellerProduct, toggleProductStatus, updateStock } = useSellerShop()
+const { shop, hasShop, fetchSellerProducts, deleteSellerProduct, toggleProductStatus, updateStock } = useSellerShop()
 const { showToast } = useToast()
+
+onMounted(async () => {
+  await fetchSellerProducts().catch(() => {})
+})
 
 const selectedCategory = ref('All')
 const selectedStatus = ref('All')

@@ -11,8 +11,12 @@ definePageMeta({
   middleware: 'auth'
 })
 const { gtag } = useGtag()
-const { shop, hasShop, createShop, addProduct, deleteSellerProduct, toggleProductStatus } = useSellerShop()
+const { shop, hasShop, createShop, addProduct, fetchSellerProducts, deleteSellerProduct, toggleProductStatus } = useSellerShop()
 const { showToast } = useToast()
+
+onMounted(async () => {
+  await fetchSellerProducts().catch(() => {})
+})
 
 const isSubmitting = ref(false)
 

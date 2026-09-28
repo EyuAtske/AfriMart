@@ -373,6 +373,56 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
       await expect(productRepo.getProducts()).rejects.toThrow('Something went wrong. Please try again later.')
     })
 
+    it('getProductsByShop: should fetch seller products from GET /api/shops/{shop_id}/products with auth and pagination', async () => {
+      apiHelpers.setAccessToken('seller-token-123')
+      let calledUrl = ''
+      let capturedHeader = ''
+
+      const wrappedProduct = {
+        product: mockBackendProduct,
+        images: [
+          {
+            ID: 'img-1',
+            ProductID: 'prod-uuid-555',
+            ObjectKey: 'products/prod-uuid-555/scarf.jpg',
+            DisplayOrder: 0
+          }
+        ]
+      }
+
+      vi.stubGlobal('$fetch', vi.fn().mockImplementation((url: string, opts: any) => {
+        if (url.includes('/api/shops/shop-uuid-999/products')) {
+          calledUrl = url
+          capturedHeader = opts?.headers?.Authorization || ''
+          return Promise.resolve([wrappedProduct])
+        }
+        return Promise.reject(new Error(`Unexpected fetch URL: ${url}`))
+      }))
+      vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBase: 'http://localhost:8080' } }))
+
+      const result = await productRepo.getProductsByShop('shop-uuid-999', 50, 0)
+
+      expect(calledUrl).toContain('/api/shops/shop-uuid-999/products?limit=50&offset=0')
+      expect(capturedHeader).toBe('Bearer seller-token-123')
+      expect(result.length).toBe(1)
+      expect(result[0].id).toBe('prod-uuid-555')
+      expect(result[0].name).toBe('Handwoven Kente Scarf')
+      expect(result[0].stock).toBe(15)
+    })
+
+    it('getProductsByShop: should return empty array when 404 or empty', async () => {
+      apiHelpers.setAccessToken('seller-token-123')
+
+      vi.stubGlobal('$fetch', vi.fn().mockRejectedValue({
+        statusCode: 404,
+        message: 'Shop not found'
+      }))
+      vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBase: 'http://localhost:8080' } }))
+
+      const result = await productRepo.getProductsByShop('non-existent-shop')
+      expect(result).toEqual([])
+    })
+
     it('getProductById: should fetch single product from GET /api/products/{id}', async () => {
       vi.stubGlobal('$fetch', vi.fn().mockImplementation((url: string) => {
         if (url.includes('/api/products/prod-uuid-555')) {

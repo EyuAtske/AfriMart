@@ -11,17 +11,45 @@ export const useSellerShop = () => {
   const { shopRepo, productRepo } = useRepositories()
 
   const hasShop = computed(() => Boolean(shop.value))
+  const isLoadingProducts = useState<boolean>('seller-products-loading', () => false)
+
+  const fetchSellerProducts = async (): Promise<Product[]> => {
+    if (!isLoggedIn.value) return []
+
+    isLoadingProducts.value = true
+    try {
+      let currentShop = shop.value
+      if (!currentShop) {
+        currentShop = await shopRepo.getMyShop()
+        if (currentShop) {
+          shop.value = currentShop
+          user.value.role = 'seller'
+        }
+      }
+
+      if (!currentShop) return []
+
+      const shopId = currentShop.backendId || currentShop.id
+      if (!shopId) return []
+
+      const items = await productRepo.getProductsByShop(String(shopId), 1000, 0)
+      if (shop.value) {
+        shop.value.products = items
+      }
+      return items
+    } catch (err: any) {
+      console.warn('Seller products fetch notice:', err?.message || err)
+      return shop.value?.products || []
+    } finally {
+      isLoadingProducts.value = false
+    }
+  }
 
   // Hydrate shop from backend when logged in and no shop is loaded yet
   const shopHydrated = useState<boolean>('seller-shop-hydrated', () => false)
-  if (import.meta.client && !shopHydrated.value && isLoggedIn.value && !shop.value) {
+  if (import.meta.client && !shopHydrated.value && isLoggedIn.value) {
     shopHydrated.value = true
-    shopRepo.getMyShop().then((myShop) => {
-      if (myShop) {
-        shop.value = myShop
-        user.value.role = 'seller'
-      }
-    }).catch((err) => {
+    fetchSellerProducts().catch((err) => {
       console.warn('Seller shop hydration notice:', err?.message || err)
     })
   }
@@ -54,7 +82,13 @@ export const useSellerShop = () => {
     files?: File[]
   }) => {
     if (!shop.value) {
-      throw new Error('You must create a shop before creating products.')
+      const myShop = await shopRepo.getMyShop()
+      if (myShop) {
+        shop.value = myShop
+        user.value.role = 'seller'
+      } else {
+        throw new Error('You must create a shop before creating products.')
+      }
     }
 
     // Extract File objects from media items if files not directly passed
@@ -82,7 +116,16 @@ export const useSellerShop = () => {
       media: product.media,
       files
     }
-    return await productRepo.createProduct(shop.value.name, dto)
+    const created = await productRepo.createProduct(shop.value.name, dto)
+
+    // Refresh seller products from backend to ensure consistent state
+    await fetchSellerProducts().catch(() => {
+      if (created && shop.value && !shop.value.products.some(p => String(p.id) === String(created.id))) {
+        shop.value.products.unshift(created)
+      }
+    })
+
+    return created
   }
 
   const updateSellerProduct = (id: number | string, updates: UpdateProductDTO) => {
@@ -139,6 +182,8 @@ export const useSellerShop = () => {
   return {
     shop,
     hasShop,
+    isLoadingProducts,
+    fetchSellerProducts,
     createShop,
     updateShop,
     addProduct,

@@ -3,6 +3,7 @@ import type { Product, ProductFilterParams } from '~/types/product'
 import type { MarketplaceOrder, OrderStatus, PaymentStatus, CartItem, CartProductItem, CreateOrderDTO } from '~/types/order'
 import { useMockDataStore } from '~/repositories/mock/MockDataStore'
 import { useRepositories } from '~/composables/useRepositories'
+import { STATIC_CATALOG, ensureCategoryCatalog } from '~/utils/categoryCatalog'
 
 export const formatPrice = (amount: number) =>
   `${amount.toLocaleString()} ETB`
@@ -18,10 +19,20 @@ export const useMarketplace = () => {
     // headless/test context
   }
 
-  const categories = computed(() => [
-    'All',
-    ...Array.from(new Set(products.value.map(product => product.category)))
-  ])
+  const categories = computed(() => {
+    const list: string[] = ['All']
+    for (const cat of STATIC_CATALOG) {
+      if (cat.name && !list.includes(cat.name)) {
+        list.push(cat.name)
+      }
+    }
+    for (const product of products.value) {
+      if (product.category && !list.includes(product.category)) {
+        list.push(product.category)
+      }
+    }
+    return list
+  })
 
   const getProduct = (id: number | string) =>
     products.value.find(product => String(product.id) === String(id)) || null
@@ -39,9 +50,10 @@ export const useMarketplace = () => {
     return addReviewToStore(typeof productId === 'number' ? productId : (parseInt(String(productId), 10) || Date.now()), rating, comment, authorName, orderId)
   }
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (filterParams?: ProductFilterParams) => {
     try {
-      const res = await productRepo.getProducts({ page: 1, pageSize: 50 })
+      await ensureCategoryCatalog()
+      const res = await productRepo.getProducts(filterParams || { page: 1, pageSize: 50 })
       if (res?.data) {
         products.value = res.data
       }
@@ -77,9 +89,10 @@ export const useMarketplace = () => {
         (product.subCategory && product.subCategory.toLowerCase().includes(search))
 
       const matchesCategory = category === 'All' ||
-        product.category === category ||
-        product.subCategory === category ||
-        product.gender === category
+        product.category.toLowerCase() === category.toLowerCase() ||
+        (product.subCategory && product.subCategory.toLowerCase() === category.toLowerCase()) ||
+        (product.gender && product.gender.toLowerCase() === category.toLowerCase()) ||
+        ((category === 'Men' || category === 'Women' || category === 'Kids') && (product.category === 'Clothing' || product.gender?.toLowerCase() === category.toLowerCase()))
 
       return product.status === 'Active' && matchesSearch && matchesCategory
     })

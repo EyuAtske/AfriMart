@@ -31,6 +31,20 @@ describe('Repository Layer Unit Tests', () => {
     expect(res.data.every(p => p.category === 'Men')).toBe(true)
   })
 
+  it('ProductRepository: should query products by shop', async () => {
+    await productRepo.createProduct('Atelier North', {
+      name: 'Shop Specific Shirt',
+      description: 'A test shirt for Atelier North',
+      category: 'Men',
+      price: 1800,
+      stock: 7,
+      status: 'Active'
+    })
+    const shopProducts = await productRepo.getProductsByShop('Atelier North')
+    expect(shopProducts.length).toBeGreaterThan(0)
+    expect(shopProducts.some(p => p.name === 'Shop Specific Shirt')).toBe(true)
+  })
+
   it('ProductRepository: should update and toggle product status', async () => {
     const created = await productRepo.createProduct('Atelier North', {
       name: 'Sample Item',
