@@ -16,6 +16,7 @@ import {
   isValidUuid,
   resolveCategoryId,
   resolveSubcategoryId,
+  ensureCategoryCatalog,
   STATIC_CATALOG
 } from '~/utils/categoryCatalog'
 
@@ -257,6 +258,7 @@ export class ApiProductRepository implements IProductRepository {
     }
 
     // 1. Category and subcategory UUID validation
+    await ensureCategoryCatalog()
     const categoryId = dto.categoryId || resolveCategoryId(dto.category)
     const subcategoryId = dto.subcategoryId || resolveSubcategoryId(dto.category, dto.subCategory)
 
@@ -371,6 +373,7 @@ export class ApiProductRepository implements IProductRepository {
       const existing = await this.getProductById(strId)
       if (!existing) return null
 
+      await ensureCategoryCatalog()
       const catId = dto.categoryId || (existing as any).categoryId || resolveCategoryId(dto.category || existing.category) || '00000000-0000-0000-0000-000000000001'
       const subId = dto.subcategoryId || (existing as any).subcategoryId || resolveSubcategoryId(dto.category || existing.category, dto.subCategory || existing.subCategory) || '00000000-0000-0000-0000-000000000002'
 

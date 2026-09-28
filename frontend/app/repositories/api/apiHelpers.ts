@@ -266,14 +266,13 @@ export async function authenticatedFetch<T>(
         'url.path': `/${cleanEndpoint}`,
       })
 
-      const { $emitOtelLog } = useNuxtApp() as {
-        $emitOtelLog?: (
-          span: any,
-          level: string,
-          body: string,
-          attributes?: Record<string, unknown>,
-        ) => void
-      }
+      let emitLog: any
+      try {
+        if (typeof useNuxtApp === 'function') {
+          const nuxtApp = useNuxtApp() as any
+          emitLog = nuxtApp?.$emitOtelLog
+        }
+      } catch {}
 
       try {
         const response = await $fetch<T>(url, {
@@ -286,7 +285,7 @@ export async function authenticatedFetch<T>(
           200,
         )
 
-        $emitOtelLog?.(
+        emitLog?.(
           span,
           'INFO',
           'API request completed',
@@ -312,7 +311,7 @@ export async function authenticatedFetch<T>(
           Number(status),
         )
 
-        $emitOtelLog?.(
+        emitLog?.(
           span,
           'ERROR',
           'API request failed',
@@ -358,7 +357,7 @@ export async function authenticatedFetch<T>(
                   200,
                 )
 
-                $emitOtelLog?.(
+                emitLog?.(
                   span,
                   'INFO',
                   'API request completed after token refresh',
@@ -384,7 +383,7 @@ export async function authenticatedFetch<T>(
                   Number(retryStatus),
                 )
 
-                $emitOtelLog?.(
+                emitLog?.(
                   span,
                   'ERROR',
                   'API request failed after token refresh',

@@ -10,7 +10,7 @@ export const formatPrice = (amount: number) =>
 export const useMarketplace = () => {
   const { products, cart, orders, reviews, addReview: addReviewToStore } = useMockDataStore()
   const { productRepo, cartRepo, orderRepo } = useRepositories()
-  let gtag: any = () => {}
+  let gtag: any = () => { }
   try {
     const g = useGtag()
     if (g?.gtag) gtag = g.gtag
@@ -88,11 +88,11 @@ export const useMarketplace = () => {
   const syncCartFromBackend = async () => {
     try {
       const backendCart = await cartRepo.getCart()
-      if (backendCart?.items) {
-        cart.value = backendCart.items.map(item => ({
-          productId: item.product_id,
-          quantity: item.quantity,
-          backendItemId: item.id
+      if (backendCart?.items && Array.isArray(backendCart.items)) {
+        cart.value = backendCart.items.map((item: any) => ({
+          productId: item.ProductID || item.product_id || item.productId,
+          quantity: item.Quantity ?? item.quantity ?? 1,
+          backendItemId: item.ID || item.id
         }))
       } else {
         cart.value = []
@@ -102,135 +102,128 @@ export const useMarketplace = () => {
     }
   }
 
-  const isOwnProduct = (target: number | string | Product): boolean => {
-    const { shop } = useMockDataStore()
-    if (!shop.value) return false
+  try {
+    if (import.meta.client) {
+      const cartHydrated = useState<boolean>('marketplace-cart-hydrated', () => false)
 
-    let targetShopName = ''
-    let targetShopId = ''
-
-    if (typeof target === 'object' && target !== null) {
-      targetShopName = target.shop || ''
-      targetShopId = String((target as any).shopId || (target as any).ShopID || (target as any).backendId || '')
-    } else {
-      const found = getProduct(target)
-      if (found) {
-        targetShopName = found.shop || ''
-        targetShopId = String((found as any).shopId || (found as any).ShopID || (found as any).backendId || '')
+      if (!cartHydrated.value) {
+        cartHydrated.value = true
+        syncCartFromBackend()
       }
     }
-
-    const sellerShopName = (shop.value.name || '').trim().toLowerCase()
-    const pShopName = targetShopName.trim().toLowerCase()
-
-    if (sellerShopName && pShopName && sellerShopName === pShopName) {
-      return true
-    }
-
-    const sellerShopId = String(shop.value.backendId || shop.value.id || '')
-    if (sellerShopId && targetShopId && sellerShopId === targetShopId) {
-      return true
-    }
-
-    return false
+  } catch (err: any) {
+    console.warn('Cart sync warning:', err?.message || err)
   }
 
-  const addToCart = async (productId: number | string) => {
-    const product = getProduct(productId)
-    if (!product) return
+const isOwnProduct = (target: number | string | Product): boolean => {
+  const { shop } = useMockDataStore()
+  if (!shop.value) return false
 
-    if (isOwnProduct(product)) {
-      throw new Error('You cannot purchase items listed by your own shop.')
+  let targetShopName = ''
+  let targetShopId = ''
+
+  if (typeof target === 'object' && target !== null) {
+    targetShopName = target.shop || ''
+    targetShopId = String((target as any).shopId || (target as any).ShopID || (target as any).backendId || '')
+  } else {
+    const found = getProduct(target)
+    if (found) {
+      targetShopName = found.shop || ''
+      targetShopId = String((found as any).shopId || (found as any).ShopID || (found as any).backendId || '')
+    }
+  }
+
+  const sellerShopName = (shop.value.name || '').trim().toLowerCase()
+  const pShopName = targetShopName.trim().toLowerCase()
+
+  if (sellerShopName && pShopName && sellerShopName === pShopName) {
+    return true
+  }
+
+  const sellerShopId = String(shop.value.backendId || shop.value.id || '')
+  if (sellerShopId && targetShopId && sellerShopId === targetShopId) {
+    return true
+  }
+
+  return false
+}
+
+const addToCart = async (productId: number | string) => {
+  const product = getProduct(productId)
+  if (!product) return
+
+  if (isOwnProduct(product)) {
+    throw new Error('You cannot purchase items listed by your own shop.')
+  }
+
+  if (product.stock < 1) {
+    throw new Error('This item is currently sold out.')
+  }
+
+  const existingIndex = cart.value.findIndex(item => String(item.productId) === String(productId))
+  const prevCart = [...cart.value]
+
+  if (existingIndex !== -1 && cart.value[existingIndex]) {
+    const updatedItem = {
+      productId,
+      quantity: Math.min(cart.value[existingIndex].quantity + 1, product.stock),
+      backendItemId: cart.value[existingIndex].backendItemId
     }
 
-    if (product.stock < 1) {
-      throw new Error('This item is currently sold out.')
-    }
-
-    const existingIndex = cart.value.findIndex(item => String(item.productId) === String(productId))
-    const prevCart = [...cart.value]
-
-    if (existingIndex !== -1 && cart.value[existingIndex]) {
-      const updatedItem = {
-        productId,
-        quantity: Math.min(cart.value[existingIndex].quantity + 1, product.stock),
-        backendItemId: cart.value[existingIndex].backendItemId
-      }
-
-      const nextCart = [...cart.value]
-      nextCart[existingIndex] = updatedItem
-      cart.value = nextCart
-    } else {
-      cart.value = [...cart.value, { productId, quantity: 1 }]
-    }
+    const nextCart = [...cart.value]
+    nextCart[existingIndex] = updatedItem
+    cart.value = nextCart
+  } else {
+    cart.value = [...cart.value, { productId, quantity: 1 }]
+  }
 
     try {
       const res = await cartRepo.addItem(String(productId), 1)
-      if (res?.id) {
+      const backendId = (res as any)?.ID || (res as any)?.id
+      if (backendId) {
         const item = cart.value.find(i => String(i.productId) === String(productId))
-        if (item) item.backendItemId = res.id
+        if (item) item.backendItemId = backendId
       }
     } catch (err: any) {
-      cart.value = prevCart
-      throw err
-    }
-
-    if (import.meta.client) {
-      gtag('event', 'add_to_cart', {
-        currency: 'ETB',
-        value: Number(product.price),
-        items: [
-          {
-            item_id: String(product.id),
-            item_name: product.name,
-            item_category: product.category,
-            price: Number(product.price),
-            quantity: 1
-          }
-        ]
-      })
-    }
+    cart.value = prevCart
+    throw err
   }
 
-  const updateCartQuantity = async (productId: number | string, quantity: number) => {
-    const product = getProduct(productId)
+  if (import.meta.client) {
+    gtag('event', 'add_to_cart', {
+      currency: 'ETB',
+      value: Number(product.price),
+      items: [
+        {
+          item_id: String(product.id),
+          item_name: product.name,
+          item_category: product.category,
+          price: Number(product.price),
+          quantity: 1
+        }
+      ]
+    })
+  }
+}
 
-    if (quantity < 1) {
-      await removeFromCart(productId)
-      return
-    }
+const updateCartQuantity = async (productId: number | string, quantity: number) => {
+  const product = getProduct(productId)
 
-    const existingIndex = cart.value.findIndex(cartItem => String(cartItem.productId) === String(productId))
-    if (existingIndex !== -1 && product && cart.value[existingIndex]) {
-      const backendItemId = cart.value[existingIndex].backendItemId
-      const newQty = Math.min(quantity, product.stock)
-
-      if (!backendItemId) {
-        console.error('Cart integrity error: missing backend item ID for product', productId)
-        await syncCartFromBackend()
-        throw new Error('Cart data is out of sync. Cart has been refreshed — please try again.')
-      }
-
-      const nextCart = [...cart.value]
-      nextCart[existingIndex] = {
-        productId,
-        quantity: newQty,
-        backendItemId
-      }
-      cart.value = nextCart
-
-      await cartRepo.updateItemQuantity(backendItemId, newQty)
-    }
+  if (quantity < 1) {
+    await removeFromCart(productId)
+    return
   }
 
-  const removeFromCart = async (productId: number | string) => {
-    const product = getProduct(productId)
-    if (!product) return
-
-    const existingItem = cart.value.find(item => String(item.productId) === String(productId))
-    if (!existingItem) return
-
-    const backendItemId = existingItem.backendItemId
+  const existingIndex = cart.value.findIndex(cartItem => String(cartItem.productId) === String(productId))
+  if (existingIndex !== -1 && product && cart.value[existingIndex]) {
+    const backendItemId = cart.value[existingIndex].backendItemId
+    console.log('CART ITEM DEBUG', cart.value[existingIndex])
+    console.log('CART QUANTITY DEBUG', {
+      productId,
+      requestedQuantity: quantity,
+      productStock: product.stock,
+    })
+    const newQty = Math.min(quantity, product.stock)
 
     if (!backendItemId) {
       console.error('Cart integrity error: missing backend item ID for product', productId)
@@ -238,82 +231,109 @@ export const useMarketplace = () => {
       throw new Error('Cart data is out of sync. Cart has been refreshed — please try again.')
     }
 
-    cart.value = cart.value.filter(item => String(item.productId) !== String(productId))
-
-    await cartRepo.removeItem(backendItemId)
-
-    if (import.meta.client) {
-      gtag('event', 'remove_from_cart', {
-        currency: 'ETB',
-        value: Number(product.price) * existingItem.quantity,
-        items: [
-          {
-            item_id: String(product.id),
-            item_name: product.name,
-            item_category: product.category,
-            price: Number(product.price),
-            quantity: existingItem.quantity
-          }
-        ]
-      })
+    const nextCart = [...cart.value]
+    nextCart[existingIndex] = {
+      productId,
+      quantity: newQty,
+      backendItemId
     }
+    cart.value = nextCart
+
+    await cartRepo.updateItemQuantity(backendItemId, newQty)
+  }
+}
+
+const removeFromCart = async (productId: number | string) => {
+  const product = getProduct(productId)
+  if (!product) return
+
+  const existingItem = cart.value.find(item => String(item.productId) === String(productId))
+  if (!existingItem) return
+
+  const backendItemId = existingItem.backendItemId
+
+  if (!backendItemId) {
+    console.error('Cart integrity error: missing backend item ID for product', productId)
+    await syncCartFromBackend()
+    throw new Error('Cart data is out of sync. Cart has been refreshed — please try again.')
   }
 
-  const cartProducts = computed<CartProductItem[]>(() =>
-    cart.value
-      .map((item) => {
-        const product = getProduct(item.productId)
-        if (!product) return null
+  cart.value = cart.value.filter(item => String(item.productId) !== String(productId))
 
-        return {
-          ...item,
-          product,
-          lineTotal: product.price * item.quantity
+  await cartRepo.removeItem(backendItemId)
+
+  if (import.meta.client) {
+    gtag('event', 'remove_from_cart', {
+      currency: 'ETB',
+      value: Number(product.price) * existingItem.quantity,
+      items: [
+        {
+          item_id: String(product.id),
+          item_name: product.name,
+          item_category: product.category,
+          price: Number(product.price),
+          quantity: existingItem.quantity
         }
-      })
-      .filter((item): item is CartProductItem => item !== null)
-  )
-
-  const cartSubtotal = computed(() =>
-    cartProducts.value.reduce((total, item) => total + item.lineTotal, 0)
-  )
-
-  const fetchUserOrders = async () => {
-    try {
-      const userOrders = await orderRepo.getOrders()
-      if (Array.isArray(userOrders)) {
-        orders.value = userOrders
-      }
-    } catch (err: any) {
-      console.warn('User orders fetch warning:', err?.message || err)
-    }
+      ]
+    })
   }
+}
 
-  const fetchSellerOrders = async () => {
-    try {
-      const sellerOrders = await orderRepo.getSellerOrders()
-      if (Array.isArray(sellerOrders)) {
-        orders.value = sellerOrders
+const cartProducts = computed<CartProductItem[]>(() =>
+  cart.value
+    .map((item) => {
+      const product = getProduct(item.productId)
+      if (!product) return null
+
+      return {
+        ...item,
+        product,
+        lineTotal: product.price * item.quantity
       }
-    } catch (err: any) {
-      console.warn('Seller orders fetch warning:', err?.message || err)
+    })
+    .filter((item): item is CartProductItem => item !== null)
+)
+
+const cartSubtotal = computed(() =>
+  cartProducts.value.reduce((total, item) => total + item.lineTotal, 0)
+)
+
+const fetchUserOrders = async () => {
+  try {
+    const userOrders = await orderRepo.getOrders()
+    if (Array.isArray(userOrders)) {
+      orders.value = userOrders
     }
+  } catch (err: any) {
+    console.warn('User orders fetch warning:', err?.message || err)
   }
+}
 
-  const createOrder = async (details: CreateOrderDTO): Promise<{ order: MarketplaceOrder; refreshError: string | null } | null> => {
-    if (!cart.value.length) return null
-    const newOrder = await orderRepo.createOrder(cart.value, cartSubtotal.value, details)
+const fetchSellerOrders = async () => {
+  try {
+    const sellerOrders = await orderRepo.getSellerOrders()
+    if (Array.isArray(sellerOrders)) {
+      orders.value = sellerOrders
+    }
+  } catch (err: any) {
+    console.warn('Seller orders fetch warning:', err?.message || err)
+  }
+}
 
-    // Refetch real cart and buyer orders from the API after confirmed checkout
-    const failures: string[] = []
+const createOrder = async (details: CreateOrderDTO): Promise<{ order: MarketplaceOrder; refreshError: string | null } | null> => {
+  if (!cart.value.length) return null
+  const newOrder = await orderRepo.createOrder(cart.value, cartSubtotal.value, details)
+
+  // Refetch real cart and buyer orders from the API after confirmed checkout
+  const failures: string[] = []
 
     try {
       const backendCart = await cartRepo.getCart()
-      if (backendCart?.items) {
-        cart.value = backendCart.items.map(item => ({
-          productId: item.product_id,
-          quantity: item.quantity,
-          backendItemId: item.id
+      if (backendCart?.items && Array.isArray(backendCart.items)) {
+        cart.value = backendCart.items.map((item: any) => ({
+          productId: item.ProductID || item.product_id || item.productId,
+          quantity: item.Quantity ?? item.quantity ?? 1,
+          backendItemId: item.ID || item.id
         }))
       } else {
         cart.value = []
@@ -353,11 +373,11 @@ export const useMarketplace = () => {
 
     try {
       const backendCart = await cartRepo.getCart()
-      if (backendCart?.items) {
-        cart.value = backendCart.items.map(item => ({
-          productId: item.product_id,
-          quantity: item.quantity,
-          backendItemId: item.id
+      if (backendCart?.items && Array.isArray(backendCart.items)) {
+        cart.value = backendCart.items.map((item: any) => ({
+          productId: item.ProductID || item.product_id || item.productId,
+          quantity: item.Quantity ?? item.quantity ?? 1,
+          backendItemId: item.ID || item.id
         }))
       } else {
         cart.value = []
@@ -366,96 +386,96 @@ export const useMarketplace = () => {
       errors.push('cart')
     }
 
-    try {
-      const userOrders = await orderRepo.getOrders()
-      if (Array.isArray(userOrders)) {
-        orders.value = userOrders
+  try {
+    const userOrders = await orderRepo.getOrders()
+    if (Array.isArray(userOrders)) {
+      orders.value = userOrders
+    }
+  } catch {
+    errors.push('orders')
+  }
+
+  try {
+    await productRepo.getProducts({ page: 1, pageSize: 50 })
+  } catch {
+    errors.push('products')
+  }
+
+  if (errors.length) {
+    throw new Error(`Could not refresh ${errors.join(' and ')} data.`)
+  }
+}
+
+const updateOrderStatus = async (orderId: number | string, status: OrderStatus) => {
+  const res = await orderRepo.updateOrderStatus(orderId, status)
+  if (res) {
+    const orderIndex = orders.value.findIndex(o => String(o.id) === String(orderId) || o.backendId === String(orderId))
+    if (orderIndex !== -1 && orders.value[orderIndex]) {
+      orders.value[orderIndex] = res
+    }
+  }
+  return res
+}
+
+const getOrderProducts = (order: MarketplaceOrder): CartProductItem[] =>
+  order.items
+    .map((item) => {
+      const product = getProduct(item.productId)
+      if (!product) return null
+
+      return {
+        ...item,
+        product,
+        lineTotal: product.price * item.quantity
       }
-    } catch {
-      errors.push('orders')
-    }
+    })
+    .filter((item): item is CartProductItem => item !== null)
 
-    try {
-      await productRepo.getProducts({ page: 1, pageSize: 50 })
-    } catch {
-      errors.push('products')
-    }
+const updateProduct = (id: number | string, updates: Partial<Product>) => {
+  return productRepo.updateProduct(id, updates)
+}
 
-    if (errors.length) {
-      throw new Error(`Could not refresh ${errors.join(' and ')} data.`)
-    }
-  }
+const deleteProduct = (id: number | string) => {
+  return productRepo.deleteProduct(id)
+}
 
-  const updateOrderStatus = async (orderId: number | string, status: OrderStatus) => {
-    const res = await orderRepo.updateOrderStatus(orderId, status)
-    if (res) {
-      const orderIndex = orders.value.findIndex(o => String(o.id) === String(orderId) || o.backendId === String(orderId))
-      if (orderIndex !== -1 && orders.value[orderIndex]) {
-        orders.value[orderIndex] = res
-      }
-    }
-    return res
-  }
+const toggleProductStatus = (id: number | string) => {
+  return productRepo.toggleProductStatus(id)
+}
 
-  const getOrderProducts = (order: MarketplaceOrder): CartProductItem[] =>
-    order.items
-      .map((item) => {
-        const product = getProduct(item.productId)
-        if (!product) return null
+const updateProductStock = (id: number | string, newStock: number) => {
+  return productRepo.updateProduct(id, { stock: Math.max(0, newStock) })
+}
 
-        return {
-          ...item,
-          product,
-          lineTotal: product.price * item.quantity
-        }
-      })
-      .filter((item): item is CartProductItem => item !== null)
-
-  const updateProduct = (id: number | string, updates: Partial<Product>) => {
-    return productRepo.updateProduct(id, updates)
-  }
-
-  const deleteProduct = (id: number | string) => {
-    return productRepo.deleteProduct(id)
-  }
-
-  const toggleProductStatus = (id: number | string) => {
-    return productRepo.toggleProductStatus(id)
-  }
-
-  const updateProductStock = (id: number | string, newStock: number) => {
-    return productRepo.updateProduct(id, { stock: Math.max(0, newStock) })
-  }
-
-  return {
-    products,
-    categories,
-    cart,
-    orders,
-    reviews,
-    cartProducts,
-    cartSubtotal,
-    formatPrice,
-    getProduct,
-    getProductReviews,
-    getUserReviewForProduct,
-    submitProductReview,
-    filterProducts,
-    addToCart,
-    updateCartQuantity,
-    removeFromCart,
-    syncCartFromBackend,
-    createOrder,
-    retryPostCheckoutRefresh,
-    fetchUserOrders,
-    fetchSellerOrders,
-    fetchProducts,
-    updateOrderStatus,
-    getOrderProducts,
-    isOwnProduct,
-    updateProduct,
-    deleteProduct,
-    toggleProductStatus,
-    updateProductStock
-  }
+return {
+  products,
+  categories,
+  cart,
+  orders,
+  reviews,
+  cartProducts,
+  cartSubtotal,
+  formatPrice,
+  getProduct,
+  getProductReviews,
+  getUserReviewForProduct,
+  submitProductReview,
+  filterProducts,
+  addToCart,
+  updateCartQuantity,
+  removeFromCart,
+  syncCartFromBackend,
+  createOrder,
+  retryPostCheckoutRefresh,
+  fetchUserOrders,
+  fetchSellerOrders,
+  fetchProducts,
+  updateOrderStatus,
+  getOrderProducts,
+  isOwnProduct,
+  updateProduct,
+  deleteProduct,
+  toggleProductStatus,
+  updateProductStock
+}
 }
