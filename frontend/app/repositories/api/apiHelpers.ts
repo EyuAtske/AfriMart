@@ -246,7 +246,7 @@ export async function authenticatedFetch<T>(endpoint: string, options: Record<st
     ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers || {})
   }
-  if (token) {
+  if (!headers.Authorization && token) {
     headers.Authorization = `Bearer ${token}`
   }
 

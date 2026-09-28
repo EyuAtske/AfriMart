@@ -33,7 +33,7 @@ const apiCartRepository: ICartRepository = new ApiCartRepository()
 
 export const useRepositories = () => {
   const config = useRuntimeConfig()
-  const authMode = (config?.public?.authMode as string) || 'mock'
+  const authMode = (config?.public?.authMode as string) || 'api'
 
   const authRepo = authMode === 'api' ? apiAuthRepository : mockAuthRepository
   const shopRepo = authMode === 'api' ? apiShopRepository : mockShopRepository
