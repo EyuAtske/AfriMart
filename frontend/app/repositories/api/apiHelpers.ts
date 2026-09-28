@@ -1,6 +1,4 @@
-// Shared helpers for API repositories — token management and authenticated fetch
-// Tokens are stored exclusively in reactive memory. No JS-readable cookies.
-
+import { trace } from '@opentelemetry/api'
 let inMemoryAccessToken: string | null = null
 let inMemoryRefreshToken: string | null = null
 
@@ -43,11 +41,11 @@ export function setAccessToken(token: string | null): void {
   try {
     const cookie = useCookie<string | null>(TOKEN_KEY, { sameSite: 'lax', maxAge: 60 * 60 * 24 * 7 })
     cookie.value = clean
-  } catch {}
+  } catch { }
   try {
     if (clean) localStorage.setItem(TOKEN_KEY, clean)
     else localStorage.removeItem(TOKEN_KEY)
-  } catch {}
+  } catch { }
 }
 
 export function getRefreshTokenValue(): string | null {
@@ -59,14 +57,14 @@ export function getRefreshTokenValue(): string | null {
       inMemoryRefreshToken = cookie.value.replace(/[\r\n]/g, '').trim()
       return inMemoryRefreshToken
     }
-  } catch {}
+  } catch { }
   try {
     const stored = localStorage.getItem(REFRESH_KEY)
     if (stored) {
       inMemoryRefreshToken = stored.replace(/[\r\n]/g, '').trim()
       return inMemoryRefreshToken
     }
-  } catch {}
+  } catch { }
   return null
 }
 
@@ -77,11 +75,11 @@ export function setRefreshToken(token: string | null): void {
   try {
     const cookie = useCookie<string | null>(REFRESH_KEY, { sameSite: 'lax', maxAge: 60 * 60 * 24 * 30 })
     cookie.value = clean
-  } catch {}
+  } catch { }
   try {
     if (clean) localStorage.setItem(REFRESH_KEY, clean)
     else localStorage.removeItem(REFRESH_KEY)
-  } catch {}
+  } catch { }
 }
 
 export function clearTokens(): void {
@@ -93,11 +91,11 @@ export function clearTokens(): void {
     cookieToken.value = null
     const cookieRefresh = useCookie<string | null>(REFRESH_KEY)
     cookieRefresh.value = null
-  } catch {}
+  } catch { }
   try {
     localStorage.removeItem(TOKEN_KEY)
     localStorage.removeItem(REFRESH_KEY)
-  } catch {}
+  } catch { }
 }
 
 /**
@@ -225,15 +223,14 @@ export function sanitizeEndpoint(endpoint: string): string {
     .replace(/\.\.\//g, '')
 }
 
-/**
- * Performs an authenticated fetch.
- * - On 401: attempts token refresh, retries once; on final failure clears
- *   session state and redirects to /account.
- * - On 403: throws AuthForbiddenError (session stays intact).
- */
-export async function authenticatedFetch<T>(endpoint: string, options: Record<string, any> = {}): Promise<T> {
+export async function authenticatedFetch<T>(
+  endpoint: string,
+  options: Record<string, any> = {},
+): Promise<T> {
   if (!import.meta.client) {
-    throw new Error('Authenticated requests are not available during server-side rendering.')
+    throw new Error(
+      'Authenticated requests are not available during server-side rendering.',
+    )
   }
 
   const apiBase = getApiBase()
@@ -241,52 +238,180 @@ export async function authenticatedFetch<T>(endpoint: string, options: Record<st
   const url = `${apiBase}/${cleanEndpoint}`
 
   const token = getAccessToken()
-  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
+  const isFormData =
+    typeof FormData !== 'undefined' &&
+    options.body instanceof FormData
+
   const headers: Record<string, string> = {
     ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-    ...(options.headers || {})
+    ...(options.headers || {}),
   }
+
   if (!headers.Authorization && token) {
     headers.Authorization = `Bearer ${token}`
   }
 
-  try {
-    return await $fetch<T>(url, {
-      ...options,
-      headers
-    })
-  } catch (err: any) {
-    const status = err?.response?.status || err?.statusCode || err?.status
+  // ---------------------------------------------------------------------------
+  // Frontend API observability
+  // ---------------------------------------------------------------------------
 
-    // --- 403 Forbidden: keep session, surface permission error ---
-    if (status === 403) {
-      throw new AuthForbiddenError(
-        extractError(err, "You don't have permission to perform this action.")
-      )
-    }
+  const tracer = trace.getTracer('afrimart-frontend')
+  const method = String(options.method || 'GET').toUpperCase()
 
-    // --- 401 Unauthorized: try refresh, then clear session ---
-    if (status === 401) {
-      if (getRefreshTokenValue()) {
-        const refreshed = await tryRefreshToken()
-        if (refreshed) {
-          const newToken = getAccessToken()
-          if (newToken) {
-            headers.Authorization = `Bearer ${newToken}`
-          }
-          return await $fetch<T>(url, {
-            ...options,
-            headers
-          })
-        }
+  return tracer.startActiveSpan(
+    `HTTP ${method} ${cleanEndpoint}`,
+    async (span) => {
+      span.setAttributes({
+        'http.request.method': method,
+        'url.path': `/${cleanEndpoint}`,
+      })
+
+      const { $emitOtelLog } = useNuxtApp() as {
+        $emitOtelLog?: (
+          span: any,
+          level: string,
+          body: string,
+          attributes?: Record<string, unknown>,
+        ) => void
       }
-      // Unrecoverable 401 — clear session and redirect
-      clearSessionAndRedirect()
-    }
 
-    throw err
-  }
+      try {
+        const response = await $fetch<T>(url, {
+          ...options,
+          headers,
+        })
+
+        span.setAttribute(
+          'http.response.status_code',
+          200,
+        )
+
+        $emitOtelLog?.(
+          span,
+          'INFO',
+          'API request completed',
+          {
+            method,
+            path: `/${cleanEndpoint}`,
+            status: '200',
+          },
+        )
+
+        span.end()
+
+        return response
+      } catch (err: any) {
+        const status =
+          err?.response?.status ||
+          err?.statusCode ||
+          err?.status ||
+          0
+
+        span.setAttribute(
+          'http.response.status_code',
+          Number(status),
+        )
+
+        $emitOtelLog?.(
+          span,
+          'ERROR',
+          'API request failed',
+          {
+            method,
+            path: `/${cleanEndpoint}`,
+            status: String(status),
+          },
+        )
+
+        // --- 403 Forbidden: keep session, surface permission error ---
+        if (status === 403) {
+          span.end()
+
+          throw new AuthForbiddenError(
+            extractError(
+              err,
+              "You don't have permission to perform this action.",
+            ),
+          )
+        }
+
+        // --- 401 Unauthorized: try refresh, then clear session ---
+        if (status === 401) {
+          if (getRefreshTokenValue()) {
+            const refreshed = await tryRefreshToken()
+
+            if (refreshed) {
+              const newToken = getAccessToken()
+
+              if (newToken) {
+                headers.Authorization = `Bearer ${newToken}`
+              }
+
+              try {
+                const retryResponse = await $fetch<T>(url, {
+                  ...options,
+                  headers,
+                })
+
+                span.setAttribute(
+                  'http.response.status_code',
+                  200,
+                )
+
+                $emitOtelLog?.(
+                  span,
+                  'INFO',
+                  'API request completed after token refresh',
+                  {
+                    method,
+                    path: `/${cleanEndpoint}`,
+                    status: '200',
+                  },
+                )
+
+                span.end()
+
+                return retryResponse
+              } catch (retryErr: any) {
+                const retryStatus =
+                  retryErr?.response?.status ||
+                  retryErr?.statusCode ||
+                  retryErr?.status ||
+                  0
+
+                span.setAttribute(
+                  'http.response.status_code',
+                  Number(retryStatus),
+                )
+
+                $emitOtelLog?.(
+                  span,
+                  'ERROR',
+                  'API request failed after token refresh',
+                  {
+                    method,
+                    path: `/${cleanEndpoint}`,
+                    status: String(retryStatus),
+                  },
+                )
+
+                span.end()
+
+                throw retryErr
+              }
+            }
+          }
+
+          clearSessionAndRedirect()
+        }
+
+        span.end()
+
+        throw err
+      }
+    },
+  )
 }
 
-// Required for clearSessionAndRedirect to access the store
+
 import { useMockDataStore } from '../mock/MockDataStore'
