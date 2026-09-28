@@ -228,60 +228,62 @@ export const useMockDataStore = () => {
   if (typeof window !== 'undefined' && !isClientInitialized) {
     isClientInitialized = true
 
-    // Restore stored values if available in browser localStorage
-    const savedProducts = getItemFromStorage<Product[] | null>(STORAGE_KEYS.PRODUCTS, null)
-    if (savedProducts && Array.isArray(savedProducts)) {
-      const userProducts = savedProducts.filter(p => typeof p.id === 'number' ? p.id > 12 : true)
-      products.value = userProducts
-      setItemInStorage(STORAGE_KEYS.PRODUCTS, userProducts)
-    } else {
-      products.value = []
-      setItemInStorage(STORAGE_KEYS.PRODUCTS, [])
-    }
+    if (!isApiMode) {
+      // Restore stored values if available in browser localStorage (mock mode only)
+      const savedProducts = getItemFromStorage<Product[] | null>(STORAGE_KEYS.PRODUCTS, null)
+      if (savedProducts && Array.isArray(savedProducts)) {
+        const userProducts = savedProducts.filter(p => typeof p.id === 'number' ? p.id > 12 : true)
+        products.value = userProducts
+        setItemInStorage(STORAGE_KEYS.PRODUCTS, userProducts)
+      } else {
+        products.value = []
+        setItemInStorage(STORAGE_KEYS.PRODUCTS, [])
+      }
 
-    const savedShop = getItemFromStorage<Shop | null>(STORAGE_KEYS.SHOP, null)
-    if (savedShop) {
-      shop.value = savedShop
-    }
+      const savedShop = getItemFromStorage<Shop | null>(STORAGE_KEYS.SHOP, null)
+      if (savedShop) {
+        shop.value = savedShop
+      }
 
-    const savedOrders = getItemFromStorage<MarketplaceOrder[] | null>(STORAGE_KEYS.ORDERS, null)
-    if (savedOrders && Array.isArray(savedOrders)) {
-      orders.value = savedOrders
-    }
+      const savedOrders = getItemFromStorage<MarketplaceOrder[] | null>(STORAGE_KEYS.ORDERS, null)
+      if (savedOrders && Array.isArray(savedOrders)) {
+        orders.value = savedOrders
+      }
 
-    const savedCart = getItemFromStorage<CartItem[] | null>(STORAGE_KEYS.CART, null)
-    if (savedCart && Array.isArray(savedCart)) {
-      const validCart = savedCart.filter(item => products.value.some(p => String(p.id) === String(item.productId)))
-      cart.value = validCart
-      setItemInStorage(STORAGE_KEYS.CART, validCart)
-    } else {
-      cart.value = []
-      setItemInStorage(STORAGE_KEYS.CART, [])
-    }
+      const savedCart = getItemFromStorage<CartItem[] | null>(STORAGE_KEYS.CART, null)
+      if (savedCart && Array.isArray(savedCart)) {
+        const validCart = savedCart.filter(item => products.value.some(p => String(p.id) === String(item.productId)))
+        cart.value = validCart
+        setItemInStorage(STORAGE_KEYS.CART, validCart)
+      } else {
+        cart.value = []
+        setItemInStorage(STORAGE_KEYS.CART, [])
+      }
 
-    const savedUser = getItemFromStorage<User | null>(STORAGE_KEYS.USER, null)
-    if (savedUser && savedUser.username) {
-      user.value = savedUser
-    }
+      const savedUser = getItemFromStorage<User | null>(STORAGE_KEYS.USER, null)
+      if (savedUser && savedUser.username) {
+        user.value = savedUser
+      }
 
-    const savedLoggedIn = getItemFromStorage<boolean | null>(STORAGE_KEYS.IS_LOGGED_IN, null)
-    if (savedLoggedIn !== null) {
-      isLoggedIn.value = savedLoggedIn
-    }
+      const savedLoggedIn = getItemFromStorage<boolean | null>(STORAGE_KEYS.IS_LOGGED_IN, null)
+      if (savedLoggedIn !== null) {
+        isLoggedIn.value = savedLoggedIn
+      }
 
-    const savedReviews = getItemFromStorage<ProductReview[] | null>(STORAGE_KEYS.REVIEWS, null)
-    if (savedReviews && Array.isArray(savedReviews)) {
-      reviews.value = savedReviews
-    }
+      const savedReviews = getItemFromStorage<ProductReview[] | null>(STORAGE_KEYS.REVIEWS, null)
+      if (savedReviews && Array.isArray(savedReviews)) {
+        reviews.value = savedReviews
+      }
 
-    // Persist changes to localStorage automatically
-    watch(products, (val) => setItemInStorage(STORAGE_KEYS.PRODUCTS, val), { deep: true })
-    watch(shop, (val) => setItemInStorage(STORAGE_KEYS.SHOP, val), { deep: true })
-    watch(orders, (val) => setItemInStorage(STORAGE_KEYS.ORDERS, val), { deep: true })
-    watch(cart, (val) => setItemInStorage(STORAGE_KEYS.CART, val), { deep: true })
-    watch(user, (val) => setItemInStorage(STORAGE_KEYS.USER, val), { deep: true })
-    watch(isLoggedIn, (val) => setItemInStorage(STORAGE_KEYS.IS_LOGGED_IN, val))
-    watch(reviews, (val) => setItemInStorage(STORAGE_KEYS.REVIEWS, val), { deep: true })
+      // Persist changes to localStorage automatically (mock mode only)
+      watch(products, (val) => setItemInStorage(STORAGE_KEYS.PRODUCTS, val), { deep: true })
+      watch(shop, (val) => setItemInStorage(STORAGE_KEYS.SHOP, val), { deep: true })
+      watch(orders, (val) => setItemInStorage(STORAGE_KEYS.ORDERS, val), { deep: true })
+      watch(cart, (val) => setItemInStorage(STORAGE_KEYS.CART, val), { deep: true })
+      watch(user, (val) => setItemInStorage(STORAGE_KEYS.USER, val), { deep: true })
+      watch(isLoggedIn, (val) => setItemInStorage(STORAGE_KEYS.IS_LOGGED_IN, val))
+      watch(reviews, (val) => setItemInStorage(STORAGE_KEYS.REVIEWS, val), { deep: true })
+    }
 
     // Synchronize changes across multiple open tabs
     if (typeof window.addEventListener === 'function') {

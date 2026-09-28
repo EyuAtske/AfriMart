@@ -20,9 +20,14 @@ export class ApiAuthRepository implements IAuthRepository {
 
     try {
       const url = `${apiBase}/api/auth/login`
+      const token = getAccessToken()
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
       const res = await $fetch<ApiAuthResponse>(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: {
           email: dto.email.trim(),
           password: dto.password.trim()
