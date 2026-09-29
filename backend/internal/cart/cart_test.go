@@ -17,15 +17,16 @@ import (
 )
 
 type mockCartQuerier struct {
-	getCartByUserIDFn        func(context.Context, uuid.UUID) (database.Cart, error)
-	createCartFn             func(context.Context, uuid.UUID) (database.Cart, error)
-	getCartItemsFn           func(context.Context, uuid.UUID) ([]database.GetCartItemsRow, error)
-	addCartItemFn            func(context.Context, database.AddCartItemParams) (database.CartItem, error)
-	updateCartItemQuantityFn func(context.Context, database.UpdateCartItemQuantityParams) (database.CartItem, error)
-	deleteCartItemFn         func(context.Context, database.DeleteCartItemParams) error
-	clearCartFn              func(context.Context, uuid.UUID) error
-	updateCartTimestampFn    func(context.Context, uuid.UUID) error
-	getProductFn             func(context.Context, uuid.UUID) (database.Product, error)
+	getCartByUserIDFn         func(context.Context, uuid.UUID) (database.Cart, error)
+	createCartFn              func(context.Context, uuid.UUID) (database.Cart, error)
+	getCartItemsFn            func(context.Context, uuid.UUID) ([]database.GetCartItemsRow, error)
+	addCartItemFn             func(context.Context, database.AddCartItemParams) (database.CartItem, error)
+	updateCartItemQuantityFn  func(context.Context, database.UpdateCartItemQuantityParams) (database.CartItem, error)
+	deleteCartItemFn          func(context.Context, database.DeleteCartItemParams) error
+	clearCartFn               func(context.Context, uuid.UUID) error
+	updateCartTimestampFn     func(context.Context, uuid.UUID) error
+	getProductFn              func(context.Context, uuid.UUID) (database.Product, error)
+	getCartItemsOwnedByUserFn func(ctx context.Context, arg database.GetCartItemsOwnedByUserParams) ([]database.GetCartItemsOwnedByUserRow, error)
 }
 
 func (m *mockCartQuerier) GetCartByUserID(ctx context.Context, userID uuid.UUID) (database.Cart, error) {
@@ -91,6 +92,13 @@ func (m *mockCartQuerier) GetProduct(ctx context.Context, id uuid.UUID) (databas
 	return database.Product{}, nil
 }
 
+func (m *mockCartQuerier) GetCartItemsOwnedByUser(ctx context.Context,arg database.GetCartItemsOwnedByUserParams,) ([]database.GetCartItemsOwnedByUserRow, error){
+	if m.getProductFn != nil {
+		return m.getCartItemsOwnedByUserFn(ctx, arg)
+	}
+	return []database.GetCartItemsOwnedByUserRow{}, nil
+}
+
 func cartRequestWithUser(method, target string, body string, userID uuid.UUID) *http.Request {
 	req := httptest.NewRequest(method, target, strings.NewReader(body))
 	ctx := auth.ContextWithUserID(req.Context(), userID)
@@ -148,7 +156,7 @@ func TestHandleGetCartSuccess(t *testing.T) {
 func TestHandleGetCartUnauthorized(t *testing.T) {
 	handler := &CartHandler{
 		Queries: &mockCartQuerier{},
-		Logger: slog.Default(),
+		Logger:  slog.Default(),
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/cart", nil)
@@ -252,7 +260,7 @@ func TestHandleAddCartItemInvalidProductID(t *testing.T) {
 
 	handler := &CartHandler{
 		Queries: &mockCartQuerier{},
-		Logger: slog.Default(),
+		Logger:  slog.Default(),
 	}
 
 	req := cartRequestWithUser(
@@ -277,7 +285,7 @@ func TestHandleAddCartItemInvalidQuantity(t *testing.T) {
 
 	handler := &CartHandler{
 		Queries: &mockCartQuerier{},
-		Logger: slog.Default(),
+		Logger:  slog.Default(),
 	}
 
 	req := cartRequestWithUser(
@@ -642,7 +650,7 @@ func TestHandleClearCartSuccess(t *testing.T) {
 func TestHandleClearCartUnauthorized(t *testing.T) {
 	handler := &CartHandler{
 		Queries: &mockCartQuerier{},
-		Logger: slog.Default(),
+		Logger:  slog.Default(),
 	}
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/cart", nil)

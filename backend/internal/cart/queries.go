@@ -2,6 +2,7 @@ package cart
 
 import (
 	"context"
+
 	"github.com/google/uuid"
 
 	"github.com/EyuAtske/AfriMart/backend/internal/database"
@@ -9,47 +10,59 @@ import (
 
 type CartQuerier interface {
 	GetCartByUserID(
-		ctx context.Context, 
+		ctx context.Context,
 		userID uuid.UUID,
-	)(database.Cart, error)
+	) (database.Cart, error)
 
 	CreateCart(
-		ctx context.Context, 
+		ctx context.Context,
 		userID uuid.UUID,
 	) (database.Cart, error)
 
 	GetCartItems(
-		ctx context.Context, 
+		ctx context.Context,
 		cartID uuid.UUID,
 	) ([]database.GetCartItemsRow, error)
 
 	AddCartItem(
-		ctx context.Context, 
+		ctx context.Context,
 		arg database.AddCartItemParams,
 	) (database.CartItem, error)
 
 	UpdateCartItemQuantity(
-		ctx context.Context, 
+		ctx context.Context,
 		arg database.UpdateCartItemQuantityParams,
 	) (database.CartItem, error)
 
 	DeleteCartItem(
-		ctx context.Context, 
+		ctx context.Context,
 		arg database.DeleteCartItemParams,
 	) error
 
 	ClearCart(
-		ctx context.Context, 
+		ctx context.Context,
 		cartID uuid.UUID,
 	) error
 
 	UpdateCartTimestamp(
-		ctx context.Context, 
+		ctx context.Context,
 		id uuid.UUID,
 	) error
 
 	GetProduct(
-		ctx context.Context, 
+		ctx context.Context,
 		id uuid.UUID,
 	) (database.Product, error)
+
+	GetCartItemsOwnedByUser(
+		ctx context.Context,
+		arg database.GetCartItemsOwnedByUserParams,
+	) ([]database.GetCartItemsOwnedByUserRow, error)
+}
+
+type ShopOwnershipQuerier interface {
+	GetShopByIDAndOwnerID(
+		ctx context.Context,
+		arg database.GetShopByIDAndOwnerIDParams,
+	) (database.Shop, error)
 }

@@ -175,6 +175,77 @@ func (q *Queries) GetCartItems(ctx context.Context, cartID uuid.UUID) ([]GetCart
 	return items, nil
 }
 
+const getCartItemsOwnedByUser = `-- name: GetCartItemsOwnedByUser :many
+SELECT
+    ci.id,
+    ci.cart_id,
+    ci.product_id,
+    ci.quantity,
+    ci.created_at,
+    ci.updated_at,
+    p.name AS product_name,
+    p.price,
+    p.stock,
+    p.status
+FROM cart_items ci
+JOIN products p ON p.id = ci.product_id
+JOIN shops s ON s.id = p.shop_id
+WHERE ci.cart_id = $1
+  AND s.owner_id = $2
+`
+
+type GetCartItemsOwnedByUserParams struct {
+	CartID  uuid.UUID
+	OwnerID uuid.UUID
+}
+
+type GetCartItemsOwnedByUserRow struct {
+	ID          uuid.UUID
+	CartID      uuid.UUID
+	ProductID   uuid.UUID
+	Quantity    int32
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	ProductName string
+	Price       string
+	Stock       int32
+	Status      string
+}
+
+func (q *Queries) GetCartItemsOwnedByUser(ctx context.Context, arg GetCartItemsOwnedByUserParams) ([]GetCartItemsOwnedByUserRow, error) {
+	rows, err := q.db.QueryContext(ctx, getCartItemsOwnedByUser, arg.CartID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetCartItemsOwnedByUserRow
+	for rows.Next() {
+		var i GetCartItemsOwnedByUserRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CartID,
+			&i.ProductID,
+			&i.Quantity,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProductName,
+			&i.Price,
+			&i.Stock,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateCartItemQuantity = `-- name: UpdateCartItemQuantity :one
 UPDATE cart_items
 SET

@@ -1,0 +1,22 @@
+-- name: CreatePayment :one
+INSERT INTO payments (
+    order_id, payment_method, payment_status, amount, provider
+) VALUES (
+    $1, $2, $3, $4, $5
+) RETURNING *;
+
+-- name: GetPaymentByProviderRef :one
+SELECT * FROM payments 
+WHERE provider_reference = $1 
+LIMIT 1;
+
+-- name: UpdatePaymentStatusConditional :execrows
+UPDATE payments
+SET
+    payment_status = sqlc.arg(new_status),
+    paid_at = COALESCE(sqlc.narg(paid_at), paid_at),
+    provider_reference = COALESCE(sqlc.narg(provider_reference), provider_reference),
+    transaction_id = COALESCE(sqlc.narg(transaction_id), transaction_id),
+    failure_reason = COALESCE(sqlc.narg(failure_reason), failure_reason),
+    updated_at = NOW()
+WHERE id = sqlc.arg(id) AND payment_status = sqlc.arg(current_status);

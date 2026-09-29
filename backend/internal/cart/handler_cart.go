@@ -16,8 +16,9 @@ import (
 )
 
 type CartHandler struct {
-	Queries CartQuerier
-	Logger  *slog.Logger
+	Queries     CartQuerier
+	Logger      *slog.Logger
+	ShopQueries ShopOwnershipQuerier
 }
 
 func NewCartHandler(queries CartQuerier, logger *slog.Logger) *CartHandler {
@@ -167,6 +168,52 @@ func (h *CartHandler) HandleAddCartItem(w http.ResponseWriter, r *http.Request) 
 	if params.Quantity > product.Stock {
 		h.Logger.WarnContext(ctx, "requested quantity exceeds stock", "product_id", productID, "requested", params.Quantity, "available", product.Stock)
 		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Requested quantity exceeds available stock", nil)
+		return
+	}
+
+	_, err = h.ShopQueries.GetShopByIDAndOwnerID(
+		r.Context(),
+		database.GetShopByIDAndOwnerIDParams{
+			ID:      product.ShopID,
+			OwnerID: userID,
+		},
+	)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			h.Logger.WarnContext(
+				r.Context(),
+				"add cart item failed: user owns product shop",
+				"user_id", userID,
+				"product_id", productID,
+				"shop_id", product.ShopID,
+			)
+
+			comm.RespondErrorWithJson(
+				w,
+				r,
+				http.StatusForbidden,
+				"You cannot purchase your own product",
+				nil,
+			)
+			return
+		}
+
+		h.Logger.ErrorContext(
+			r.Context(),
+			"add cart item failed: could not verify shop ownership",
+			"user_id", userID,
+			"product_id", productID,
+			"error", err,
+		)
+
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Could not verify product ownership",
+			err,
+		)
 		return
 	}
 

@@ -11,6 +11,7 @@ import (
 	"github.com/EyuAtske/AfriMart/backend/internal/health"
 	"github.com/EyuAtske/AfriMart/backend/internal/observability"
 	"github.com/EyuAtske/AfriMart/backend/internal/order"
+	"github.com/EyuAtske/AfriMart/backend/internal/payment"
 	"github.com/EyuAtske/AfriMart/backend/internal/product"
 	"github.com/EyuAtske/AfriMart/backend/internal/shop"
 
@@ -32,6 +33,7 @@ func main() {
 	productHandler := product.NewProductHandler(apicfg, apicfg.Queries, apicfg.Queries, apicfg.ImageStorage, slog.Default())
 	cartHandler := cart.NewCartHandler(apicfg.Queries, slog.Default())
 	orderHandler := order.NewOrderHandler(apicfg, apicfg.Queries, slog.Default())
+	paymentHandler := payment.NewPaymentHandler(apicfg.Queries, slog.Default())
 	servermux := http.NewServeMux()
 	tracedHandler := observability.TraceMiddleware(servermux)
 	c := cors.New(cors.Options{
@@ -86,8 +88,9 @@ func main() {
 	servermux.Handle("DELETE /api/products/{id}/images/{imageID}", protected(http.HandlerFunc(productHandler.HandleDeleteProductImage)))
 	servermux.Handle("GET /api/categories", http.HandlerFunc(productHandler.HandleListCategories))
 	servermux.Handle("GET /api/categories/{category_id}/subcategories", http.HandlerFunc(productHandler.HandleListSubcategories))
+	servermux.Handle("POST /api/payments/checkout", protected(http.HandlerFunc(paymentHandler.HandleCheckout)))
+	servermux.Handle("GET /api/payments/callback", http.HandlerFunc(paymentHandler.HandleCallback))
 	// servermux.HandleFunc("POST /api/orders/{id}/cancel", handlers.HandelProducts)
-	// servermux.HandleFunc("POST /api/payments", handlers.HandelProducts)
 	// servermux.HandleFunc("GET /api/payments/{id}", handlers.HandelProducts)
 	// servermux.HandleFunc("POST /api/payments/{id}/verify", handlers.HandelProducts)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
