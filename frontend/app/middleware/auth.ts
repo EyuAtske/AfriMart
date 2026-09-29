@@ -1,4 +1,8 @@
 export default defineNuxtRouteMiddleware(async () => {
+  if (import.meta.server && useCookie<string | null>('afrimart_access_token').value) {
+    return
+  }
+
   const { isLoggedIn } = useAuth()
   const { authRepo } = useRepositories()
 

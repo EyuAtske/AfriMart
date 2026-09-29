@@ -171,7 +171,7 @@ const categories = [
 </script>
 
 <template>
-  <header class="fixed inset-x-0 top-0 z-50 w-full bg-[#f5f1e9]">
+  <header class="sticky top-0 z-50 w-full bg-[#f5f1e9]">
     <!-- Navbar -->
     <nav
       class="mx-auto flex h-11 items-center justify-between px-3 sm:px-5 lg:h-14 lg:px-12 relative"
@@ -359,7 +359,7 @@ const categories = [
             v-model="searchQuery"
             type="text"
             placeholder="Search or ask AI..."
-            class="w-36 sm:w-60 lg:w-72 h-9 sm:h-10 pl-9 pr-9 text-xs sm:text-sm bg-transparent rounded-full border border-[#d9d0c4] text-[#302d29] placeholder-[#92877b] focus:outline-none focus:border-[#806344] transition-all"
+            class="w-[clamp(5.5rem,28vw,11rem)] sm:w-60 lg:w-72 h-9 sm:h-10 pl-9 pr-9 text-xs sm:text-sm bg-transparent rounded-full border border-[#d9d0c4] text-[#302d29] placeholder-[#92877b] focus:outline-none focus:border-[#806344] transition-all"
           />
           <button
             type="button"
@@ -425,10 +425,16 @@ const categories = [
       </div>
     </nav>
 
+    <nav aria-label="Shop categories" class="grid h-9 grid-cols-3 items-center border-t border-[#ded8ce] px-5 text-center lg:hidden">
+      <NuxtLink to="/products?category=Men" class="text-xs font-medium uppercase tracking-[0.12em] text-[#302d29] hover:text-[#806344]">Men</NuxtLink>
+      <NuxtLink to="/products?category=Women" class="text-xs font-medium uppercase tracking-[0.12em] text-[#302d29] hover:text-[#806344]">Women</NuxtLink>
+      <NuxtLink to="/products?category=Kids" class="text-xs font-medium uppercase tracking-[0.12em] text-[#302d29] hover:text-[#806344]">Kids</NuxtLink>
+    </nav>
+
     <!-- Mobile menu -->
     <div
       v-if="isMenuOpen"
-      class="border-t border-[#ded8ce] bg-[#f5f1e9] shadow-xl max-h-[calc(100vh-3.5rem)] overflow-y-auto lg:hidden"
+      class="border-t border-[#ded8ce] bg-[#f5f1e9] shadow-xl max-h-[calc(100dvh-5rem)] overflow-y-auto lg:hidden"
     >
       <div class="px-5 py-3 divide-y divide-[#ded8ce]">
         <!-- New In -->

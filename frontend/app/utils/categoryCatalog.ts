@@ -1,11 +1,8 @@
 import type { ProductCategory, ProductSubCategory } from '~/types/product'
 
 /**
- * Static category catalog and readiness provider.
- * 
- * Note: Product categories require backend database records and UUIDs.
- * Until category migrations and backend routes are provisioned,
- * valid database UUIDs are unavailable at runtime.
+ * Static category names and subcategory membership, hydrated with database IDs
+ * from the backend when available. Men, Women, and Kids are Clothing aliases.
  */
 
 export interface CatalogCategory {
@@ -17,10 +14,7 @@ export interface CatalogCategory {
   }>
 }
 
-/**
- * Temporary static catalog mapping known names to optional runtime UUIDs.
- * Currently no valid backend category UUIDs are provisioned in the database.
- */
+/** Seeded catalog UUID defaults, refreshed from backend responses at runtime. */
 export const STATIC_CATALOG: CatalogCategory[] = [
   {
     name: 'Clothing',
@@ -116,21 +110,128 @@ export function isCategorySetupReady(_authMode?: string): boolean {
   return true
 }
 
-export function resolveCategoryId(categoryName: string): string | undefined {
-  if (!categoryName) return undefined
-  const cat = STATIC_CATALOG.find(c => c.name.toLowerCase() === categoryName.toLowerCase())
-  if (cat?.id && isValidUuid(cat.id)) return cat.id
-  // Fallback to first valid category UUID in catalog
-  const fallback = STATIC_CATALOG.find(c => isValidUuid(c.id))
-  return fallback?.id
+let catalogHydrated = false
+let catalogHydratingPromise: Promise<boolean> | null = null
+
+export async function ensureCategoryCatalog(apiBase?: string): Promise<boolean> {
+  if (catalogHydrated) return true
+  if (catalogHydratingPromise) return catalogHydratingPromise
+
+  catalogHydratingPromise = (async () => {
+    try {
+      let base = (apiBase || '').replace(/\/$/, '')
+      if (!base) {
+        try {
+          if (typeof useRuntimeConfig === 'function') {
+            const config = useRuntimeConfig()
+            base = ((config?.public?.apiBase as string) || '').replace(/\/$/, '')
+          }
+        } catch {
+          // outside Nuxt context
+        }
+      }
+
+      const categoriesUrl = `${base}/api/categories`
+      const categoryResponse = await $fetch<any>(categoriesUrl, { method: 'GET' })
+      const categories = Array.isArray(categoryResponse)
+        ? categoryResponse
+        : categoryResponse?.value || categoryResponse?.Value
+
+      if (!Array.isArray(categories) || categories.length === 0) {
+        return false
+      }
+
+      for (const cat of categories) {
+        const catId = cat.ID || cat.id
+        const catName = cat.Name || cat.name
+        if (!catId || !catName) continue
+
+        const matchingEntries = STATIC_CATALOG.filter(
+          c => c.name.toLowerCase() === catName.toLowerCase() ||
+               (catName.toLowerCase() === 'clothing' && (c.name === 'Men' || c.name === 'Women' || c.name === 'Kids'))
+        )
+
+        for (const entry of matchingEntries) {
+          entry.id = catId
+        }
+
+        try {
+          const subcategoriesUrl = `${base}/api/categories/${catId}/subcategories`
+          const subcategoryResponse = await $fetch<any>(subcategoriesUrl, { method: 'GET' })
+          const subcategories = Array.isArray(subcategoryResponse)
+            ? subcategoryResponse
+            : subcategoryResponse?.value || subcategoryResponse?.Value
+
+          if (Array.isArray(subcategories)) {
+            for (const sub of subcategories) {
+              const subId = sub.ID || sub.id
+              const subName = sub.Name || sub.name
+              if (!subId || !subName) continue
+
+              for (const entry of matchingEntries) {
+                const subEntry = entry.subcategories.find(s => s.name.toLowerCase() === subName.toLowerCase())
+                if (subEntry) {
+                  subEntry.id = subId
+                } else {
+                  entry.subcategories.push({ name: subName as any, id: subId })
+                }
+              }
+            }
+          }
+        } catch {
+          // non-fatal subcategory fetch failure
+        }
+      }
+
+      catalogHydrated = true
+      return true
+    } catch {
+      return false
+    } finally {
+      catalogHydratingPromise = null
+    }
+  })()
+
+  return catalogHydratingPromise
 }
 
-export function resolveSubcategoryId(categoryName: string, subcategoryName?: string): string | undefined {
+export function resolveCategoryId(categoryName?: string): string | undefined {
+  if (!categoryName) return undefined
+  const rawCatName = categoryName.trim()
+  const catName = rawCatName.toLowerCase()
+  const normalizedCategory = (catName === 'men' || catName === 'women' || catName === 'kids' || catName === 'clothing')
+    ? 'Clothing'
+    : (catName === 'shoes' ? 'Shoes' : (catName === 'accessories' ? 'Accessories' : rawCatName))
+
+  const cat = STATIC_CATALOG.find(c => c.name.toLowerCase() === normalizedCategory.toLowerCase())
+  if (cat?.id && isValidUuid(cat.id)) return cat.id
+  const directMatch = STATIC_CATALOG.find(c => c.name.toLowerCase() === catName)
+  if (directMatch?.id && isValidUuid(directMatch.id)) return directMatch.id
+  return undefined
+}
+
+export function resolveSubcategoryId(categoryName?: string, subcategoryName?: string): string | undefined {
   if (!subcategoryName) return undefined
-  const cat = STATIC_CATALOG.find(c => c.name.toLowerCase() === categoryName.toLowerCase())
-  const sub = cat?.subcategories.find(s => s.name.toLowerCase() === subcategoryName.toLowerCase())
-  if (sub?.id && isValidUuid(sub.id)) return sub.id
-  // Fallback to first valid subcategory UUID in category or catalog
-  const fallbackSub = cat?.subcategories.find(s => isValidUuid(s.id)) || STATIC_CATALOG[0]?.subcategories.find(s => isValidUuid(s.id))
-  return fallbackSub?.id
+  const subName = subcategoryName.trim().toLowerCase()
+  const rawCatName = (categoryName || '').trim()
+  const catName = rawCatName.toLowerCase()
+  const normalizedCategory = (catName === 'men' || catName === 'women' || catName === 'kids' || catName === 'clothing')
+    ? 'Clothing'
+    : (catName === 'shoes' ? 'Shoes' : (catName === 'accessories' ? 'Accessories' : rawCatName))
+
+  const cat = normalizedCategory ? STATIC_CATALOG.find(c => c.name.toLowerCase() === normalizedCategory.toLowerCase()) : undefined
+  if (cat) {
+    const sub = cat.subcategories.find(s => s.name.toLowerCase() === subName)
+    if (sub?.id && isValidUuid(sub.id)) return sub.id
+    return undefined
+  }
+
+  if (!rawCatName) {
+    for (const category of STATIC_CATALOG) {
+      const subcategory = category.subcategories.find(item => item.name.toLowerCase() === subName)
+      if (subcategory?.id && isValidUuid(subcategory.id)) return subcategory.id
+    }
+  }
+
+  return undefined
 }

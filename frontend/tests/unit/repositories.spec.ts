@@ -6,6 +6,7 @@ import { MockAuthRepository } from '../../app/repositories/mock/MockAuthReposito
 import { ApiAuthRepository } from '../../app/repositories/api/ApiAuthRepository'
 import { useMockDataStore } from '../../app/repositories/mock/MockDataStore'
 import { useMarketplace } from '../../app/composables/useMarketplace'
+import { STATIC_CATALOG } from '../../app/utils/categoryCatalog'
 
 describe('Repository Layer Unit Tests', () => {
   const productRepo = new MockProductRepository()
@@ -29,6 +30,20 @@ describe('Repository Layer Unit Tests', () => {
     const res = await productRepo.getProducts({ category: 'Men' })
     expect(res.data).toBeDefined()
     expect(res.data.every(p => p.category === 'Men')).toBe(true)
+  })
+
+  it('ProductRepository: should query products by shop', async () => {
+    await productRepo.createProduct('Atelier North', {
+      name: 'Shop Specific Shirt',
+      description: 'A test shirt for Atelier North',
+      category: 'Men',
+      price: 1800,
+      stock: 7,
+      status: 'Active'
+    })
+    const shopProducts = await productRepo.getProductsByShop('Atelier North')
+    expect(shopProducts.length).toBeGreaterThan(0)
+    expect(shopProducts.some(p => p.name === 'Shop Specific Shirt')).toBe(true)
   })
 
   it('ProductRepository: should update and toggle product status', async () => {
@@ -223,10 +238,12 @@ describe('Repository Layer Unit Tests', () => {
     expect(isLoggedIn.value).toBe(false)
   })
 
-  it('Self-Purchase Protection & Sold Out Validation: should detect own product and sold out items', () => {
+  it('Self-Purchase Protection & Sold Out Validation: should block own products using the real shop ID', async () => {
+    vi.stubGlobal('useRuntimeConfig', () => ({ public: { authMode: 'mock' } }))
     const store = useMockDataStore()
     store.shop.value = {
       id: 'shop-101',
+      backendId: 'shop-101',
       name: 'Atelier North',
       slug: 'atelier-north',
       description: 'Test shop',
@@ -236,14 +253,59 @@ describe('Repository Layer Unit Tests', () => {
       status: 'active'
     }
 
-    const { isOwnProduct } = useMarketplace()
-
-    const ownProd = { id: 1, shop: 'Atelier North', stock: 5 } as any
-    const otherProd = { id: 2, shop: 'Urban Thread', stock: 5 } as any
+    const ownProd = { id: 1, shop: 'Different display name', shopId: 'shop-101', stock: 5 } as any
+    const otherProd = { id: 2, shop: 'Atelier North', shopId: 'shop-202', stock: 5 } as any
     const soldOutProd = { id: 3, shop: 'Urban Thread', stock: 0 } as any
+    store.products.value = [ownProd, otherProd, soldOutProd]
+
+    const { isOwnProduct, addToCart, filterProducts } = useMarketplace()
 
     expect(isOwnProduct(ownProd)).toBe(true)
     expect(isOwnProduct(otherProd)).toBe(false)
     expect(isOwnProduct(soldOutProd)).toBe(false)
+    await expect(addToCart(ownProd.id)).rejects.toThrow('You cannot purchase items listed by your own shop.')
+    expect(store.cart.value).toHaveLength(0)
+
+    const clothing = [
+      { ...ownProd, id: 'men-item', name: 'Men item', category: 'Clothing', gender: 'Men', status: 'Active' },
+      { ...otherProd, id: 'women-item', name: 'Women item', category: 'Clothing', gender: 'Women', status: 'Active' },
+      { ...soldOutProd, id: 'kids-item', name: 'Kids item', category: 'Clothing', gender: 'Kids', status: 'Active' }
+    ] as any
+    expect(filterProducts({ category: 'Men' }, clothing).map(product => product.name)).toEqual(['Men item'])
+    expect(filterProducts({ category: 'Women' }, clothing).map(product => product.name)).toEqual(['Women item'])
+    expect(filterProducts({ category: 'Kids' }, clothing).map(product => product.name)).toEqual(['Kids item'])
+  })
+
+  it('Marketplace filters compose using catalog IDs and keep public products available while logged out', () => {
+    const store = useMockDataStore()
+    store.shop.value = null
+    store.isLoggedIn.value = false
+
+    const menCatalog = STATIC_CATALOG.find(category => category.name === 'Men')!
+    const womenCatalog = STATIC_CATALOG.find(category => category.name === 'Women')!
+    const shoesCatalog = STATIC_CATALOG.find(category => category.name === 'Shoes')!
+    const shirtId = menCatalog.subcategories.find(subcategory => subcategory.name === 'Shirts')?.id
+    const hoodieId = menCatalog.subcategories.find(subcategory => subcategory.name === 'Hoodies')?.id
+    const dressId = womenCatalog.subcategories.find(subcategory => subcategory.name === 'Dresses')?.id
+    const sneakerId = shoesCatalog.subcategories.find(subcategory => subcategory.name === 'Sneakers')?.id
+    const catalogProducts = [
+      { id: 'men-shirt', shop: 'North', name: 'Linen shirt', description: '', category: 'Clothing', categoryId: menCatalog.id, gender: 'Men', subCategory: 'Shirts', subcategoryId: shirtId, price: 120, stock: 4, rating: 'New', image: '', status: 'Active' },
+      { id: 'men-hoodie', shop: 'North', name: 'Cotton hoodie', description: '', category: 'Clothing', categoryId: menCatalog.id, gender: 'Men', subCategory: 'Hoodies', subcategoryId: hoodieId, price: 260, stock: 0, rating: 'New', image: '', status: 'Active' },
+      { id: 'women-dress', shop: 'South', name: 'Summer dress', description: '', category: 'Clothing', categoryId: womenCatalog.id, gender: 'Women', subCategory: 'Dresses', subcategoryId: dressId, price: 240, stock: 2, rating: 'New', image: '', status: 'Active' },
+      { id: 'sneakers', shop: 'East', name: 'Canvas sneakers', description: '', category: 'Shoes', categoryId: shoesCatalog.id, subCategory: 'Sneakers', subcategoryId: sneakerId, price: 90, stock: 3, rating: 'New', image: '', status: 'Active' },
+      { id: 'draft-shirt', shop: 'North', name: 'Draft shirt', description: '', category: 'Clothing', categoryId: menCatalog.id, gender: 'Men', subCategory: 'Shirts', subcategoryId: shirtId, price: 80, stock: 1, rating: 'New', image: '', status: 'Draft' }
+    ] as any
+
+    const { filterProducts } = useMarketplace()
+
+    expect(filterProducts({ category: 'Men', subCategory: 'Shirts' }, catalogProducts).map(product => product.id)).toEqual(['men-shirt'])
+    expect(filterProducts({ category: 'Men', subCategory: 'Shirts', subcategoryId: shirtId }, catalogProducts).map(product => product.id)).toEqual(['men-shirt'])
+    expect(filterProducts({ category: 'All', includeInactive: true }, catalogProducts)).toHaveLength(5)
+    expect(filterProducts({ category: 'All', availability: 'available' }, catalogProducts).map(product => product.id)).toEqual(['men-shirt', 'women-dress', 'sneakers'])
+    expect(filterProducts({ category: 'All', availability: 'sold-out' }, catalogProducts).map(product => product.id)).toEqual(['men-hoodie'])
+    expect(filterProducts({ category: 'All', minPrice: 100, maxPrice: 240, sortBy: 'price-asc' }, catalogProducts).map(product => product.id)).toEqual(['men-shirt', 'women-dress'])
+    expect(filterProducts({ category: 'All', sortBy: 'price-desc' }, catalogProducts).map(product => product.id)).toEqual(['men-hoodie', 'women-dress', 'men-shirt', 'sneakers'])
+    expect(filterProducts({ category: 'Women', search: 'summer' }, catalogProducts).map(product => product.id)).toEqual(['women-dress'])
+    expect(filterProducts({ category: 'All' }, catalogProducts).map(product => product.id)).toHaveLength(4)
   })
 })

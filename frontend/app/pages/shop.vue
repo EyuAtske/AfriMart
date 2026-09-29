@@ -6,18 +6,48 @@ import MediaUploader from '~/components/marketplace/MediaUploader.vue'
 import type { SellerProduct } from '~/composables/useSellerShop'
 import { MAIN_CATEGORIES, GENDERS, HIERARCHICAL_ITEMS, type ProductCategory, type ProductGender, type ProductSubCategory, type ProductMedia } from '~/types/product'
 import { extractError } from '~/repositories/api/apiHelpers'
+import { ensureCategoryCatalog, STATIC_CATALOG } from '~/utils/categoryCatalog'
 
 definePageMeta({
-  middleware: 'auth'
+  middleware: 'auth',
+  alias: ['/myshop']
 })
 const { gtag } = useGtag()
-const { shop, hasShop, createShop, addProduct, deleteSellerProduct, toggleProductStatus } = useSellerShop()
+const { shop, hasShop, isLoadingShop, shopError, createShop, addProduct, fetchSellerProducts, deleteSellerProduct, toggleProductStatus } = useSellerShop()
+const { filterProducts } = useMarketplace()
 const { showToast } = useToast()
 
+await ensureCategoryCatalog()
+
 const isSubmitting = ref(false)
+const isCreatingShop = ref(false)
 
 const categories = MAIN_CATEGORIES
 const genders = GENDERS
+const selectedListedCategory = ref('All')
+const selectedListedSubcategory = ref('All')
+
+const listedCategories = computed(() => [
+  'All',
+  ...new Set([
+    ...STATIC_CATALOG.map(category => category.name),
+    ...(shop.value?.products.map(product => product.category) || [])
+  ])
+])
+
+const listedSubcategories = computed(() => {
+  const category = STATIC_CATALOG.find(item => item.name === selectedListedCategory.value)
+  const available = selectedListedCategory.value === 'All'
+    ? STATIC_CATALOG.flatMap(item => item.subcategories)
+    : category?.subcategories || []
+  return ['All', ...new Set(available.map(subcategory => subcategory.name))]
+})
+
+const listedProducts = computed(() => filterProducts({
+  category: selectedListedCategory.value,
+  subCategory: selectedListedSubcategory.value,
+  includeInactive: true
+}, shop.value?.products || []))
 
 const shopForm = reactive({
   name: '',
@@ -59,12 +89,11 @@ watch([() => productForm.category, () => productForm.gender], () => {
 
 const productMedia = ref<ProductMedia[]>([])
 
-const showShopForm = ref(false)
+const showShopForm = ref(true)
 const isEditShopOpen = ref(false)
 const isEditProductOpen = ref(false)
 const editingProduct = ref<SellerProduct | null>(null)
 
-const shopError = ref('')
 const productError = ref('')
 
 const fieldErrors = reactive({
@@ -87,7 +116,7 @@ const clearFieldErrors = () => {
   fieldErrors.media = ''
 }
 
-const submitShop = () => {
+const submitShop = async () => {
   shopError.value = ''
 
   if (!shopForm.name.trim() || !shopForm.description.trim()) {
@@ -95,14 +124,21 @@ const submitShop = () => {
     return
   }
 
-  createShop(shopForm)
+  isCreatingShop.value = true
+  try {
+    await createShop(shopForm)
 
-  gtag('event', 'shop_created', {
-    shop_name: shopForm.name
-  })
+    gtag('event', 'shop_created', {
+      shop_name: shopForm.name
+    })
 
-  showShopForm.value = false
-  showToast('Shop created successfully!')
+    showShopForm.value = false
+    showToast('Shop created successfully!')
+  } catch (err: any) {
+    shopError.value = extractError(err, 'Failed to create your shop. Please try again.')
+  } finally {
+    isCreatingShop.value = false
+  }
 }
 
 const submitProduct = async () => {
@@ -213,10 +249,8 @@ const openProductEdit = (product: SellerProduct) => {
 }
 
 const handleDeleteProduct = (id: number | string, name: string) => {
-  if (confirm(`Are you sure you want to delete "${name}"?`)) {
-    deleteSellerProduct(id)
-    showToast(`Product "${name}" deleted.`)
-  }
+  deleteSellerProduct(id)
+  showToast(`Product "${name}" deleted.`)
 }
 
 const handleToggleStatus = (id: number | string, currentStatus: string) => {
@@ -272,8 +306,16 @@ const totalInventoryValue = computed(() => {
           </div>
         </div>
 
+        <div
+          v-if="isLoadingShop && !hasShop"
+          class="rounded-md border border-[#ded6cc] bg-[#faf8f4] p-8 text-sm text-[#756a60]"
+          role="status"
+        >
+          Loading your shop...
+        </div>
+
         <UiAppCard
-          v-if="!hasShop"
+          v-else-if="!hasShop"
           padding="none"
           class="overflow-hidden"
         >
@@ -284,7 +326,7 @@ const totalInventoryValue = computed(() => {
               </p>
 
               <h2 class="mt-3 font-serif text-3xl leading-tight text-[#211f1d] sm:text-4xl">
-                Start selling your pieces on Afrimart.
+                Create your Shop
               </h2>
 
               <p class="mt-4 max-w-xl text-base leading-7 text-[#756a60]">
@@ -296,7 +338,7 @@ const totalInventoryValue = computed(() => {
                   variant="secondary"
                   @click="showShopForm = true"
                 >
-                  Become a seller
+                  Create Shop
                 </UiAppButton>
               </div>
 
@@ -329,16 +371,14 @@ const totalInventoryValue = computed(() => {
                   />
                 </div>
 
-                <UiAppAlert v-if="shopError">
-                  {{ shopError }}
-                </UiAppAlert>
-
                 <div class="flex flex-wrap gap-3">
                   <UiAppButton
                     type="submit"
                     variant="secondary"
+                      :loading="isCreatingShop"
+                      :disabled="isCreatingShop"
                   >
-                    Create shop
+                        {{ isCreatingShop ? 'Creating shop...' : 'Create Shop' }}
                   </UiAppButton>
 
                   <UiAppButton
@@ -621,7 +661,7 @@ const totalInventoryValue = computed(() => {
           >
             <div class="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <h2 class="text-xl font-medium text-[#211f1d]">
-                Listed Products ({{ shop.products.length }})
+                Listed Products ({{ listedProducts.length }} of {{ shop.products.length }})
               </h2>
 
               <NuxtLink
@@ -632,9 +672,36 @@ const totalInventoryValue = computed(() => {
               </NuxtLink>
             </div>
 
-            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div class="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <label class="space-y-1.5 text-xs font-medium text-[#4d4035]">
+                <span class="block uppercase tracking-[0.12em]">Category</span>
+                <select
+                  v-model="selectedListedCategory"
+                  class="h-11 w-full rounded-md border border-[#cfc4b5] bg-[#f5f1e9] px-3 text-sm text-[#211f1d] outline-none focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
+                  @change="selectedListedSubcategory = 'All'"
+                >
+                  <option v-for="category in listedCategories" :key="category" :value="category">
+                    {{ category }}
+                  </option>
+                </select>
+              </label>
+
+              <label class="space-y-1.5 text-xs font-medium text-[#4d4035]">
+                <span class="block uppercase tracking-[0.12em]">Subcategory</span>
+                <select
+                  v-model="selectedListedSubcategory"
+                  class="h-11 w-full rounded-md border border-[#cfc4b5] bg-[#f5f1e9] px-3 text-sm text-[#211f1d] outline-none focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
+                >
+                  <option v-for="subcategory in listedSubcategories" :key="subcategory" :value="subcategory">
+                    {{ subcategory }}
+                  </option>
+                </select>
+              </label>
+            </div>
+
+            <div v-if="listedProducts.length" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <article
-                v-for="product in shop.products"
+                v-for="product in listedProducts"
                 :key="product.id"
                 class="overflow-hidden rounded-lg border border-[#ded6cc] bg-[#f5f1e9] flex flex-col justify-between"
               >
@@ -709,7 +776,23 @@ const totalInventoryValue = computed(() => {
                 </div>
               </article>
             </div>
+            <p v-else class="rounded-md border border-[#ded6cc] bg-[#f5f1e9] p-6 text-center text-sm text-[#756a60]">
+              No listed products match these filters.
+            </p>
           </UiAppCard>
+        </div>
+
+        <div v-if="shopError" class="mt-4 space-y-3" role="alert">
+          <UiAppAlert>{{ shopError }}</UiAppAlert>
+          <UiAppButton
+            type="button"
+            variant="secondary"
+            :loading="isLoadingShop"
+            :disabled="isLoadingShop"
+            @click="fetchSellerProducts"
+          >
+            Retry loading shop
+          </UiAppButton>
         </div>
 
         <EditShopModal

@@ -61,7 +61,9 @@ export class ApiShopRepository implements IShopRepository {
   }
 
   async createShop(_ownerEmail: string, dto: CreateShopDTO): Promise<Shop> {
-    const { shop, user } = useMockDataStore()
+    const { shop, user, isLoggedIn } = useMockDataStore()
+    const accountKey = String(user.value.id || user.value.email || '')
+    const wasLoggedIn = isLoggedIn.value
 
     try {
       const res = await authenticatedFetch<BackendShopResponse>('api/shops', {
@@ -73,8 +75,13 @@ export class ApiShopRepository implements IShopRepository {
       })
 
       const created = mapBackendShop(res)
-      shop.value = created
-      user.value.role = 'seller'
+      if (
+        isLoggedIn.value === wasLoggedIn &&
+        String(user.value.id || user.value.email || '') === accountKey
+      ) {
+        shop.value = created
+        user.value.role = 'seller'
+      }
       return created
     } catch (err: any) {
       throw new Error(extractError(err, 'Failed to create shop'))

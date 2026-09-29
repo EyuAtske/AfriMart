@@ -11,24 +11,119 @@ export const useSellerShop = () => {
   const { shopRepo, productRepo } = useRepositories()
 
   const hasShop = computed(() => Boolean(shop.value))
+  const isLoadingProducts = useState<boolean>('seller-products-loading', () => false)
+  const isLoadingShop = useState<boolean>('seller-shop-loading', () => isLoggedIn.value)
+  const shopError = useState<string>('seller-shop-error', () => '')
+  const shopHydratedFor = useState<string>('seller-shop-hydrated-for', () => '')
+  const shopRequestId = useState<number>('seller-shop-request-id', () => 0)
+  const currentAccountKey = () => String(user.value.id || user.value.email || '')
 
-  // Hydrate shop from backend when logged in and no shop is loaded yet
-  const shopHydrated = useState<boolean>('seller-shop-hydrated', () => false)
-  if (import.meta.client && !shopHydrated.value && isLoggedIn.value && !shop.value) {
-    shopHydrated.value = true
-    shopRepo.getMyShop().then((myShop) => {
-      if (myShop) {
-        shop.value = myShop
-        user.value.role = 'seller'
+  const fetchSellerProducts = async (): Promise<Product[]> => {
+    if (!isLoggedIn.value || !currentAccountKey()) {
+      shop.value = null
+      shopError.value = ''
+      isLoadingShop.value = false
+      isLoadingProducts.value = false
+      return []
+    }
+
+    const accountKey = currentAccountKey()
+    const requestId = ++shopRequestId.value
+    let resolvedShop: Shop | null = null
+    shopError.value = ''
+    isLoadingShop.value = true
+    isLoadingProducts.value = true
+    try {
+      const currentShop = await shopRepo.getMyShop()
+      if (shopRequestId.value !== requestId || !isLoggedIn.value || currentAccountKey() !== accountKey) return []
+
+      if (!currentShop) {
+        shop.value = null
+        user.value.role = 'buyer'
+        return []
       }
-    }).catch((err) => {
-      console.warn('Seller shop hydration notice:', err?.message || err)
-    })
+
+      resolvedShop = currentShop
+      currentShop.products = []
+      shop.value = currentShop
+      user.value.role = 'seller'
+
+      const shopId = currentShop.backendId || currentShop.id
+      if (!shopId) return []
+
+      const items = await productRepo.getProductsByShop(String(shopId), 1000, 0)
+      if (shopRequestId.value !== requestId || !isLoggedIn.value || currentAccountKey() !== accountKey) return []
+
+      if (shop.value && String(shop.value.backendId || shop.value.id) === String(shopId)) {
+        shop.value.products = items
+      }
+      return items
+    } catch (err: any) {
+      console.warn('Seller products fetch notice:', err?.message || err)
+      if (shopRequestId.value === requestId && isLoggedIn.value && currentAccountKey() === accountKey) {
+        shopError.value = err?.message || 'Unable to load your shop. Please try again.'
+        shop.value = resolvedShop
+        if (resolvedShop) resolvedShop.products = []
+      }
+      return []
+    } finally {
+      if (shopRequestId.value === requestId) {
+        isLoadingShop.value = false
+        isLoadingProducts.value = false
+      }
+    }
   }
 
-  const createShop = (details: CreateShopDTO) => {
+  // Hydrate shop from backend when logged in and no shop is loaded yet
+  watch(
+    [isLoggedIn, currentAccountKey],
+    ([loggedIn, accountKey]) => {
+      if (!loggedIn) {
+        shopHydratedFor.value = ''
+          shopRequestId.value++
+          shop.value = null
+          shopError.value = ''
+          isLoadingShop.value = false
+          isLoadingProducts.value = false
+        return
+      }
+      if (!import.meta.client || !accountKey || shopHydratedFor.value === accountKey) return
+
+      shopHydratedFor.value = accountKey
+      fetchSellerProducts().catch((err) => {
+        console.warn('Seller shop hydration notice:', err?.message || err)
+      })
+    },
+    { immediate: true }
+  )
+
+  const createShop = async (details: CreateShopDTO) => {
     const ownerEmail = user.value.email || 'seller@afrimart.com'
-    return shopRepo.createShop(ownerEmail, details)
+    const accountKey = currentAccountKey()
+    const requestId = ++shopRequestId.value
+    shopError.value = ''
+    isLoadingShop.value = true
+    try {
+      const created = await shopRepo.createShop(ownerEmail, details)
+      if (
+        shopRequestId.value !== requestId ||
+        !isLoggedIn.value ||
+        currentAccountKey() !== accountKey
+      ) return created
+
+      created.products = []
+      shop.value = created
+      user.value.role = 'seller'
+      shopHydratedFor.value = accountKey
+      return created
+    } catch (err: any) {
+      if (shopRequestId.value === requestId && isLoggedIn.value && currentAccountKey() === accountKey) {
+        shopError.value = err?.message || 'Unable to create your shop. Please try again.'
+      }
+      throw err
+    } finally {
+      if (shopRequestId.value === requestId) isLoadingShop.value = false
+    }
   }
 
   const updateShop = (details: UpdateShopDTO) => {
@@ -54,7 +149,13 @@ export const useSellerShop = () => {
     files?: File[]
   }) => {
     if (!shop.value) {
-      throw new Error('You must create a shop before creating products.')
+      const myShop = await shopRepo.getMyShop()
+      if (myShop) {
+        shop.value = myShop
+        user.value.role = 'seller'
+      } else {
+        throw new Error('You must create a shop before creating products.')
+      }
     }
 
     // Extract File objects from media items if files not directly passed
@@ -82,7 +183,20 @@ export const useSellerShop = () => {
       media: product.media,
       files
     }
-    return await productRepo.createProduct(shop.value.name, dto)
+    const created = await productRepo.createProduct(shop.value.name, dto)
+
+    // Refresh seller products from backend to ensure consistent state
+    const refreshedProducts = await fetchSellerProducts()
+    if (
+      shop.value &&
+      !refreshedProducts.some(p => String(p.id) === String(created.id)) &&
+      (!created.shopId || String(created.shopId) === String(shop.value.backendId || shop.value.id)) &&
+      !shop.value.products.some(p => String(p.id) === String(created.id))
+    ) {
+      shop.value.products.unshift(created)
+    }
+
+    return created
   }
 
   const updateSellerProduct = (id: number | string, updates: UpdateProductDTO) => {
@@ -139,6 +253,10 @@ export const useSellerShop = () => {
   return {
     shop,
     hasShop,
+    isLoadingShop,
+    shopError,
+    isLoadingProducts,
+    fetchSellerProducts,
     createShop,
     updateShop,
     addProduct,

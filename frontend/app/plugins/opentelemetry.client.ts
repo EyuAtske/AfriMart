@@ -75,8 +75,6 @@ export default defineNuxtPlugin((nuxtApp) => {
 
   const meter = meterProvider.getMeter('afrimart-frontend')
 
-
-
   // ---------------------------------------------------------------------------
   // Frontend errors
   // ---------------------------------------------------------------------------
@@ -142,9 +140,7 @@ export default defineNuxtPlugin((nuxtApp) => {
       time: new Date().toISOString(),
       level: severityText,
       msg: body,
-      ...(attributes.error
-        ? { error: attributes.error }
-        : {}),
+      ...attributes,
       trace_id: spanContext.traceId,
       span_id: spanContext.spanId,
     }
@@ -277,11 +273,12 @@ export default defineNuxtPlugin((nuxtApp) => {
         emitCorrelatedLog(
           span,
           'ERROR',
-          `Vue Error: ${info}`,
+          'Vue error',
           {
             route,
-            info: String(info),
+            error_type: 'VueError',
             error: errorObj.message,
+            info: String(info),
           },
         )
 
@@ -305,6 +302,14 @@ export default defineNuxtPlugin((nuxtApp) => {
       }),
     ],
   })
+
+  // ---------------------------------------------------------------------------
+  // Make OTel tools available to the rest of the frontend
+  // ---------------------------------------------------------------------------
+
+  nuxtApp.provide('otelTracer', tracer)
+  nuxtApp.provide('otelLogger', logger)
+  nuxtApp.provide('emitOtelLog', emitCorrelatedLog)
 
   // ---------------------------------------------------------------------------
   // OTel initialization test
