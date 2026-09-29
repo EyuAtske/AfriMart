@@ -160,3 +160,28 @@ func validateRegistration(req *register) error {
 
     return nil
 }
+
+func ValidateRegistration(reg *register) error {
+	if strings.TrimSpace(reg.Email) == "" {
+		return errors.New("email is required")
+	}
+	if strings.TrimSpace(reg.Password) == "" {
+		return errors.New("password is required")
+	}
+	if strings.TrimSpace(reg.Username) == "" {
+		return errors.New("username is required")
+	}
+	
+	// Basic Ethiopian phone number validation
+	phone := strings.TrimSpace(reg.PhoneNumber)
+	if phone == "" {
+		return errors.New("phone number is required")
+	}
+	
+	// Allow +251..., 09..., or 07...
+	if !strings.HasPrefix(phone, "+251") && !strings.HasPrefix(phone, "09") && !strings.HasPrefix(phone, "07") {
+		return errors.New("invalid phone number format. Use +251..., 09..., or 07...")
+	}
+
+	return nil
+}

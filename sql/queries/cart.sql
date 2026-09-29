@@ -62,3 +62,21 @@ WHERE cart_id = $1;
 UPDATE carts
 SET updated_at = NOW()
 WHERE id = $1;
+
+-- name: GetCartItemsOwnedByUser :many
+SELECT
+    ci.id,
+    ci.cart_id,
+    ci.product_id,
+    ci.quantity,
+    ci.created_at,
+    ci.updated_at,
+    p.name AS product_name,
+    p.price,
+    p.stock,
+    p.status
+FROM cart_items ci
+JOIN products p ON p.id = ci.product_id
+JOIN shops s ON s.id = p.shop_id
+WHERE ci.cart_id = $1
+  AND s.owner_id = $2;

@@ -12,4 +12,6 @@ type ApiConfig struct {
 	Queries      *database.Queries
 	Secret       string
 	ImageStorage storage.ImageStorage
+	ChapaSecretKey   string
+    ChapaCallbackURL string
 }

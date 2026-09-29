@@ -35,6 +35,7 @@ type register struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	Email    string `json:"email"`
+	PhoneNumber string `json:"phone_number"`
 }
 
 type login struct {
@@ -86,6 +87,12 @@ func (apicfg *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Normalize phone number to international format for Chapa compatibility
+	normalizedPhone := reg.PhoneNumber
+	if strings.HasPrefix(normalizedPhone, "09") || strings.HasPrefix(normalizedPhone, "07") {
+		normalizedPhone = "+251" + normalizedPhone[1:] // Converts 0912345678 to +251912345678
+	}
+
 	users, err := apicfg.Queries.CreateUser(ctx, database.CreateUserParams{
 		FirstName: sql.NullString{
 			String: reg.First,
@@ -101,6 +108,10 @@ func (apicfg *AuthHandler) HandleRegister(w http.ResponseWriter, r *http.Request
 		},
 		Email:        reg.Email,
 		PasswordHash: hashedPassword,
+		PhoneNumber: sql.NullString{ // <-- Added
+			String: normalizedPhone,
+			Valid:  true,
+		},
 	})
 	if err != nil {
 		apicfg.Logger.ErrorContext(ctx, "failed to create user in database", "email", reg.Email, "error", err)

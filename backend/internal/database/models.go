@@ -56,6 +56,21 @@ type OrderItem struct {
 	CreatedAt time.Time
 }
 
+type Payment struct {
+	ID                uuid.UUID
+	OrderID           uuid.UUID
+	PaymentMethod     string
+	PaymentStatus     string
+	Amount            string
+	Provider          sql.NullString
+	TransactionID     sql.NullString
+	ProviderReference sql.NullString
+	FailureReason     sql.NullString
+	PaidAt            sql.NullTime
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
 type Product struct {
 	ID            uuid.UUID
 	ShopID        uuid.UUID
@@ -118,4 +133,5 @@ type User struct {
 	Role         string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	PhoneNumber  sql.NullString
 }

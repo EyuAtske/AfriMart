@@ -65,10 +65,15 @@ func SetupAPIConfig(ctx context.Context) *ApiConfig {
 		return nil
 	}
 
+	chapaSecretKey := os.Getenv("CHAPA_SECRET_KEY")
+	chapaCallbackURL := os.Getenv("CHAPA_CALLBACK_URL")
+
 	return &ApiConfig{
 		DB:           dbConn,
 		Queries:      dbQueries,
 		Secret:       secretKey,
 		ImageStorage: imageStorage,
+		ChapaSecretKey: chapaSecretKey,
+		ChapaCallbackURL: chapaCallbackURL,
 	}
 }

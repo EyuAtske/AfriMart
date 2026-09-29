@@ -46,7 +46,7 @@ type checkoutRequest struct {
 
 func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	userID, ok := auth.UserIDFromContext(ctx)
 	if !ok {
 		h.Logger.WarnContext(ctx, "checkout failed: unauthorized")
@@ -111,7 +111,35 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Note: Using h.Config.Queries here instead of txQueries as per original code
+	ownedItems, err := h.Config.Queries.GetCartItemsOwnedByUser(
+		r.Context(),
+		database.GetCartItemsOwnedByUserParams{
+			CartID:  cart.ID,
+			OwnerID: userID,
+		},
+	)
+	if err != nil {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusInternalServerError,
+			"Could not verify product ownership",
+			err,
+		)
+		return
+	}
+
+	if len(ownedItems) > 0 {
+		comm.RespondErrorWithJson(
+			w,
+			r,
+			http.StatusForbidden,
+			"You cannot purchase your own product",
+			nil,
+		)
+		return
+	}
+	
 	cartItems, err := h.Config.Queries.GetCartItems(ctx, cart.ID)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "checkout failed: could not get cart items", "user_id", userID, "cart_id", cart.ID, "error", err)
@@ -227,7 +255,7 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 
 func (h *OrderHandler) HandleListOrders(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	userID, ok := auth.UserIDFromContext(ctx)
 	if !ok {
 		h.Logger.WarnContext(ctx, "list orders failed: unauthorized")
@@ -274,7 +302,7 @@ func (h *OrderHandler) HandleListOrders(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	
+
 	response := map[string]interface{}{
 		"page":   page,
 		"limit":  limit,
@@ -291,7 +319,7 @@ func (h *OrderHandler) HandleListOrders(w http.ResponseWriter, r *http.Request) 
 
 func (h *OrderHandler) HandleGetOrder(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	userID, ok := auth.UserIDFromContext(ctx)
 	if !ok {
 		h.Logger.WarnContext(ctx, "get order failed: unauthorized")
@@ -306,7 +334,7 @@ func (h *OrderHandler) HandleGetOrder(w http.ResponseWriter, r *http.Request) {
 		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Invalid order ID", err)
 		return
 	}
-	
+
 	h.Logger.InfoContext(ctx, "handling get order request", "user_id", userID, "order_id", orderID)
 
 	orderRecord, err := h.Queries.GetOrderByID(ctx, database.GetOrderByIDParams{
@@ -332,7 +360,7 @@ func (h *OrderHandler) HandleGetOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	
+
 	response := map[string]interface{}{
 		"order": orderRecord,
 		"items": items,
@@ -348,7 +376,7 @@ func (h *OrderHandler) HandleGetOrder(w http.ResponseWriter, r *http.Request) {
 
 func (h *OrderHandler) HandleUpdateOrderStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	userID, ok := auth.UserIDFromContext(ctx)
 	if !ok {
 		h.Logger.WarnContext(ctx, "update order status failed: unauthorized")
@@ -442,7 +470,7 @@ func isValidStatusTransition(current, next string) bool {
 
 func (h *OrderHandler) HandleListSellerOrders(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	userID, ok := auth.UserIDFromContext(ctx)
 	if !ok {
 		h.Logger.WarnContext(ctx, "list seller orders failed: unauthorized")
