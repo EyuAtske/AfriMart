@@ -9,7 +9,8 @@ import (
 	"time"
 )
 
-const ChapaBaseURL = "https://api.chapa.global/v2"
+// Make this a default constant, but allow overriding via the struct
+const DefaultChapaBaseURL = "https://api.chapa.global/v2"
 
 type Customer struct {
 	FirstName   string `json:"first_name"`
@@ -58,6 +59,7 @@ type VerifyPaymentResponse struct {
 type ChapaClient struct {
 	SecretKey   string
 	CallbackURL string
+	BaseURL     string // <-- ADDED: Allows overriding for tests
 	HTTPClient  *http.Client
 }
 
@@ -65,6 +67,7 @@ func NewClient(secretKey, callbackURL string) *ChapaClient {
 	return &ChapaClient{
 		SecretKey:   secretKey,
 		CallbackURL: callbackURL,
+		BaseURL:     DefaultChapaBaseURL, // <-- Default to production
 		HTTPClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -72,8 +75,9 @@ func NewClient(secretKey, callbackURL string) *ChapaClient {
 }
 
 func (c *ChapaClient) InitializePayment(ctx context.Context, req InitializePaymentRequest) (*InitializePaymentResponse, error) {
-	url := ChapaBaseURL + "/payments/hosted"
-	req.CallbackURL = c.CallbackURL // Inject from backend config
+	// USE c.BaseURL INSTEAD OF HARDCODED CONSTANT
+	url := c.BaseURL + "/payments/hosted"
+	req.CallbackURL = c.CallbackURL 
 
 	jsonData, err := json.Marshal(req)
 	if err != nil {
@@ -116,7 +120,8 @@ func (c *ChapaClient) InitializePayment(ctx context.Context, req InitializePayme
 }
 
 func (c *ChapaClient) VerifyPayment(ctx context.Context, reference string) (*VerifyPaymentResponse, error) {
-	url := fmt.Sprintf("%s/payments/%s/verify", ChapaBaseURL, reference)
+	// USE c.BaseURL INSTEAD OF HARDCODED CONSTANT
+	url := fmt.Sprintf("%s/payments/%s/verify", c.BaseURL, reference)
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
