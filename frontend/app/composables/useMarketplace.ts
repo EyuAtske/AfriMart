@@ -5,12 +5,21 @@ import { useMockDataStore } from '~/repositories/mock/MockDataStore'
 import { useRepositories } from '~/composables/useRepositories'
 import { STATIC_CATALOG, ensureCategoryCatalog } from '~/utils/categoryCatalog'
 
+interface MarketplaceProductFilters extends ProductFilterParams {
+  subcategoryId?: string
+  minPrice?: number
+  maxPrice?: number
+  availability?: 'all' | 'available' | 'sold-out'
+  sortBy?: 'default' | 'price-asc' | 'price-desc'
+  includeInactive?: boolean
+}
+
 export const formatPrice = (amount: number) =>
   `${amount.toLocaleString()} ETB`
 
 export const useMarketplace = () => {
   const { products, cart, orders, reviews, addReview: addReviewToStore } = useMockDataStore()
-  const { productRepo, cartRepo, orderRepo } = useRepositories()
+  const { productRepo, cartRepo, orderRepo, authRepo } = useRepositories()
   let gtag: any = () => { }
   try {
     const g = useGtag()
@@ -66,6 +75,19 @@ export const useMarketplace = () => {
 
   try {
     if (import.meta.client) {
+      // Public pages restore the session too, so own-shop cart protection works after refresh.
+      const sessionRestored = useState<boolean>('marketplace-auth-session-restored', () => false)
+      if (!sessionRestored.value) {
+        sessionRestored.value = true
+        authRepo.getCurrentSession().catch(() => {})
+      }
+
+      try {
+        useSellerShop()
+      } catch {
+        // Headless/test context without Nuxt composable state
+      }
+
       const productsHydrated = useState<boolean>('marketplace-products-hydrated', () => false)
       if (!productsHydrated.value) {
         productsHydrated.value = true
@@ -76,26 +98,44 @@ export const useMarketplace = () => {
     // Vitest/headless context
   }
 
-  const filterProducts = (filters: ProductFilterParams, customList?: Product[]) => {
+  const filterProducts = (filters: MarketplaceProductFilters, customList?: Product[]) => {
     const search = filters.search?.trim().toLowerCase() || ''
     const category = filters.category || 'All'
     const targetList = customList || products.value
+    const categoryEntry = STATIC_CATALOG.find(cat => cat.name.toLowerCase() === category.toLowerCase())
+    const selectedSubcategory = filters.subCategory && filters.subCategory !== 'All'
+      ? (categoryEntry?.subcategories.find(sub => sub.name.toLowerCase() === filters.subCategory?.toLowerCase()) ||
+        STATIC_CATALOG.flatMap(cat => cat.subcategories).find(sub => sub.name.toLowerCase() === filters.subCategory?.toLowerCase()))
+      : undefined
 
-    return targetList.filter((product) => {
+    const filtered = targetList.filter((product) => {
       const matchesSearch = !search ||
         product.name.toLowerCase().includes(search) ||
         product.shop.toLowerCase().includes(search) ||
         product.description.toLowerCase().includes(search) ||
         (product.subCategory && product.subCategory.toLowerCase().includes(search))
 
-      const matchesCategory = category === 'All' ||
-        product.category.toLowerCase() === category.toLowerCase() ||
-        (product.subCategory && product.subCategory.toLowerCase() === category.toLowerCase()) ||
-        (product.gender && product.gender.toLowerCase() === category.toLowerCase()) ||
-        ((category === 'Men' || category === 'Women' || category === 'Kids') && (product.category === 'Clothing' || product.gender?.toLowerCase() === category.toLowerCase()))
+      const isGenderCategory = category === 'Men' || category === 'Women' || category === 'Kids'
+      const matchesCategory = category === 'All' || (isGenderCategory
+        ? product.category.toLowerCase() === category.toLowerCase() || product.gender?.toLowerCase() === category.toLowerCase()
+        : product.category.toLowerCase() === category.toLowerCase() || Boolean(categoryEntry?.id && product.categoryId === categoryEntry.id))
+      const matchesSubcategory = (!filters.subCategory || filters.subCategory === 'All') ||
+        (filters.subcategoryId && product.subcategoryId === filters.subcategoryId) ||
+        (selectedSubcategory?.id && product.subcategoryId === selectedSubcategory.id) ||
+        product.subCategory?.toLowerCase() === filters.subCategory?.toLowerCase()
+      const matchesMinPrice = filters.minPrice === undefined || product.price >= filters.minPrice
+      const matchesMaxPrice = filters.maxPrice === undefined || product.price <= filters.maxPrice
+      const matchesAvailability = filters.availability === undefined || filters.availability === 'all' ||
+        (filters.availability === 'available' && product.stock > 0) ||
+        (filters.availability === 'sold-out' && product.stock <= 0)
 
-      return product.status === 'Active' && matchesSearch && matchesCategory
+      return (filters.includeInactive || product.status === 'Active') && matchesSearch && matchesCategory &&
+        matchesSubcategory && matchesMinPrice && matchesMaxPrice && matchesAvailability
     })
+
+    if (filters.sortBy === 'price-asc') return filtered.sort((a, b) => a.price - b.price)
+    if (filters.sortBy === 'price-desc') return filtered.sort((a, b) => b.price - a.price)
+    return filtered
   }
 
   const syncCartFromBackend = async () => {
@@ -137,24 +177,24 @@ const isOwnProduct = (target: number | string | Product): boolean => {
 
   if (typeof target === 'object' && target !== null) {
     targetShopName = target.shop || ''
-    targetShopId = String((target as any).shopId || (target as any).ShopID || (target as any).backendId || '')
+    targetShopId = String((target as any).shopId || (target as any).ShopID || '')
   } else {
     const found = getProduct(target)
     if (found) {
       targetShopName = found.shop || ''
-      targetShopId = String((found as any).shopId || (found as any).ShopID || (found as any).backendId || '')
+      targetShopId = String((found as any).shopId || (found as any).ShopID || '')
     }
+  }
+
+  const sellerShopId = String(shop.value.backendId || shop.value.id || '')
+  if (targetShopId) {
+    return sellerShopId === targetShopId
   }
 
   const sellerShopName = (shop.value.name || '').trim().toLowerCase()
   const pShopName = targetShopName.trim().toLowerCase()
 
   if (sellerShopName && pShopName && sellerShopName === pShopName) {
-    return true
-  }
-
-  const sellerShopId = String(shop.value.backendId || shop.value.id || '')
-  if (sellerShopId && targetShopId && sellerShopId === targetShopId) {
     return true
   }
 
@@ -230,12 +270,6 @@ const updateCartQuantity = async (productId: number | string, quantity: number) 
   const existingIndex = cart.value.findIndex(cartItem => String(cartItem.productId) === String(productId))
   if (existingIndex !== -1 && product && cart.value[existingIndex]) {
     const backendItemId = cart.value[existingIndex].backendItemId
-    console.log('CART ITEM DEBUG', cart.value[existingIndex])
-    console.log('CART QUANTITY DEBUG', {
-      productId,
-      requestedQuantity: quantity,
-      productStock: product.stock,
-    })
     const newQty = Math.min(quantity, product.stock)
 
     if (!backendItemId) {

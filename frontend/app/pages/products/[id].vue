@@ -1,6 +1,5 @@
 <script setup lang="ts">
 const route = useRoute()
-const router = useRouter()
 const { addToCart, getProductReviews, isOwnProduct } = useMarketplace()
 const { productRepo } = useRepositories()
 const { gtag } = useGtag()
@@ -138,13 +137,21 @@ const addSelectedQuantity = async () => {
       v-else-if="product"
       class="mx-auto max-w-7xl"
     >
-      <button
-        type="button"
-        class="mb-4 sm:mb-6 text-xs sm:text-sm font-medium text-[#806344] underline-offset-4 transition hover:text-[#211f1d] hover:underline"
-        @click="router.back()"
-      >
-        ← Back to browsing
-      </button>
+      <nav aria-label="Breadcrumb" class="mb-4 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:mb-6 sm:text-sm text-[#756a60]">
+        <NuxtLink to="/" class="hover:text-[#806344] hover:underline">Home</NuxtLink>
+        <span aria-hidden="true">/</span>
+        <NuxtLink :to="{ path: '/products', query: { category: product.gender || product.category } }" class="hover:text-[#806344] hover:underline">
+          {{ product.gender || product.category }}
+        </NuxtLink>
+        <template v-if="product.subCategory">
+          <span aria-hidden="true">/</span>
+          <NuxtLink :to="{ path: '/products', query: { category: product.gender || product.category, subcategory: product.subCategory } }" class="max-w-[45vw] truncate hover:text-[#806344] hover:underline sm:max-w-none">
+            {{ product.subCategory }}
+          </NuxtLink>
+        </template>
+        <span aria-hidden="true">/</span>
+        <span class="min-w-0 truncate text-[#211f1d]">{{ product.name }}</span>
+      </nav>
 
       <!-- Side-by-side product view on mobile & desktop -->
       <div class="grid grid-cols-2 gap-3 sm:gap-8 lg:grid-cols-[1fr_0.85fr] lg:gap-12 items-start">

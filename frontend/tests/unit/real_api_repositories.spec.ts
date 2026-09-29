@@ -6,6 +6,7 @@ import { ApiCartRepository } from '../../app/repositories/api/ApiCartRepository'
 import { ApiOrderRepository } from '../../app/repositories/api/ApiOrderRepository'
 import { useMockDataStore } from '../../app/repositories/mock/MockDataStore'
 import * as apiHelpers from '../../app/repositories/api/apiHelpers'
+import { ensureCategoryCatalog, STATIC_CATALOG } from '../../app/utils/categoryCatalog'
 
 describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
   beforeEach(() => {
@@ -22,10 +23,46 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
     shop.value = null
   })
 
+  it('hydrates categories and subcategories from wrapped backend responses', async () => {
+    const categoryIds = {
+      Clothing: 'bc7474f5-73e9-4109-b154-221ae5f23cd2',
+      Shoes: '9f0a44bf-544e-4324-b877-e794f2b3f5e6',
+      Accessories: '9ec4e018-af40-40ba-b678-656c9aabe820'
+    }
+    const subcategoryId = '26e4310b-dbc3-4b33-a71b-86f7c7b1fff0'
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.endsWith('/api/categories')) {
+        return Promise.resolve({
+          value: Object.entries(categoryIds).map(([Name, ID]) => ({ Name, ID })),
+          Count: 3
+        })
+      }
+      if (url.endsWith(`/api/categories/${categoryIds.Clothing}/subcategories`)) {
+        return Promise.resolve({
+          value: [{ Name: 'T-Shirts', ID: subcategoryId }],
+          Count: 1
+        })
+      }
+      return Promise.resolve({ value: [], Count: 0 })
+    })
+    vi.stubGlobal('$fetch', fetchMock)
+    vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBase: 'http://localhost:8080' } }))
+
+    expect(await ensureCategoryCatalog()).toBe(true)
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8080/api/categories', { method: 'GET' })
+    expect(STATIC_CATALOG.find(category => category.name === 'Clothing')?.id).toBe(categoryIds.Clothing)
+    expect(STATIC_CATALOG.find(category => category.name === 'Men')?.id).toBe(categoryIds.Clothing)
+    expect(STATIC_CATALOG.find(category => category.name === 'Clothing')?.subcategories.find(subcategory => subcategory.name === 'T-Shirts')?.id).toBe(subcategoryId)
+  })
+
   describe('ApiAuthRepository', () => {
     const authRepo = new ApiAuthRepository()
 
     it('login: should authenticate with real backend API format and create user session', async () => {
+      const { shop, products } = useMockDataStore()
+      shop.value = { id: 'previous-shop', name: 'Previous Shop', slug: 'previous-shop', description: '', ownerEmail: '', products: [], paymentMethods: [] }
+      products.value = [{ id: 'public-product', shop: 'Public Shop', name: 'Public Product', description: '', category: 'Clothing', price: 1, stock: 1, rating: 'New', image: '', status: 'Active' }]
+
       const mockLoginResponse = {
         id: 'user-uuid-101',
         email: 'seller@afrimart.com',
@@ -49,6 +86,8 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
 
       expect(session.token).toBe('jwt-access-token-xyz')
       expect(session.user.email).toBe('seller@afrimart.com')
+      expect(shop.value).toBeNull()
+      expect(products.value).toHaveLength(1)
 
       const { isLoggedIn } = useMockDataStore()
       expect(isLoggedIn.value).toBe(true)
@@ -96,8 +135,10 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
 
     it('logout: should invoke POST /api/auth/logout and clear session', async () => {
       apiHelpers.setAccessToken('active-access-token')
-      const { isLoggedIn } = useMockDataStore()
+      const { isLoggedIn, shop, products } = useMockDataStore()
       isLoggedIn.value = true
+      shop.value = { id: 'shop-a', name: 'Shop A', slug: 'shop-a', description: '', ownerEmail: '', products: [], paymentMethods: [] }
+      products.value = [{ id: 'public-product', shop: 'Shop A', name: 'Product', description: '', category: 'Clothing', price: 1, stock: 1, rating: 'New', image: '', status: 'Active' }]
 
       vi.stubGlobal('$fetch', vi.fn().mockResolvedValue({ status: 'ok' }))
       vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBase: 'http://localhost:8080' } }))
@@ -105,6 +146,8 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
       await authRepo.logout()
 
       expect(isLoggedIn.value).toBe(false)
+      expect(shop.value).toBeNull()
+      expect(products.value).toHaveLength(1)
     })
 
     it('authenticatedFetch: should sanitize endpoint with Markdown brackets or parentheses', async () => {
@@ -211,6 +254,50 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
       expect(user.value.role).toBe('seller')
     })
 
+    it('createShop: does not replace the active account shop after an account switch', async () => {
+      apiHelpers.setAccessToken('seller-token')
+      const { user, isLoggedIn, shop } = useMockDataStore()
+      user.value = { id: 'user-a', username: 'seller-a', name: 'Seller A', email: 'a@example.com', role: 'buyer' }
+      isLoggedIn.value = true
+
+      let resolveResponse!: (value: unknown) => void
+      const response = new Promise(resolve => {
+        resolveResponse = resolve
+      })
+      vi.stubGlobal('$fetch', vi.fn().mockReturnValue(response))
+      vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBase: 'http://localhost:8080' } }))
+
+      const pendingCreate = shopRepo.createShop('a@example.com', {
+        name: 'Seller A Shop',
+        description: 'A shop'
+      })
+      user.value = { id: 'user-b', username: 'seller-b', name: 'Seller B', email: 'b@example.com', role: 'buyer' }
+      shop.value = {
+        id: 'shop-b',
+        backendId: 'shop-b',
+        name: 'Seller B Shop',
+        slug: 'seller-b-shop',
+        description: '',
+        ownerEmail: 'b@example.com',
+        products: [],
+        paymentMethods: []
+      }
+      resolveResponse({
+        ID: 'shop-a',
+        OwnerID: 'user-a',
+        Name: 'Seller A Shop',
+        Description: { String: 'A shop', Valid: true },
+        Status: 'active',
+        CreatedAt: '2026-09-18T10:00:00Z',
+        UpdatedAt: '2026-09-18T10:00:00Z'
+      })
+
+      await pendingCreate
+
+      expect(shop.value?.id).toBe('shop-b')
+      expect(user.value.role).toBe('buyer')
+    })
+
     it('updateShop: should PATCH shop name and description endpoints', async () => {
       const mockUpdatedShop = {
         ID: 'shop-uuid-999',
@@ -298,12 +385,13 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
     const mockBackendProduct = {
       ID: 'prod-uuid-555',
       ShopID: 'shop-uuid-999',
-      CategoryID: '00000000-0000-0000-0000-000000000001',
-      SubcategoryID: '00000000-0000-0000-0000-000000000002',
+      CategoryID: 'bc7474f5-73e9-4109-b154-221ae5f23cd2',
+      SubcategoryID: '26e4310b-dbc3-4b33-a71b-86f7c7b1fff0',
       Name: 'Handwoven Kente Scarf',
       Description: { String: 'Authentic handwoven silk and cotton Kente scarf', Valid: true },
       Price: '250.50',
       Stock: 15,
+      Gender: 'women',
       Image: { String: '/images/kente.png', Valid: true },
       Status: 'active'
     }
@@ -324,6 +412,7 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
       expect(result.data[0].name).toBe('Handwoven Kente Scarf')
       expect(result.data[0].price).toBe(250.50)
       expect(result.data[0].stock).toBe(15)
+      expect(result.data[0].gender).toBe('Women')
     })
 
     it('getProducts: should map backend ProductWithImages response wrapper with media list', async () => {
@@ -373,6 +462,18 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
       await expect(productRepo.getProducts()).rejects.toThrow('Something went wrong. Please try again later.')
     })
 
+    it('getProducts: clears cached marketplace products when the API returns an empty list', async () => {
+      const { products } = useMockDataStore()
+      products.value = [{ id: 'stale-product', shop: 'Old Shop', name: 'Stale', description: '', category: 'Clothing', price: 1, stock: 1, rating: 'New', image: '', status: 'Active' }]
+      vi.stubGlobal('$fetch', vi.fn().mockResolvedValue([]))
+      vi.stubGlobal('useRuntimeConfig', () => ({ public: { apiBase: 'http://localhost:8080' } }))
+
+      const result = await productRepo.getProducts()
+
+      expect(result.data).toEqual([])
+      expect(products.value).toEqual([])
+    })
+
     it('getProductsByShop: should fetch seller products from GET /api/shops/{shop_id}/products with auth and pagination', async () => {
       apiHelpers.setAccessToken('seller-token-123')
       let calledUrl = ''
@@ -408,6 +509,7 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
       expect(result[0].id).toBe('prod-uuid-555')
       expect(result[0].name).toBe('Handwoven Kente Scarf')
       expect(result[0].stock).toBe(15)
+      expect(result[0].shopId).toBe('shop-uuid-999')
     })
 
     it('getProductsByShop: should return empty array when 404 or empty', async () => {
@@ -493,8 +595,8 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
         name: 'Handwoven Kente Scarf',
         description: 'Authentic handwoven silk and cotton Kente scarf',
         category: 'Men',
-        categoryId: '11111111-1111-4111-8111-111111111111',
-        subcategoryId: '22222222-2222-4222-8222-222222222222',
+        categoryId: 'bc7474f5-73e9-4109-b154-221ae5f23cd2',
+        subcategoryId: '26e4310b-dbc3-4b33-a71b-86f7c7b1fff0',
         price: 250.50,
         stock: 15,
         files: [testFile]
@@ -505,7 +607,8 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
       expect(newProduct.price).toBe(250.50)
       expect(capturedBody).toBeInstanceOf(FormData)
       expect(capturedBody.get('name')).toBe('Handwoven Kente Scarf')
-      expect(capturedBody.get('category_id')).toBe('11111111-1111-4111-8111-111111111111')
+      expect(capturedBody.get('category_id')).toBe('bc7474f5-73e9-4109-b154-221ae5f23cd2')
+      expect(capturedBody.get('subcategory_id')).toBe('26e4310b-dbc3-4b33-a71b-86f7c7b1fff0')
       expect(capturedBody.get('price')).toBe('250.5')
       expect(capturedBody.get('status')).toBe('active')
     })
@@ -557,8 +660,9 @@ describe('Real Data Frontend API Repositories (Auth, Shop, Product)', () => {
           name: 'Handwoven Kente Scarf',
           description: 'Description',
           category: 'Men',
-          categoryId: '11111111-1111-4111-8111-111111111111',
-          subcategoryId: '22222222-2222-4222-8222-222222222222',
+          categoryId: 'bc7474f5-73e9-4109-b154-221ae5f23cd2',
+          subcategoryId: '26e4310b-dbc3-4b33-a71b-86f7c7b1fff0',
+          image: '/images/kente.png',
           price: 100,
           stock: 5,
           files: []

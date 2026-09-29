@@ -1,11 +1,8 @@
 import type { ProductCategory, ProductSubCategory } from '~/types/product'
 
 /**
- * Static category catalog and readiness provider.
- * 
- * Note: Product categories require backend database records and UUIDs.
- * Until category migrations and backend routes are provisioned,
- * valid database UUIDs are unavailable at runtime.
+ * Static category names and subcategory membership, hydrated with database IDs
+ * from the backend when available. Men, Women, and Kids are Clothing aliases.
  */
 
 export interface CatalogCategory {
@@ -17,10 +14,7 @@ export interface CatalogCategory {
   }>
 }
 
-/**
- * Temporary static catalog mapping known names to optional runtime UUIDs.
- * Currently no valid backend category UUIDs are provisioned in the database.
- */
+/** Seeded catalog UUID defaults, refreshed from backend responses at runtime. */
 export const STATIC_CATALOG: CatalogCategory[] = [
   {
     name: 'Clothing',
@@ -138,7 +132,10 @@ export async function ensureCategoryCatalog(apiBase?: string): Promise<boolean> 
       }
 
       const categoriesUrl = `${base}/api/categories`
-      const categories = await $fetch<any[]>(categoriesUrl, { method: 'GET' })
+      const categoryResponse = await $fetch<any>(categoriesUrl, { method: 'GET' })
+      const categories = Array.isArray(categoryResponse)
+        ? categoryResponse
+        : categoryResponse?.value || categoryResponse?.Value
 
       if (!Array.isArray(categories) || categories.length === 0) {
         return false
@@ -160,7 +157,10 @@ export async function ensureCategoryCatalog(apiBase?: string): Promise<boolean> 
 
         try {
           const subcategoriesUrl = `${base}/api/categories/${catId}/subcategories`
-          const subcategories = await $fetch<any[]>(subcategoriesUrl, { method: 'GET' })
+          const subcategoryResponse = await $fetch<any>(subcategoriesUrl, { method: 'GET' })
+          const subcategories = Array.isArray(subcategoryResponse)
+            ? subcategoryResponse
+            : subcategoryResponse?.value || subcategoryResponse?.Value
 
           if (Array.isArray(subcategories)) {
             for (const sub of subcategories) {
@@ -207,8 +207,7 @@ export function resolveCategoryId(categoryName?: string): string | undefined {
   if (cat?.id && isValidUuid(cat.id)) return cat.id
   const directMatch = STATIC_CATALOG.find(c => c.name.toLowerCase() === catName)
   if (directMatch?.id && isValidUuid(directMatch.id)) return directMatch.id
-  const fallback = STATIC_CATALOG.find(c => isValidUuid(c.id))
-  return fallback?.id
+  return undefined
 }
 
 export function resolveSubcategoryId(categoryName?: string, subcategoryName?: string): string | undefined {
@@ -224,13 +223,15 @@ export function resolveSubcategoryId(categoryName?: string, subcategoryName?: st
   if (cat) {
     const sub = cat.subcategories.find(s => s.name.toLowerCase() === subName)
     if (sub?.id && isValidUuid(sub.id)) return sub.id
+    return undefined
   }
 
-  for (const c of STATIC_CATALOG) {
-    const sub = c.subcategories.find(s => s.name.toLowerCase() === subName)
-    if (sub?.id && isValidUuid(sub.id)) return sub.id
+  if (!rawCatName) {
+    for (const category of STATIC_CATALOG) {
+      const subcategory = category.subcategories.find(item => item.name.toLowerCase() === subName)
+      if (subcategory?.id && isValidUuid(subcategory.id)) return subcategory.id
+    }
   }
 
-  const fallbackSub = cat?.subcategories.find(s => isValidUuid(s.id)) || STATIC_CATALOG[0]?.subcategories.find(s => isValidUuid(s.id))
-  return fallbackSub?.id
+  return undefined
 }

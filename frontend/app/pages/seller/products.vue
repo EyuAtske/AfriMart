@@ -2,34 +2,51 @@
 import AccountSidebar from '~/components/account/AccountSidebar.vue'
 import EditProductModal from '~/components/marketplace/EditProductModal.vue'
 import type { SellerProduct } from '~/composables/useSellerShop'
+import { ensureCategoryCatalog, STATIC_CATALOG } from '~/utils/categoryCatalog'
 
 definePageMeta({
   middleware: 'auth'
 })
 
 const { shop, hasShop, fetchSellerProducts, deleteSellerProduct, toggleProductStatus, updateStock } = useSellerShop()
+const { filterProducts } = useMarketplace()
 const { showToast } = useToast()
+
+await ensureCategoryCatalog()
 
 onMounted(async () => {
   await fetchSellerProducts().catch(() => {})
 })
 
 const selectedCategory = ref('All')
+const selectedSubcategory = ref('All')
 const selectedStatus = ref('All')
 const isEditProductOpen = ref(false)
 const editingProduct = ref<SellerProduct | null>(null)
 
 const categories = computed(() => {
-  if (!shop.value) return ['All']
-  return ['All', ...Array.from(new Set(shop.value.products.map(p => p.category)))]
+  return ['All', ...new Set([
+    ...STATIC_CATALOG.map(category => category.name),
+    ...(shop.value?.products.map(product => product.category) || [])
+  ])]
+})
+
+const subcategories = computed(() => {
+  const category = STATIC_CATALOG.find(item => item.name === selectedCategory.value)
+  const available = selectedCategory.value === 'All'
+    ? STATIC_CATALOG.flatMap(item => item.subcategories)
+    : category?.subcategories || []
+  return ['All', ...new Set(available.map(subcategory => subcategory.name))]
 })
 
 const filteredProducts = computed(() => {
   if (!shop.value) return []
-  return shop.value.products.filter((p) => {
-    const matchesCategory = selectedCategory.value === 'All' || p.category === selectedCategory.value
-    const matchesStatus = selectedStatus.value === 'All' || p.status === selectedStatus.value
-    return matchesCategory && matchesStatus
+  return filterProducts({
+    category: selectedCategory.value,
+    subCategory: selectedSubcategory.value,
+    includeInactive: true
+  }, shop.value.products).filter((product) => {
+    return selectedStatus.value === 'All' || product.status === selectedStatus.value
   })
 })
 
@@ -39,10 +56,8 @@ const openEditModal = (product: SellerProduct) => {
 }
 
 const handleDelete = (id: number | string, name: string) => {
-  if (confirm(`Delete "${name}" permanently?`)) {
-    deleteSellerProduct(id)
-    showToast(`Product "${name}" deleted.`)
-  }
+  deleteSellerProduct(id)
+  showToast(`Product "${name}" deleted.`)
 }
 
 const handleToggleStatus = (id: number | string, currentStatus: string) => {
@@ -102,10 +117,20 @@ const adjustStock = (id: number | string, currentStock: number, delta: number) =
             <div class="flex flex-wrap items-center gap-3">
               <select
                 v-model="selectedCategory"
+                @change="selectedSubcategory = 'All'"
                 class="h-10 rounded-full border border-[#cfc4b5] bg-[#f5f1e9] px-4 text-xs text-[#211f1d] outline-none transition hover:border-[#806344] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
               >
                 <option v-for="cat in categories" :key="cat" :value="cat">
                   Category: {{ cat }}
+                </option>
+              </select>
+
+              <select
+                v-model="selectedSubcategory"
+                class="h-10 rounded-full border border-[#cfc4b5] bg-[#f5f1e9] px-4 text-xs text-[#211f1d] outline-none transition hover:border-[#806344] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
+              >
+                <option v-for="subcategory in subcategories" :key="subcategory" :value="subcategory">
+                  Subcategory: {{ subcategory }}
                 </option>
               </select>
 

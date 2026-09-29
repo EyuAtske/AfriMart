@@ -36,6 +36,7 @@ interface BackendProductResponse {
   Size?: { String: string; Valid: boolean } | string | null
   Price: string
   Stock: number
+  Gender?: string
   Image?: { String: string; Valid: boolean } | string | null
   Status: string
   CreatedAt?: string
@@ -141,14 +142,20 @@ function mapBackendProduct(raw: any, shopName: string = 'Shop'): Product {
 
   const categoryRaw = extractString(p.Category || p.category) || p.CategoryID || p.category_id || ''
   const subcategoryRaw = extractString(p.Subcategory || p.subcategory) || p.SubcategoryID || p.subcategory_id || ''
+  const genderRaw = String(p.Gender || p.gender || '').toLowerCase()
+  const gender = genderRaw === 'men' ? 'Men' : genderRaw === 'women' ? 'Women' : genderRaw === 'kids' ? 'Kids' : undefined
 
   return {
     id: p.ID || p.id,
     backendId: p.ID || p.id,
+    shopId: p.ShopID || p.shop_id || p.shopId,
+    categoryId: p.CategoryID || p.category_id || p.categoryId,
+    subcategoryId: p.SubcategoryID || p.subcategory_id || p.subcategoryId,
     shop: shopName,
     name: p.Name || p.name || 'AfriMart Product',
     description: desc,
     category: resolveCategoryName(categoryRaw),
+    gender,
     subCategory: resolveSubcategoryName(subcategoryRaw),
     price: priceNum,
     stock: p.Stock !== undefined ? p.Stock : (p.stock ?? 0),
@@ -195,9 +202,7 @@ export class ApiProductRepository implements IProductRepository {
       const data = (rawProducts || []).map(p => mapBackendProduct(p, params.shop || 'Shop'))
 
       const { products } = useMockDataStore()
-      if (data.length > 0) {
-        products.value = data
-      }
+      products.value = data
 
       return {
         data,
@@ -327,19 +332,6 @@ export class ApiProductRepository implements IProductRepository {
       }
     }
 
-    // Ultimate fallback: if an image was specified but no File object could be resolved, create a valid 1x1 PNG file
-    if (filesToUpload.length === 0 && (dto.image || dto.media?.length)) {
-      const dummyPngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
-      const byteCharacters = atob(dummyPngBase64)
-      const byteNumbers = new Array(byteCharacters.length)
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i)
-      }
-      const byteArray = new Uint8Array(byteNumbers)
-      const blob = new Blob([byteArray], { type: 'image/png' })
-      filesToUpload.push(new File([blob], 'product-cover.png', { type: 'image/png' }))
-    }
-
     if (filesToUpload.length === 0) {
       throw new Error('At least one product image is required (max 10 images, max 5 MB each).')
     }
@@ -407,9 +399,12 @@ export class ApiProductRepository implements IProductRepository {
       if (!existing) return null
 
       await ensureCategoryCatalog()
-      const catId = dto.categoryId || (existing as any).categoryId || resolveCategoryId(dto.category || existing.category) || '00000000-0000-0000-0000-000000000001'
-      const subId = dto.subcategoryId || (existing as any).subcategoryId || resolveSubcategoryId(dto.category || existing.category, dto.subCategory || existing.subCategory) || '00000000-0000-0000-0000-000000000002'
+      const catId = dto.categoryId || existing.categoryId || resolveCategoryId(dto.category || existing.category)
+      const subId = dto.subcategoryId || existing.subcategoryId || resolveSubcategoryId(dto.category || existing.category, dto.subCategory || existing.subCategory)
 
+      if (!isValidUuid(catId) || !isValidUuid(subId)) {
+        throw new Error('Please select a valid category and subcategory.')
+      }
       const res = await authenticatedFetch<BackendProductResponse>(`api/products/${strId}`, {
         method: 'PUT',
         body: {

@@ -104,7 +104,6 @@ const performAiSearch = () => {
   saveRecentSearch(cleanedQuery)
 
   // AI SERVICE WILL BE CONNECTED HERE LATER
-  console.log('AI search:', cleanedQuery)
 }
 
 // Decide whether the query looks like a normal search
