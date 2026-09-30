@@ -59,7 +59,7 @@ type VerifyPaymentResponse struct {
 type ChapaClient struct {
 	SecretKey   string
 	CallbackURL string
-	BaseURL     string // <-- ADDED: Allows overriding for tests
+	BaseURL     string 
 	HTTPClient  *http.Client
 }
 
@@ -67,7 +67,7 @@ func NewClient(secretKey, callbackURL string) *ChapaClient {
 	return &ChapaClient{
 		SecretKey:   secretKey,
 		CallbackURL: callbackURL,
-		BaseURL:     DefaultChapaBaseURL, // <-- Default to production
+		BaseURL:     DefaultChapaBaseURL, 
 		HTTPClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -75,7 +75,9 @@ func NewClient(secretKey, callbackURL string) *ChapaClient {
 }
 
 func (c *ChapaClient) InitializePayment(ctx context.Context, req InitializePaymentRequest) (*InitializePaymentResponse, error) {
-	// USE c.BaseURL INSTEAD OF HARDCODED CONSTANT
+	if c.SecretKey == "" {
+		return nil, fmt.Errorf("CHAPA_SECRET_KEY is not configured. Please set it in your environment variables")
+	}
 	url := c.BaseURL + "/payments/hosted"
 	req.CallbackURL = c.CallbackURL 
 
@@ -120,7 +122,9 @@ func (c *ChapaClient) InitializePayment(ctx context.Context, req InitializePayme
 }
 
 func (c *ChapaClient) VerifyPayment(ctx context.Context, reference string) (*VerifyPaymentResponse, error) {
-	// USE c.BaseURL INSTEAD OF HARDCODED CONSTANT
+	if c.SecretKey == "" {
+		return nil, fmt.Errorf("CHAPA_SECRET_KEY is not configured. Please set it in your environment variables")
+	}
 	url := fmt.Sprintf("%s/payments/%s/verify", c.BaseURL, reference)
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
