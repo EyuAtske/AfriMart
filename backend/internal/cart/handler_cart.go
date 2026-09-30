@@ -173,48 +173,22 @@ func (h *CartHandler) HandleAddCartItem(w http.ResponseWriter, r *http.Request) 
 	}
 
 	_, err = h.ShopQueries.GetShopByIDAndOwnerID(
-		r.Context(),
+		ctx,
 		database.GetShopByIDAndOwnerIDParams{
 			ID:      product.ShopID,
 			OwnerID: userID,
 		},
 	)
-
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			h.Logger.WarnContext(
-				r.Context(),
-				"add cart item failed: user owns product shop",
-				"user_id", userID,
-				"product_id", productID,
-				"shop_id", product.ShopID,
-			)
-
-			comm.RespondErrorWithJson(
-				w,
-				r,
-				http.StatusForbidden,
-				"You cannot purchase your own product",
-				nil,
-			)
-			return
-		}
-
-		h.Logger.ErrorContext(
-			r.Context(),
-			"add cart item failed: could not verify shop ownership",
-			"user_id", userID,
-			"product_id", productID,
-			"error", err,
-		)
-
-		comm.RespondErrorWithJson(
-			w,
-			r,
-			http.StatusInternalServerError,
-			"Could not verify product ownership",
-			err,
-		)
+	switch {
+	case err == nil:
+		h.Logger.WarnContext(ctx, "add cart item failed: user owns product shop",
+			"user_id", userID, "product_id", productID, "shop_id", product.ShopID)
+		comm.RespondErrorWithJson(w, r, http.StatusForbidden, "You cannot purchase your own product", nil)
+		return
+	case !errors.Is(err, sql.ErrNoRows):
+		h.Logger.ErrorContext(ctx, "add cart item failed: could not verify shop ownership",
+			"user_id", userID, "product_id", productID, "error", err)
+		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not verify product ownership", err)
 		return
 	}
 
