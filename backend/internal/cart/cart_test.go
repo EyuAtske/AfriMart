@@ -122,7 +122,7 @@ func (m *mockShopQueries) DeactivateShop(
 	if m.deactivateShopFunc != nil {
 		return m.deactivateShopFunc(ctx, arg)
 	}
-	return database.Shop{}, nil // Safe fallback
+	return database.Shop{}, sql.ErrNoRows // Default: user does not own the shop
 }
 
 func (m *mockShopQueries) ActivateShop(
@@ -132,7 +132,7 @@ func (m *mockShopQueries) ActivateShop(
 	if m.activateShopFunc != nil {
 		return m.activateShopFunc(ctx, arg)
 	}
-	return database.Shop{}, nil // Safe fallback
+	return database.Shop{}, sql.ErrNoRows // Default: user does not own the shop
 }
 
 func (m *mockShopQueries) GetShopByIDAndOwnerID(
@@ -142,7 +142,7 @@ func (m *mockShopQueries) GetShopByIDAndOwnerID(
 	if m.getShopByIDAndOwnerID != nil {
 		return m.getShopByIDAndOwnerID(ctx, arg)
 	}
-	return database.Shop{}, nil // Safe fallback
+	return database.Shop{}, sql.ErrNoRows // Default: user does not own the shop
 }
 
 func cartRequestWithUser(method, target string, body string, userID uuid.UUID) *http.Request {
@@ -286,14 +286,10 @@ func TestHandleAddCartItemSuccess(t *testing.T) {
 		},
 	}
 
-	// 2. Setup Shop Mock (THIS IS THE CRITICAL PART)
+	// 2. Buyer does not own the shop -> lookup returns no rows
 	mockShop := &mockShopQueries{
 		getShopByIDAndOwnerID: func(ctx context.Context, arg database.GetShopByIDAndOwnerIDParams) (database.Shop, error) {
-			return database.Shop{
-				ID:      shopID,
-				OwnerID: userID, 
-				Status:  "active",
-			}, nil
+			return database.Shop{}, sql.ErrNoRows
 		},
 	}
 
@@ -743,5 +739,32 @@ func TestGetOrCreateCartDatabaseError(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("expected database error")
+	}
+}
+
+func TestHandleAddCartItemOwnProductForbidden(t *testing.T) {
+	userID := uuid.New()
+	productID := uuid.New()
+	shopID := uuid.New()
+
+	mock := &mockCartQuerier{
+		getProductFn: func(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
+			return database.GetProductRow{ID: productID, ShopID: shopID, Price: "100.00", Stock: 10, Status: "active"}, nil
+		},
+	}
+	mockShop := &mockShopQueries{
+		getShopByIDAndOwnerID: func(ctx context.Context, arg database.GetShopByIDAndOwnerIDParams) (database.Shop, error) {
+			return database.Shop{ID: shopID, OwnerID: userID, Status: "active"}, nil
+		},
+	}
+	handler := &CartHandler{Queries: mock, ShopQueries: mockShop, Logger: slog.Default()}
+
+	body := `{"product_id": "` + productID.String() + `", "quantity": 1}`
+	req := cartRequestWithUser(http.MethodPost, "/api/cart/items", body, userID)
+	rec := httptest.NewRecorder()
+	handler.HandleAddCartItem(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d. Body: %s", rec.Code, rec.Body.String())
 	}
 }
