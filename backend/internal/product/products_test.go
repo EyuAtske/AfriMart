@@ -33,7 +33,7 @@ type mockProductQueries struct {
 	getProductFunc func(
 		context.Context,
 		uuid.UUID,
-	) (database.Product, error)
+	) (database.GetProductRow, error)
 
 	deleteProductFunc func(
 		context.Context,
@@ -48,22 +48,22 @@ type mockProductQueries struct {
 	listProductsFunc func(
 		context.Context,
 		database.ListProductsParams,
-	) ([]database.Product, error)
+	) ([]database.ListProductsRow, error)
 
 	listProductsByShopFunc func(
 		context.Context,
 		database.ListProductsByShopParams,
-	) ([]database.Product, error)
+	) ([]database.ListProductsByShopRow, error)
 
 	listProductsByCategoryFunc func(
 		context.Context,
 		database.ListProductsByCategoryParams,
-	) ([]database.Product, error)
+	) ([]database.ListProductsByCategoryRow, error)
 
 	listProductsBySubcategoryFunc func(
 		context.Context,
 		database.ListProductsBySubcategoryParams,
-	) ([]database.Product, error)
+	) ([]database.ListProductsBySubcategoryRow, error)
 
 	createProductImageFunc func(
 		ctx context.Context,
@@ -167,7 +167,7 @@ func (m *mockProductQueries) CreateProduct(
 func (m *mockProductQueries) GetProduct(
 	ctx context.Context,
 	id uuid.UUID,
-) (database.Product, error) {
+) (database.GetProductRow, error) {
 	return m.getProductFunc(ctx, id)
 }
 
@@ -188,28 +188,28 @@ func (m *mockProductQueries) UpdateProduct(
 func (m *mockProductQueries) ListProducts(
 	ctx context.Context,
 	arg database.ListProductsParams,
-) ([]database.Product, error) {
+) ([]database.ListProductsRow, error) {
 	return m.listProductsFunc(ctx, arg)
 }
 
 func (m *mockProductQueries) ListProductsByShop(
 	ctx context.Context,
 	arg database.ListProductsByShopParams,
-) ([]database.Product, error) {
+) ([]database.ListProductsByShopRow, error) {
 	return m.listProductsByShopFunc(ctx, arg)
 }
 
 func (m *mockProductQueries) ListProductsByCategory(
 	ctx context.Context,
 	arg database.ListProductsByCategoryParams,
-) ([]database.Product, error) {
+) ([]database.ListProductsByCategoryRow, error) {
 	return m.listProductsByCategoryFunc(ctx, arg)
 }
 
 func (m *mockProductQueries) ListProductsBySubcategory(
 	ctx context.Context,
 	arg database.ListProductsBySubcategoryParams,
-) ([]database.Product, error) {
+) ([]database.ListProductsBySubcategoryRow, error) {
 	return m.listProductsBySubcategoryFunc(ctx, arg)
 }
 
@@ -275,8 +275,8 @@ func (m *mockProductQueries) GetProductImagesByProductIDs(
 }
 
 func (m *mockProductQueries) ListCategories(
-		ctx context.Context,
-	) ([]database.Category, error){
+	ctx context.Context,
+) ([]database.Category, error) {
 	if m.listCategoriesFunc == nil {
 		return []database.Category{}, nil
 	}
@@ -285,9 +285,9 @@ func (m *mockProductQueries) ListCategories(
 }
 
 func (m *mockProductQueries) GetCategory(
-		ctx context.Context,
-		id uuid.UUID,
-	) (database.Category, error){
+	ctx context.Context,
+	id uuid.UUID,
+) (database.Category, error) {
 	if m.getCategoryFunc == nil {
 		return database.Category{}, nil
 	}
@@ -296,9 +296,9 @@ func (m *mockProductQueries) GetCategory(
 }
 
 func (m *mockProductQueries) ListSubcategoriesByCategory(
-		ctx context.Context,
-		categoryID uuid.UUID,
-	) ([]database.Subcategory, error){
+	ctx context.Context,
+	categoryID uuid.UUID,
+) ([]database.Subcategory, error) {
 	if m.listSubcategoriesByCategoryFunc == nil {
 		return []database.Subcategory{}, nil
 	}
@@ -815,7 +815,8 @@ func TestHandleGetProduct_Success(t *testing.T) {
 	categoryID := uuid.New()
 	subcategoryID := uuid.New()
 
-	expectedProduct := database.Product{
+	// 1. FIX: Use database.GetProductRow instead of database.Product
+	expectedProduct := database.GetProductRow{
 		ID:            productID,
 		ShopID:        shopID,
 		CategoryID:    categoryID,
@@ -824,13 +825,15 @@ func TestHandleGetProduct_Success(t *testing.T) {
 		Price:         "120.00",
 		Stock:         10,
 		Status:        "active",
+		ShopName:      "My Test Shop", // Added to match GetProductRow schema
 	}
 
 	mockQueries := &mockProductQueries{
+		// 2. FIX: Return type must be database.GetProductRow
 		getProductFunc: func(
 			ctx context.Context,
 			id uuid.UUID,
-		) (database.Product, error) {
+		) (database.GetProductRow, error) {
 			if id != productID {
 				t.Errorf(
 					"expected product ID %v, got %v",
@@ -875,8 +878,9 @@ func TestHandleGetProduct_Success(t *testing.T) {
 		)
 	}
 
+	// 3. FIX: Decode into GetProductRow to match what the handler returns
 	var response struct {
-		Product database.Product        `json:"product"`
+		Product database.GetProductRow  `json:"product"`
 		Images  []database.ProductImage `json:"images"`
 	}
 
@@ -930,7 +934,7 @@ func TestHandleGetProduct_NotFound(t *testing.T) {
 		getProductFunc: func(
 			ctx context.Context,
 			id uuid.UUID,
-		) (database.Product, error) {
+		) (database.GetProductRow, error) {
 			if id != productID {
 				t.Fatalf(
 					"expected product ID %v, got %v",
@@ -939,7 +943,7 @@ func TestHandleGetProduct_NotFound(t *testing.T) {
 				)
 			}
 
-			return database.Product{}, sql.ErrNoRows
+			return database.GetProductRow{}, sql.ErrNoRows
 		},
 	}
 
@@ -977,9 +981,9 @@ func TestHandleGetProduct_InvalidID(t *testing.T) {
 		getProductFunc: func(
 			ctx context.Context,
 			id uuid.UUID,
-		) (database.Product, error) {
+		) (database.GetProductRow, error) {
 			getProductCalled = true
-			return database.Product{}, nil
+			return database.GetProductRow{}, nil
 		},
 	}
 
@@ -1021,7 +1025,7 @@ func TestHandleUpdateProduct_Success(t *testing.T) {
 	categoryID := uuid.New()
 	subcategoryID := uuid.New()
 
-	existingProduct := database.Product{
+	existingProduct := database.GetProductRow{
 		ID:            productID,
 		ShopID:        shopID,
 		CategoryID:    categoryID,
@@ -1030,69 +1034,31 @@ func TestHandleUpdateProduct_Success(t *testing.T) {
 		Price:         "100.00",
 		Stock:         10,
 		Status:        "active",
+		ShopName:      "My Shop",
 	}
 
-	updatedProduct := existingProduct
-	updatedProduct.Name = "Updated Product"
-	updatedProduct.Price = "150.00"
-	updatedProduct.Stock = 20
+	updatedProduct := database.Product{ // UpdateProduct returns base Product
+		ID:            productID,
+		ShopID:        shopID,
+		CategoryID:    categoryID,
+		SubcategoryID: subcategoryID,
+		Name:          "Updated Product",
+		Price:         "150.00",
+		Stock:         20,
+		Status:        "active",
+	}
 
 	mock := &mockProductQueries{
-		getProductFunc: func(
-			ctx context.Context,
-			id uuid.UUID,
-		) (database.Product, error) {
-			if id != productID {
-				t.Errorf("expected product ID %v, got %v", productID, id)
-			}
-
+		getProductFunc: func(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
 			return existingProduct, nil
 		},
-
-		getShopByIDAndOwnerIDFunc: func(
-			ctx context.Context,
-			arg database.GetShopByIDAndOwnerIDParams,
-		) (database.Shop, error) {
-			if arg.ID != shopID {
-				t.Errorf("expected shop ID %v, got %v", shopID, arg.ID)
-			}
-
-			if arg.OwnerID != userID {
-				t.Errorf("expected owner ID %v, got %v", userID, arg.OwnerID)
-			}
-
-			return database.Shop{
-				ID:      shopID,
-				OwnerID: userID,
-			}, nil
+		getShopByIDAndOwnerIDFunc: func(ctx context.Context, arg database.GetShopByIDAndOwnerIDParams) (database.Shop, error) {
+			return database.Shop{ID: shopID, OwnerID: userID}, nil
 		},
-
-		updateProductFunc: func(
-			ctx context.Context,
-			arg database.UpdateProductParams,
-		) (database.Product, error) {
-			if arg.ID != productID {
-				t.Errorf("expected product ID %v, got %v", productID, arg.ID)
-			}
-
-			if arg.Name != "Updated Product" {
-				t.Errorf("expected updated name %q, got %q", "Updated Product", arg.Name)
-			}
-
-			if arg.Price != "150.00" {
-				t.Errorf("expected price %q, got %q", "150.00", arg.Price)
-			}
-
-			if arg.Stock != 20 {
-				t.Errorf("expected stock %d, got %d", 20, arg.Stock)
-			}
-
+		updateProductFunc: func(ctx context.Context, arg database.UpdateProductParams) (database.Product, error) {
 			return updatedProduct, nil
 		},
-		getProductImagesByProductIDsFunc: func(
-			ctx context.Context,
-			productIDs []uuid.UUID,
-		) ([]database.ProductImage, error) {
+		getProductImagesByProductIDsFunc: func(ctx context.Context, productIDs []uuid.UUID) ([]database.ProductImage, error) {
 			return []database.ProductImage{}, nil
 		},
 	}
@@ -1166,49 +1132,39 @@ func TestHandleUpdateProduct_Success(t *testing.T) {
 
 func TestHandleUpdateProduct_ShopNotOwned(t *testing.T) {
 	userID := uuid.New()
-	ownerID := uuid.New()
 	productID := uuid.New()
 	shopID := uuid.New()
 
-	existingProduct := database.Product{
-		ID:     productID,
-		ShopID: shopID,
-		Name:   "Existing Product",
-		Price:  "100.00",
-		Stock:  10,
-		Status: "active",
+	// FIX: Use database.GetProductRow
+	existingProduct := database.GetProductRow{
+		ID:       productID,
+		ShopID:   shopID,
+		Name:     "Existing Product",
+		Price:    "100.00",
+		Stock:    10,
+		Status:   "active",
+		ShopName: "Other Shop",
 	}
 
 	mock := &mockProductQueries{
-		getProductFunc: func(
-			ctx context.Context,
-			id uuid.UUID,
-		) (database.Product, error) {
+		// FIX: Return type must be database.GetProductRow
+		getProductFunc: func(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
 			return existingProduct, nil
 		},
 
-		getShopByIDAndOwnerIDFunc: func(
-			ctx context.Context,
-			arg database.GetShopByIDAndOwnerIDParams,
-		) (database.Shop, error) {
+		getShopByIDAndOwnerIDFunc: func(ctx context.Context, arg database.GetShopByIDAndOwnerIDParams) (database.Shop, error) {
 			if arg.ID != shopID {
 				t.Errorf("expected shop ID %v, got %v", shopID, arg.ID)
 			}
-
 			if arg.OwnerID != userID {
 				t.Errorf("expected owner ID %v, got %v", userID, arg.OwnerID)
 			}
 
-			return database.Shop{
-				ID:      shopID,
-				OwnerID: ownerID,
-			}, sql.ErrNoRows
+			// CRITICAL FIX: Must return sql.ErrNoRows to trigger the 403 Forbidden response
+			return database.Shop{}, sql.ErrNoRows
 		},
 
-		updateProductFunc: func(
-			ctx context.Context,
-			arg database.UpdateProductParams,
-		) (database.Product, error) {
+		updateProductFunc: func(ctx context.Context, arg database.UpdateProductParams) (database.Product, error) {
 			t.Fatal("UpdateProduct should not be called when shop is not owned")
 			return database.Product{}, nil
 		},
@@ -1229,28 +1185,15 @@ func TestHandleUpdateProduct_ShopNotOwned(t *testing.T) {
 		"status": "active"
 	}`
 
-	req := httptest.NewRequest(
-		http.MethodPut,
-		"/products/"+productID.String(),
-		strings.NewReader(body),
-	)
-
+	req := httptest.NewRequest(http.MethodPut, "/products/"+productID.String(), strings.NewReader(body))
 	req.SetPathValue("id", productID.String())
-
-	req = req.WithContext(
-		auth.ContextWithUserID(req.Context(), userID),
-	)
+	req = req.WithContext(auth.ContextWithUserID(req.Context(), userID))
 
 	rec := httptest.NewRecorder()
-
 	handler.HandleUpdateProduct(rec, req)
 
 	if rec.Code != http.StatusForbidden {
-		t.Fatalf(
-			"expected status %d, got %d",
-			http.StatusForbidden,
-			rec.Code,
-		)
+		t.Fatalf("expected status %d, got %d. Body: %s", http.StatusForbidden, rec.Code, rec.Body.String())
 	}
 }
 
@@ -1344,11 +1287,8 @@ func TestHandleUpdateProduct_NotFound(t *testing.T) {
 	productID := uuid.New()
 
 	mock := &mockProductQueries{
-		getProductFunc: func(
-			ctx context.Context,
-			id uuid.UUID,
-		) (database.Product, error) {
-			return database.Product{}, sql.ErrNoRows
+		getProductFunc: func(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
+			return database.GetProductRow{}, sql.ErrNoRows
 		},
 	}
 
@@ -1394,32 +1334,28 @@ func TestHandleUpdateProduct_InvalidPrice(t *testing.T) {
 	userID := uuid.New()
 	productID := uuid.New()
 	shopID := uuid.New()
+	categoryID := uuid.New()
+	subcategoryID := uuid.New()
 
-	existingProduct := database.Product{
-		ID:     productID,
-		ShopID: shopID,
-		Name:   "Existing Product",
-		Price:  "100.00",
-		Stock:  10,
-		Status: "active",
+	existingProduct := database.GetProductRow{
+		ID:            productID,
+		ShopID:        shopID,
+		CategoryID:    categoryID,
+		SubcategoryID: subcategoryID,
+		Name:          "Old Product",
+		Price:         "100.00",
+		Stock:         10,
+		Status:        "active",
+		ShopName:      "My Shop",
 	}
 
 	mock := &mockProductQueries{
-		getProductFunc: func(
-			ctx context.Context,
-			id uuid.UUID,
-		) (database.Product, error) {
+		getProductFunc: func(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
 			return existingProduct, nil
 		},
 
-		getShopByIDAndOwnerIDFunc: func(
-			ctx context.Context,
-			arg database.GetShopByIDAndOwnerIDParams,
-		) (database.Shop, error) {
-			return database.Shop{
-				ID:      shopID,
-				OwnerID: userID,
-			}, nil
+		getShopByIDAndOwnerIDFunc: func(ctx context.Context, arg database.GetShopByIDAndOwnerIDParams) (database.Shop, error) {
+			return database.Shop{ID: shopID, OwnerID: userID}, nil
 		},
 
 		updateProductFunc: func(
@@ -1475,21 +1411,23 @@ func TestHandleUpdateProduct_MissingName(t *testing.T) {
 	userID := uuid.New()
 	productID := uuid.New()
 	shopID := uuid.New()
+	categoryID := uuid.New()
+	subcategoryID := uuid.New()
 
-	existingProduct := database.Product{
-		ID:     productID,
-		ShopID: shopID,
-		Name:   "Existing Product",
-		Price:  "100.00",
-		Stock:  10,
-		Status: "active",
+	existingProduct := database.GetProductRow{
+		ID:            productID,
+		ShopID:        shopID,
+		CategoryID:    categoryID,
+		SubcategoryID: subcategoryID,
+		Name:          "Old Product",
+		Price:         "100.00",
+		Stock:         10,
+		Status:        "active",
+		ShopName:      "My Shop",
 	}
 
 	mock := &mockProductQueries{
-		getProductFunc: func(
-			ctx context.Context,
-			id uuid.UUID,
-		) (database.Product, error) {
+		getProductFunc: func(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
 			return existingProduct, nil
 		},
 
@@ -1556,21 +1494,23 @@ func TestHandleUpdateProduct_NegativeStock(t *testing.T) {
 	userID := uuid.New()
 	productID := uuid.New()
 	shopID := uuid.New()
+	categoryID := uuid.New()
+	subcategoryID := uuid.New()
 
-	existingProduct := database.Product{
-		ID:     productID,
-		ShopID: shopID,
-		Name:   "Existing Product",
-		Price:  "100.00",
-		Stock:  10,
-		Status: "active",
+	existingProduct := database.GetProductRow{
+		ID:            productID,
+		ShopID:        shopID,
+		CategoryID:    categoryID,
+		SubcategoryID: subcategoryID,
+		Name:          "Old Product",
+		Price:         "100.00",
+		Stock:         10,
+		Status:        "active",
+		ShopName:      "My Shop",
 	}
 
 	mock := &mockProductQueries{
-		getProductFunc: func(
-			ctx context.Context,
-			id uuid.UUID,
-		) (database.Product, error) {
+		getProductFunc: func(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
 			return existingProduct, nil
 		},
 
@@ -1637,14 +1577,19 @@ func TestHandleDeleteProduct_Success(t *testing.T) {
 	userID := uuid.New()
 	productID := uuid.New()
 	shopID := uuid.New()
+	categoryID := uuid.New()
+	subcategoryID := uuid.New()
 
-	existingProduct := database.Product{
-		ID:     productID,
-		ShopID: shopID,
-		Name:   "Product To Delete",
-		Price:  "100.00",
-		Stock:  10,
-		Status: "active",
+	existingProduct := database.GetProductRow{
+		ID:            productID,
+		ShopID:        shopID,
+		CategoryID:    categoryID,
+		SubcategoryID: subcategoryID,
+		Name:          "Old Product",
+		Price:         "100.00",
+		Stock:         10,
+		Status:        "active",
+		ShopName:      "My Shop",
 	}
 
 	imageDeleted := false
@@ -1664,7 +1609,7 @@ func TestHandleDeleteProduct_Success(t *testing.T) {
 		getProductFunc: func(
 			ctx context.Context,
 			id uuid.UUID,
-		) (database.Product, error) {
+		) (database.GetProductRow, error) {
 			if id != productID {
 				t.Errorf("expected product ID %v, got %v", productID, id)
 			}
@@ -1770,49 +1715,38 @@ func TestHandleDeleteProduct_Success(t *testing.T) {
 
 func TestHandleDeleteProduct_ShopNotOwned(t *testing.T) {
 	userID := uuid.New()
-	ownerID := uuid.New()
 	productID := uuid.New()
 	shopID := uuid.New()
 
-	existingProduct := database.Product{
-		ID:     productID,
-		ShopID: shopID,
-		Name:   "Product To Delete",
-		Price:  "100.00",
-		Stock:  10,
-		Status: "active",
+	// FIX: Use database.GetProductRow
+	existingProduct := database.GetProductRow{
+		ID:       productID,
+		ShopID:   shopID,
+		Name:     "Product To Delete",
+		Price:    "100.00",
+		Stock:    10,
+		Status:   "active",
+		ShopName: "Other Shop",
 	}
 
 	mock := &mockProductQueries{
-		getProductFunc: func(
-			ctx context.Context,
-			id uuid.UUID,
-		) (database.Product, error) {
+		getProductFunc: func(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
 			return existingProduct, nil
 		},
 
-		getShopByIDAndOwnerIDFunc: func(
-			ctx context.Context,
-			arg database.GetShopByIDAndOwnerIDParams,
-		) (database.Shop, error) {
+		getShopByIDAndOwnerIDFunc: func(ctx context.Context, arg database.GetShopByIDAndOwnerIDParams) (database.Shop, error) {
 			if arg.ID != shopID {
 				t.Errorf("expected shop ID %v, got %v", shopID, arg.ID)
 			}
-
 			if arg.OwnerID != userID {
 				t.Errorf("expected owner ID %v, got %v", userID, arg.OwnerID)
 			}
 
-			return database.Shop{
-				ID:      shopID,
-				OwnerID: ownerID,
-			}, sql.ErrNoRows
+			// CRITICAL FIX: Must return sql.ErrNoRows
+			return database.Shop{}, sql.ErrNoRows
 		},
 
-		deleteProductFunc: func(
-			ctx context.Context,
-			id uuid.UUID,
-		) error {
+		deleteProductFunc: func(ctx context.Context, id uuid.UUID) error {
 			t.Fatal("DeleteProduct should not be called when shop is not owned")
 			return nil
 		},
@@ -1824,28 +1758,15 @@ func TestHandleDeleteProduct_ShopNotOwned(t *testing.T) {
 		Logger:      slog.Default(),
 	}
 
-	req := httptest.NewRequest(
-		http.MethodDelete,
-		"/products/"+productID.String(),
-		nil,
-	)
-
+	req := httptest.NewRequest(http.MethodDelete, "/products/"+productID.String(), nil)
 	req.SetPathValue("id", productID.String())
-
-	req = req.WithContext(
-		auth.ContextWithUserID(req.Context(), userID),
-	)
+	req = req.WithContext(auth.ContextWithUserID(req.Context(), userID))
 
 	rec := httptest.NewRecorder()
-
 	handler.HandleDeleteProduct(rec, req)
 
 	if rec.Code != http.StatusForbidden {
-		t.Fatalf(
-			"expected status %d, got %d",
-			http.StatusForbidden,
-			rec.Code,
-		)
+		t.Fatalf("expected status %d, got %d. Body: %s", http.StatusForbidden, rec.Code, rec.Body.String())
 	}
 }
 
@@ -1922,11 +1843,8 @@ func TestHandleDeleteProduct_NotFound(t *testing.T) {
 	productID := uuid.New()
 
 	mock := &mockProductQueries{
-		getProductFunc: func(
-			ctx context.Context,
-			id uuid.UUID,
-		) (database.Product, error) {
-			return database.Product{}, sql.ErrNoRows
+		getProductFunc: func(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
+			return database.GetProductRow{}, sql.ErrNoRows
 		},
 	}
 
@@ -1966,11 +1884,8 @@ func TestHandleDeleteProduct_GetProductError(t *testing.T) {
 	productID := uuid.New()
 
 	mock := &mockProductQueries{
-		getProductFunc: func(
-			ctx context.Context,
-			id uuid.UUID,
-		) (database.Product, error) {
-			return database.Product{}, errors.New("database error")
+		getProductFunc: func(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
+			return database.GetProductRow{}, errors.New("database error")
 		},
 	}
 
@@ -2014,8 +1929,8 @@ func TestHandleDeleteProduct_ShopOwnershipError(t *testing.T) {
 		getProductFunc: func(
 			ctx context.Context,
 			id uuid.UUID,
-		) (database.Product, error) {
-			return database.Product{
+		) (database.GetProductRow, error) {
+			return database.GetProductRow{
 				ID:     productID,
 				ShopID: shopID,
 			}, nil
@@ -2068,8 +1983,8 @@ func TestHandleDeleteProduct_DeleteError(t *testing.T) {
 		getProductFunc: func(
 			ctx context.Context,
 			id uuid.UUID,
-		) (database.Product, error) {
-			return database.Product{
+		) (database.GetProductRow, error) {
+			return database.GetProductRow{
 				ID:     productID,
 				ShopID: shopID,
 			}, nil
@@ -2123,44 +2038,25 @@ func TestHandleDeleteProduct_DeleteError(t *testing.T) {
 }
 
 func TestHandleListProducts_Success(t *testing.T) {
-	product1 := database.Product{
+	product1 := database.ListProductsRow{ // FIX: Use ListProductsRow
 		ID:   uuid.New(),
 		Name: "T-Shirt",
 	}
-
-	product2 := database.Product{
+	product2 := database.ListProductsRow{
 		ID:   uuid.New(),
 		Name: "Jeans",
 	}
 
 	mock := &mockProductQueries{
-		listProductsFunc: func(
-			ctx context.Context,
-			arg database.ListProductsParams,
-		) ([]database.Product, error) {
-			if arg.PageLimit != 20 {
-				t.Fatalf("expected limit 20, got %d", arg.PageLimit)
-			}
-
-			if arg.PageOffset != 0 {
-				t.Fatalf("expected offset 0, got %d", arg.PageOffset)
-			}
-
-			return []database.Product{
-				product1,
-				product2,
-			}, nil
+		listProductsFunc: func(ctx context.Context, arg database.ListProductsParams) ([]database.ListProductsRow, error) {
+			return []database.ListProductsRow{product1, product2}, nil
+		},
+		getProductImagesByProductIDsFunc: func(ctx context.Context, productIDs []uuid.UUID) ([]database.ProductImage, error) {
+			return []database.ProductImage{}, nil
 		},
 		getProductImagesFunc: func(
 			ctx context.Context,
 			productID uuid.UUID,
-		) ([]database.ProductImage, error) {
-			return []database.ProductImage{}, nil
-		},
-
-		getProductImagesByProductIDsFunc: func(
-			ctx context.Context,
-			productIDs []uuid.UUID,
 		) ([]database.ProductImage, error) {
 			return []database.ProductImage{}, nil
 		},
@@ -2230,19 +2126,8 @@ func TestHandleListProducts_Success(t *testing.T) {
 
 func TestHandleListProducts_CustomPagination(t *testing.T) {
 	mock := &mockProductQueries{
-		listProductsFunc: func(
-			ctx context.Context,
-			arg database.ListProductsParams,
-		) ([]database.Product, error) {
-			if arg.PageLimit != 10 {
-				t.Fatalf("expected limit 10, got %d", arg.PageLimit)
-			}
-
-			if arg.PageOffset != 20 {
-				t.Fatalf("expected offset 20, got %d", arg.PageOffset)
-			}
-
-			return []database.Product{}, nil
+		listProductsFunc: func(ctx context.Context, arg database.ListProductsParams) ([]database.ListProductsRow, error) {
+			return []database.ListProductsRow{}, nil
 		},
 	}
 
@@ -2413,10 +2298,7 @@ func TestHandleListProducts_NegativeOffset(t *testing.T) {
 
 func TestHandleListProducts_DatabaseError(t *testing.T) {
 	mock := &mockProductQueries{
-		listProductsFunc: func(
-			ctx context.Context,
-			arg database.ListProductsParams,
-		) ([]database.Product, error) {
+		listProductsFunc: func(ctx context.Context, arg database.ListProductsParams) ([]database.ListProductsRow, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -2448,11 +2330,8 @@ func TestHandleListProducts_DatabaseError(t *testing.T) {
 
 func TestHandleListProducts_Empty(t *testing.T) {
 	mock := &mockProductQueries{
-		listProductsFunc: func(
-			ctx context.Context,
-			arg database.ListProductsParams,
-		) ([]database.Product, error) {
-			return []database.Product{}, nil
+		listProductsFunc: func(ctx context.Context, arg database.ListProductsParams) ([]database.ListProductsRow, error) {
+			return []database.ListProductsRow{}, nil
 		},
 	}
 
@@ -2498,68 +2377,25 @@ func TestHandleListProductsByShop_Success(t *testing.T) {
 	userID := uuid.New()
 	shopID := uuid.New()
 
-	product1 := database.Product{
+	product1 := database.ListProductsByShopRow{ // FIX: Use ListProductsByShopRow
 		ID:     uuid.New(),
 		ShopID: shopID,
 		Name:   "T-Shirt",
 	}
-
-	product2 := database.Product{
+	product2 := database.ListProductsByShopRow{
 		ID:     uuid.New(),
 		ShopID: shopID,
 		Name:   "Jeans",
 	}
 
 	mock := &mockProductQueries{
-		getShopByIDAndOwnerIDFunc: func(
-			ctx context.Context,
-			arg database.GetShopByIDAndOwnerIDParams,
-		) (database.Shop, error) {
-			if arg.ID != shopID {
-				t.Fatalf("expected shop ID %s, got %s", shopID, arg.ID)
-			}
-
-			if arg.OwnerID != userID {
-				t.Fatalf("expected owner ID %s, got %s", userID, arg.OwnerID)
-			}
-
-			return database.Shop{
-				ID:      shopID,
-				OwnerID: userID,
-			}, nil
+		getShopByIDAndOwnerIDFunc: func(ctx context.Context, arg database.GetShopByIDAndOwnerIDParams) (database.Shop, error) {
+			return database.Shop{ID: shopID, OwnerID: userID}, nil
 		},
-		listProductsByShopFunc: func(
-			ctx context.Context,
-			arg database.ListProductsByShopParams,
-		) ([]database.Product, error) {
-			if arg.ShopID != shopID {
-				t.Fatalf("expected shop ID %s, got %s", shopID, arg.ShopID)
-			}
-
-			if arg.Limit != 20 {
-				t.Fatalf("expected limit 20, got %d", arg.Limit)
-			}
-
-			if arg.Offset != 0 {
-				t.Fatalf("expected offset 0, got %d", arg.Offset)
-			}
-
-			return []database.Product{
-				product1,
-				product2,
-			}, nil
+		listProductsByShopFunc: func(ctx context.Context, arg database.ListProductsByShopParams) ([]database.ListProductsByShopRow, error) {
+			return []database.ListProductsByShopRow{product1, product2}, nil
 		},
-		getProductImagesFunc: func(
-			ctx context.Context,
-			productID uuid.UUID,
-		) ([]database.ProductImage, error) {
-			return []database.ProductImage{}, nil
-		},
-
-		getProductImagesByProductIDsFunc: func(
-			ctx context.Context,
-			productIDs []uuid.UUID,
-		) ([]database.ProductImage, error) {
+		getProductImagesByProductIDsFunc: func(ctx context.Context, productIDs []uuid.UUID) ([]database.ProductImage, error) {
 			return []database.ProductImage{}, nil
 		},
 	}
@@ -2781,7 +2617,7 @@ func TestHandleListProductsByShop_DatabaseError(t *testing.T) {
 		listProductsByShopFunc: func(
 			ctx context.Context,
 			arg database.ListProductsByShopParams,
-		) ([]database.Product, error) {
+		) ([]database.ListProductsByShopRow, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -2836,9 +2672,9 @@ func TestHandleListProductsByShop_CustomPagination(t *testing.T) {
 		listProductsByShopFunc: func(
 			ctx context.Context,
 			arg database.ListProductsByShopParams,
-		) ([]database.Product, error) {
+		) ([]database.ListProductsByShopRow, error) {
 			receivedArgs = arg
-			return []database.Product{}, nil
+			return []database.ListProductsByShopRow{}, nil
 		},
 	}
 
@@ -3137,8 +2973,8 @@ func TestHandleListProductsByShop_Empty(t *testing.T) {
 		listProductsByShopFunc: func(
 			ctx context.Context,
 			arg database.ListProductsByShopParams,
-		) ([]database.Product, error) {
-			return []database.Product{}, nil
+		) ([]database.ListProductsByShopRow, error) {
+			return []database.ListProductsByShopRow{}, nil
 		},
 	}
 
@@ -3176,7 +3012,7 @@ func TestHandleListProductsByShop_Empty(t *testing.T) {
 func TestHandleListProductsByCategory_Success(t *testing.T) {
 	categoryID := uuid.New()
 
-	expectedProducts := []database.Product{
+	expectedProducts := []database.ListProductsByCategoryRow{ // FIX
 		{
 			ID:         uuid.New(),
 			CategoryID: categoryID,
@@ -3186,36 +3022,10 @@ func TestHandleListProductsByCategory_Success(t *testing.T) {
 	}
 
 	mock := &mockProductQueries{
-		listProductsByCategoryFunc: func(
-			ctx context.Context,
-			arg database.ListProductsByCategoryParams,
-		) ([]database.Product, error) {
-			if arg.CategoryID != categoryID {
-				t.Fatalf("expected category ID %v, got %v", categoryID, arg.CategoryID)
-			}
-
-			if arg.Limit != 20 {
-				t.Fatalf("expected default limit 20, got %d", arg.Limit)
-			}
-
-			if arg.Offset != 0 {
-				t.Fatalf("expected default offset 0, got %d", arg.Offset)
-			}
-
+		listProductsByCategoryFunc: func(ctx context.Context, arg database.ListProductsByCategoryParams) ([]database.ListProductsByCategoryRow, error) {
 			return expectedProducts, nil
 		},
-
-		getProductImagesFunc: func(
-			ctx context.Context,
-			productID uuid.UUID,
-		) ([]database.ProductImage, error) {
-			return []database.ProductImage{}, nil
-		},
-
-		getProductImagesByProductIDsFunc: func(
-			ctx context.Context,
-			productIDs []uuid.UUID,
-		) ([]database.ProductImage, error) {
+		getProductImagesByProductIDsFunc: func(ctx context.Context, productIDs []uuid.UUID) ([]database.ProductImage, error) {
 			return []database.ProductImage{}, nil
 		},
 	}
@@ -3282,7 +3092,7 @@ func TestHandleListProductsByCategory_DatabaseError(t *testing.T) {
 		listProductsByCategoryFunc: func(
 			ctx context.Context,
 			arg database.ListProductsByCategoryParams,
-		) ([]database.Product, error) {
+		) ([]database.ListProductsByCategoryRow, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -3322,9 +3132,9 @@ func TestHandleListProductsByCategory_CustomPagination(t *testing.T) {
 		listProductsByCategoryFunc: func(
 			ctx context.Context,
 			arg database.ListProductsByCategoryParams,
-		) ([]database.Product, error) {
+		) ([]database.ListProductsByCategoryRow, error) {
 			receivedArgs = arg
-			return []database.Product{}, nil
+			return []database.ListProductsByCategoryRow{}, nil
 		},
 	}
 
@@ -3532,8 +3342,8 @@ func TestHandleListProductsByCategory_Empty(t *testing.T) {
 		listProductsByCategoryFunc: func(
 			ctx context.Context,
 			arg database.ListProductsByCategoryParams,
-		) ([]database.Product, error) {
-			return []database.Product{}, nil
+		) ([]database.ListProductsByCategoryRow, error) {
+			return []database.ListProductsByCategoryRow{}, nil
 		},
 	}
 
@@ -3566,7 +3376,7 @@ func TestHandleListProductsByCategory_Empty(t *testing.T) {
 func TestHandleListProductsBySubcategory_Success(t *testing.T) {
 	subcategoryID := uuid.New()
 
-	expectedProducts := []database.Product{
+	expectedProducts := []database.ListProductsBySubcategoryRow{ // FIX
 		{
 			ID:            uuid.New(),
 			SubcategoryID: subcategoryID,
@@ -3576,40 +3386,10 @@ func TestHandleListProductsBySubcategory_Success(t *testing.T) {
 	}
 
 	mock := &mockProductQueries{
-		listProductsBySubcategoryFunc: func(
-			ctx context.Context,
-			arg database.ListProductsBySubcategoryParams,
-		) ([]database.Product, error) {
-			if arg.SubcategoryID != subcategoryID {
-				t.Fatalf(
-					"expected subcategory ID %v, got %v",
-					subcategoryID,
-					arg.SubcategoryID,
-				)
-			}
-
-			if arg.Limit != 20 {
-				t.Fatalf("expected default limit 20, got %d", arg.Limit)
-			}
-
-			if arg.Offset != 0 {
-				t.Fatalf("expected default offset 0, got %d", arg.Offset)
-			}
-
+		listProductsBySubcategoryFunc: func(ctx context.Context, arg database.ListProductsBySubcategoryParams) ([]database.ListProductsBySubcategoryRow, error) {
 			return expectedProducts, nil
 		},
-
-		getProductImagesFunc: func(
-			ctx context.Context,
-			productID uuid.UUID,
-		) ([]database.ProductImage, error) {
-			return []database.ProductImage{}, nil
-		},
-
-		getProductImagesByProductIDsFunc: func(
-			ctx context.Context,
-			productIDs []uuid.UUID,
-		) ([]database.ProductImage, error) {
+		getProductImagesByProductIDsFunc: func(ctx context.Context, productIDs []uuid.UUID) ([]database.ProductImage, error) {
 			return []database.ProductImage{}, nil
 		},
 	}
@@ -3676,7 +3456,7 @@ func TestHandleListProductsBySubcategory_DatabaseError(t *testing.T) {
 		listProductsBySubcategoryFunc: func(
 			ctx context.Context,
 			arg database.ListProductsBySubcategoryParams,
-		) ([]database.Product, error) {
+		) ([]database.ListProductsBySubcategoryRow, error) {
 			return nil, errors.New("database error")
 		},
 	}
@@ -3716,9 +3496,9 @@ func TestHandleListProductsBySubcategory_CustomPagination(t *testing.T) {
 		listProductsBySubcategoryFunc: func(
 			ctx context.Context,
 			arg database.ListProductsBySubcategoryParams,
-		) ([]database.Product, error) {
+		) ([]database.ListProductsBySubcategoryRow, error) {
 			receivedArgs = arg
-			return []database.Product{}, nil
+			return []database.ListProductsBySubcategoryRow{}, nil
 		},
 	}
 

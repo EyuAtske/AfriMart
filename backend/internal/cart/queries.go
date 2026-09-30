@@ -50,9 +50,9 @@ type CartQuerier interface {
 	) error
 
 	GetProduct(
-		ctx context.Context,
-		id uuid.UUID,
-	) (database.Product, error)
+        ctx context.Context,
+        id uuid.UUID,
+    ) (database.GetProductRow, error)
 
 	GetCartItemsOwnedByUser(
 		ctx context.Context,

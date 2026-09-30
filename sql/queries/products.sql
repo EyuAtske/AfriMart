@@ -30,12 +30,13 @@ VALUES (
 )
 RETURNING *;
 
-
 -- name: GetProduct :one
-
-SELECT *
-FROM products
-WHERE id = $1;
+SELECT
+    p.*,
+    s.name AS shop_name
+FROM products p
+JOIN shops s ON s.id = p.shop_id
+WHERE p.id = $1;
 
 
 -- name: DeleteProduct :exec
@@ -63,73 +64,90 @@ RETURNING *;
 
 -- name: ListProducts :many
 
-SELECT *
-FROM products
-WHERE status = 'active'
+SELECT
+    p.*,
+    s.name AS shop_name
+FROM products p
+JOIN shops s ON s.id = p.shop_id
+WHERE p.status = 'active'
+  AND s.status = 'active'
   AND (
       sqlc.arg(search)::text = ''
-      OR name ILIKE '%' || sqlc.arg(search)::text || '%'
-      OR brand ILIKE '%' || sqlc.arg(search)::text || '%'
-      OR description ILIKE '%' || sqlc.arg(search)::text || '%'
+      OR p.name ILIKE '%' || sqlc.arg(search)::text || '%'
+      OR p.brand ILIKE '%' || sqlc.arg(search)::text || '%'
+      OR p.description ILIKE '%' || sqlc.arg(search)::text || '%'
   )
   AND (
       sqlc.narg(category_id)::uuid IS NULL
-      OR category_id = sqlc.narg(category_id)::uuid
+      OR p.category_id = sqlc.narg(category_id)::uuid
   )
   AND (
       sqlc.narg(subcategory_id)::uuid IS NULL
-      OR subcategory_id = sqlc.narg(subcategory_id)::uuid
+      OR p.subcategory_id = sqlc.narg(subcategory_id)::uuid
   )
   AND (
       sqlc.arg(brand)::text = ''
-      OR brand ILIKE '%' || sqlc.arg(brand)::text || '%'
+      OR p.brand ILIKE '%' || sqlc.arg(brand)::text || '%'
   )
   AND (
       sqlc.arg(color)::text = ''
-      OR color ILIKE '%' || sqlc.arg(color)::text || '%'
+      OR p.color ILIKE '%' || sqlc.arg(color)::text || '%'
   )
   AND (
       sqlc.arg(size)::text = ''
-      OR size = sqlc.arg(size)::text
+      OR p.size = sqlc.arg(size)::text
   )
   AND (
       sqlc.narg(min_price)::numeric IS NULL
-      OR price >= sqlc.narg(min_price)::numeric
+      OR p.price >= sqlc.narg(min_price)::numeric
   )
   AND (
       sqlc.narg(max_price)::numeric IS NULL
-      OR price <= sqlc.narg(max_price)::numeric
+      OR p.price <= sqlc.narg(max_price)::numeric
   )
-ORDER BY created_at DESC
+ORDER BY p.created_at DESC
 LIMIT sqlc.arg(page_limit)
 OFFSET sqlc.arg(page_offset);
 
 -- name: ListProductsByShop :many
 
-SELECT *
-FROM products
-WHERE shop_id = $1
-ORDER BY created_at DESC
+SELECT
+    p.*,
+    s.name AS shop_name
+FROM products p
+JOIN shops s ON s.id = p.shop_id
+WHERE p.shop_id = $1
+  AND p.status = 'active'
+  AND s.status = 'active'
+ORDER BY p.created_at DESC
 LIMIT $2
 OFFSET $3;
 
 -- name: ListProductsByCategory :many
 
-SELECT *
-FROM products
-WHERE category_id = $1
-  AND status = 'active'
-ORDER BY created_at DESC
+SELECT
+    p.*,
+    s.name AS shop_name
+FROM products p
+JOIN shops s ON s.id = p.shop_id
+WHERE p.category_id = $1
+  AND p.status = 'active'
+  AND s.status = 'active'
+ORDER BY p.created_at DESC
 LIMIT $2
 OFFSET $3;
 
 -- name: ListProductsBySubcategory :many
 
-SELECT *
-FROM products
-WHERE subcategory_id = $1
-  AND status = 'active'
-ORDER BY created_at DESC
+SELECT
+    p.*,
+    s.name AS shop_name
+FROM products p
+JOIN shops s ON s.id = p.shop_id
+WHERE p.subcategory_id = $1
+  AND p.status = 'active'
+  AND s.status = 'active'
+ORDER BY p.created_at DESC
 LIMIT $2
 OFFSET $3;
 

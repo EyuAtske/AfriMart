@@ -8,45 +8,45 @@ import (
 )
 
 type ProductQuerier interface {
-	CreateProduct(
-		ctx context.Context,
-		arg database.CreateProductParams,
-	) (database.Product, error)
+    CreateProduct(
+        ctx context.Context,
+        arg database.CreateProductParams,
+    ) (database.Product, error)
 
-	GetProduct(
-		ctx context.Context,
-		id uuid.UUID,
-	) (database.Product, error)
+    GetProduct(
+        ctx context.Context,
+        id uuid.UUID,
+    ) (database.GetProductRow, error)
 
-	DeleteProduct(
-		ctx context.Context,
-		id uuid.UUID,
-	) error
+    DeleteProduct(
+        ctx context.Context,
+        id uuid.UUID,
+    ) error
 
-	UpdateProduct(
-		ctx context.Context,
-		arg database.UpdateProductParams,
-	) (database.Product, error)
+    UpdateProduct(
+        ctx context.Context,
+        arg database.UpdateProductParams,
+    ) (database.Product, error)
 
-	ListProducts(
-		ctx context.Context,
-		arg database.ListProductsParams,
-	) ([]database.Product, error)
+    ListProducts(
+        ctx context.Context,
+        arg database.ListProductsParams,
+    ) ([]database.ListProductsRow, error)
 
-	ListProductsByShop(
-		ctx context.Context,
-		arg database.ListProductsByShopParams,
-	) ([]database.Product, error)
+    ListProductsByShop(
+        ctx context.Context,
+        arg database.ListProductsByShopParams,
+    ) ([]database.ListProductsByShopRow, error)
 
-	ListProductsByCategory(
-		ctx context.Context,
-		arg database.ListProductsByCategoryParams,
-	) ([]database.Product, error)
+    ListProductsByCategory(
+        ctx context.Context,
+        arg database.ListProductsByCategoryParams,
+    ) ([]database.ListProductsByCategoryRow, error)
 
-	ListProductsBySubcategory(
-		ctx context.Context,
-		arg database.ListProductsBySubcategoryParams,
-	) ([]database.Product, error)
+    ListProductsBySubcategory(
+        ctx context.Context,
+        arg database.ListProductsBySubcategoryParams,
+    ) ([]database.ListProductsBySubcategoryRow, error)
 
 	CreateProductImage(
 		ctx context.Context,

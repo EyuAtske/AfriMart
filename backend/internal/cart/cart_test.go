@@ -25,7 +25,7 @@ type mockCartQuerier struct {
 	deleteCartItemFn          func(context.Context, database.DeleteCartItemParams) error
 	clearCartFn               func(context.Context, uuid.UUID) error
 	updateCartTimestampFn     func(context.Context, uuid.UUID) error
-	getProductFn              func(context.Context, uuid.UUID) (database.Product, error)
+	getProductFn              func(context.Context, uuid.UUID) (database.GetProductRow, error)
 	getCartItemsOwnedByUserFn func(ctx context.Context, arg database.GetCartItemsOwnedByUserParams) ([]database.GetCartItemsOwnedByUserRow, error)
 }
 
@@ -102,11 +102,11 @@ func (m *mockCartQuerier) UpdateCartTimestamp(ctx context.Context, cartID uuid.U
 	return nil
 }
 
-func (m *mockCartQuerier) GetProduct(ctx context.Context, id uuid.UUID) (database.Product, error) {
+func (m *mockCartQuerier) GetProduct(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
 	if m.getProductFn != nil {
 		return m.getProductFn(ctx, id)
 	}
-	return database.Product{}, nil
+	return database.GetProductRow{}, nil
 }
 
 func (m *mockCartQuerier) GetCartItemsOwnedByUser(ctx context.Context, arg database.GetCartItemsOwnedByUserParams) ([]database.GetCartItemsOwnedByUserRow, error) {
@@ -272,8 +272,8 @@ func TestHandleAddCartItemSuccess(t *testing.T) {
 		getCartByUserIDFn: func(ctx context.Context, id uuid.UUID) (database.Cart, error) {
 			return database.Cart{ID: cartID, UserID: userID}, nil
 		},
-		getProductFn: func(ctx context.Context, id uuid.UUID) (database.Product, error) {
-			return database.Product{
+		getProductFn: func(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
+			return database.GetProductRow{
 				ID:     productID,
 				ShopID: shopID,
 				Price:  "100.00",
@@ -372,8 +372,8 @@ func TestHandleAddCartItemProductNotFound(t *testing.T) {
 	productID := uuid.New()
 
 	mock := &mockCartQuerier{
-		getProductFn: func(ctx context.Context, id uuid.UUID) (database.Product, error) {
-			return database.Product{}, sql.ErrNoRows
+		getProductFn: func(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
+			return database.GetProductRow{}, sql.ErrNoRows
 		},
 	}
 
@@ -400,8 +400,8 @@ func TestHandleAddCartItemInactiveProduct(t *testing.T) {
 	productID := uuid.New()
 
 	mock := &mockCartQuerier{
-		getProductFn: func(ctx context.Context, id uuid.UUID) (database.Product, error) {
-			return database.Product{
+		getProductFn: func(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
+			return database.GetProductRow{
 				ID:     productID,
 				Status: "inactive",
 				Stock:  10,
@@ -432,8 +432,8 @@ func TestHandleAddCartItemInsufficientStock(t *testing.T) {
 	productID := uuid.New()
 
 	mock := &mockCartQuerier{
-		getProductFn: func(ctx context.Context, id uuid.UUID) (database.Product, error) {
-			return database.Product{
+		getProductFn: func(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
+			return database.GetProductRow{
 				ID:     productID,
 				Status: "active",
 				Stock:  2,
@@ -482,8 +482,8 @@ func TestHandleUpdateCartItemSuccess(t *testing.T) {
 				},
 			}, nil
 		},
-		getProductFn: func(ctx context.Context, id uuid.UUID) (database.Product, error) {
-			return database.Product{
+		getProductFn: func(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
+			return database.GetProductRow{
 				ID:    productID,
 				Stock: 10,
 			}, nil
@@ -585,8 +585,8 @@ func TestHandleUpdateCartItemInsufficientStock(t *testing.T) {
 				},
 			}, nil
 		},
-		getProductFn: func(ctx context.Context, id uuid.UUID) (database.Product, error) {
-			return database.Product{
+		getProductFn: func(ctx context.Context, id uuid.UUID) (database.GetProductRow, error) {
+			return database.GetProductRow{
 				ID:    productID,
 				Stock: 2,
 			}, nil
