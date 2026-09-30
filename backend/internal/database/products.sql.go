@@ -8,6 +8,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -122,15 +123,36 @@ func (q *Queries) GetCategory(ctx context.Context, id uuid.UUID) (Category, erro
 }
 
 const getProduct = `-- name: GetProduct :one
-
-SELECT id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at, gender
-FROM products
-WHERE id = $1
+SELECT
+    p.id, p.shop_id, p.category_id, p.subcategory_id, p.name, p.description, p.brand, p.color, p.size, p.price, p.stock, p.status, p.created_at, p.updated_at, p.gender,
+    s.name AS shop_name
+FROM products p
+JOIN shops s ON s.id = p.shop_id
+WHERE p.id = $1
 `
 
-func (q *Queries) GetProduct(ctx context.Context, id uuid.UUID) (Product, error) {
+type GetProductRow struct {
+	ID            uuid.UUID
+	ShopID        uuid.UUID
+	CategoryID    uuid.UUID
+	SubcategoryID uuid.UUID
+	Name          string
+	Description   sql.NullString
+	Brand         sql.NullString
+	Color         sql.NullString
+	Size          sql.NullString
+	Price         string
+	Stock         int32
+	Status        string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	Gender        string
+	ShopName      string
+}
+
+func (q *Queries) GetProduct(ctx context.Context, id uuid.UUID) (GetProductRow, error) {
 	row := q.db.QueryRowContext(ctx, getProduct, id)
-	var i Product
+	var i GetProductRow
 	err := row.Scan(
 		&i.ID,
 		&i.ShopID,
@@ -147,6 +169,7 @@ func (q *Queries) GetProduct(ctx context.Context, id uuid.UUID) (Product, error)
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Gender,
+		&i.ShopName,
 	)
 	return i, err
 }
@@ -183,44 +206,48 @@ func (q *Queries) ListCategories(ctx context.Context) ([]Category, error) {
 
 const listProducts = `-- name: ListProducts :many
 
-SELECT id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at, gender
-FROM products
-WHERE status = 'active'
+SELECT
+    p.id, p.shop_id, p.category_id, p.subcategory_id, p.name, p.description, p.brand, p.color, p.size, p.price, p.stock, p.status, p.created_at, p.updated_at, p.gender,
+    s.name AS shop_name
+FROM products p
+JOIN shops s ON s.id = p.shop_id
+WHERE p.status = 'active'
+  AND s.status = 'active'
   AND (
       $1::text = ''
-      OR name ILIKE '%' || $1::text || '%'
-      OR brand ILIKE '%' || $1::text || '%'
-      OR description ILIKE '%' || $1::text || '%'
+      OR p.name ILIKE '%' || $1::text || '%'
+      OR p.brand ILIKE '%' || $1::text || '%'
+      OR p.description ILIKE '%' || $1::text || '%'
   )
   AND (
       $2::uuid IS NULL
-      OR category_id = $2::uuid
+      OR p.category_id = $2::uuid
   )
   AND (
       $3::uuid IS NULL
-      OR subcategory_id = $3::uuid
+      OR p.subcategory_id = $3::uuid
   )
   AND (
       $4::text = ''
-      OR brand ILIKE '%' || $4::text || '%'
+      OR p.brand ILIKE '%' || $4::text || '%'
   )
   AND (
       $5::text = ''
-      OR color ILIKE '%' || $5::text || '%'
+      OR p.color ILIKE '%' || $5::text || '%'
   )
   AND (
       $6::text = ''
-      OR size = $6::text
+      OR p.size = $6::text
   )
   AND (
       $7::numeric IS NULL
-      OR price >= $7::numeric
+      OR p.price >= $7::numeric
   )
   AND (
       $8::numeric IS NULL
-      OR price <= $8::numeric
+      OR p.price <= $8::numeric
   )
-ORDER BY created_at DESC
+ORDER BY p.created_at DESC
 LIMIT $10
 OFFSET $9
 `
@@ -238,7 +265,26 @@ type ListProductsParams struct {
 	PageLimit     int32
 }
 
-func (q *Queries) ListProducts(ctx context.Context, arg ListProductsParams) ([]Product, error) {
+type ListProductsRow struct {
+	ID            uuid.UUID
+	ShopID        uuid.UUID
+	CategoryID    uuid.UUID
+	SubcategoryID uuid.UUID
+	Name          string
+	Description   sql.NullString
+	Brand         sql.NullString
+	Color         sql.NullString
+	Size          sql.NullString
+	Price         string
+	Stock         int32
+	Status        string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	Gender        string
+	ShopName      string
+}
+
+func (q *Queries) ListProducts(ctx context.Context, arg ListProductsParams) ([]ListProductsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listProducts,
 		arg.Search,
 		arg.CategoryID,
@@ -255,9 +301,9 @@ func (q *Queries) ListProducts(ctx context.Context, arg ListProductsParams) ([]P
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Product
+	var items []ListProductsRow
 	for rows.Next() {
-		var i Product
+		var i ListProductsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ShopID,
@@ -274,6 +320,7 @@ func (q *Queries) ListProducts(ctx context.Context, arg ListProductsParams) ([]P
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Gender,
+			&i.ShopName,
 		); err != nil {
 			return nil, err
 		}
@@ -290,11 +337,15 @@ func (q *Queries) ListProducts(ctx context.Context, arg ListProductsParams) ([]P
 
 const listProductsByCategory = `-- name: ListProductsByCategory :many
 
-SELECT id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at, gender
-FROM products
-WHERE category_id = $1
-  AND status = 'active'
-ORDER BY created_at DESC
+SELECT
+    p.id, p.shop_id, p.category_id, p.subcategory_id, p.name, p.description, p.brand, p.color, p.size, p.price, p.stock, p.status, p.created_at, p.updated_at, p.gender,
+    s.name AS shop_name
+FROM products p
+JOIN shops s ON s.id = p.shop_id
+WHERE p.category_id = $1
+  AND p.status = 'active'
+  AND s.status = 'active'
+ORDER BY p.created_at DESC
 LIMIT $2
 OFFSET $3
 `
@@ -305,15 +356,34 @@ type ListProductsByCategoryParams struct {
 	Offset     int32
 }
 
-func (q *Queries) ListProductsByCategory(ctx context.Context, arg ListProductsByCategoryParams) ([]Product, error) {
+type ListProductsByCategoryRow struct {
+	ID            uuid.UUID
+	ShopID        uuid.UUID
+	CategoryID    uuid.UUID
+	SubcategoryID uuid.UUID
+	Name          string
+	Description   sql.NullString
+	Brand         sql.NullString
+	Color         sql.NullString
+	Size          sql.NullString
+	Price         string
+	Stock         int32
+	Status        string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	Gender        string
+	ShopName      string
+}
+
+func (q *Queries) ListProductsByCategory(ctx context.Context, arg ListProductsByCategoryParams) ([]ListProductsByCategoryRow, error) {
 	rows, err := q.db.QueryContext(ctx, listProductsByCategory, arg.CategoryID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Product
+	var items []ListProductsByCategoryRow
 	for rows.Next() {
-		var i Product
+		var i ListProductsByCategoryRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ShopID,
@@ -330,6 +400,7 @@ func (q *Queries) ListProductsByCategory(ctx context.Context, arg ListProductsBy
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Gender,
+			&i.ShopName,
 		); err != nil {
 			return nil, err
 		}
@@ -346,10 +417,15 @@ func (q *Queries) ListProductsByCategory(ctx context.Context, arg ListProductsBy
 
 const listProductsByShop = `-- name: ListProductsByShop :many
 
-SELECT id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at, gender
-FROM products
-WHERE shop_id = $1
-ORDER BY created_at DESC
+SELECT
+    p.id, p.shop_id, p.category_id, p.subcategory_id, p.name, p.description, p.brand, p.color, p.size, p.price, p.stock, p.status, p.created_at, p.updated_at, p.gender,
+    s.name AS shop_name
+FROM products p
+JOIN shops s ON s.id = p.shop_id
+WHERE p.shop_id = $1
+  AND p.status = 'active'
+  AND s.status = 'active'
+ORDER BY p.created_at DESC
 LIMIT $2
 OFFSET $3
 `
@@ -360,15 +436,34 @@ type ListProductsByShopParams struct {
 	Offset int32
 }
 
-func (q *Queries) ListProductsByShop(ctx context.Context, arg ListProductsByShopParams) ([]Product, error) {
+type ListProductsByShopRow struct {
+	ID            uuid.UUID
+	ShopID        uuid.UUID
+	CategoryID    uuid.UUID
+	SubcategoryID uuid.UUID
+	Name          string
+	Description   sql.NullString
+	Brand         sql.NullString
+	Color         sql.NullString
+	Size          sql.NullString
+	Price         string
+	Stock         int32
+	Status        string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	Gender        string
+	ShopName      string
+}
+
+func (q *Queries) ListProductsByShop(ctx context.Context, arg ListProductsByShopParams) ([]ListProductsByShopRow, error) {
 	rows, err := q.db.QueryContext(ctx, listProductsByShop, arg.ShopID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Product
+	var items []ListProductsByShopRow
 	for rows.Next() {
-		var i Product
+		var i ListProductsByShopRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ShopID,
@@ -385,6 +480,7 @@ func (q *Queries) ListProductsByShop(ctx context.Context, arg ListProductsByShop
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Gender,
+			&i.ShopName,
 		); err != nil {
 			return nil, err
 		}
@@ -401,11 +497,15 @@ func (q *Queries) ListProductsByShop(ctx context.Context, arg ListProductsByShop
 
 const listProductsBySubcategory = `-- name: ListProductsBySubcategory :many
 
-SELECT id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at, gender
-FROM products
-WHERE subcategory_id = $1
-  AND status = 'active'
-ORDER BY created_at DESC
+SELECT
+    p.id, p.shop_id, p.category_id, p.subcategory_id, p.name, p.description, p.brand, p.color, p.size, p.price, p.stock, p.status, p.created_at, p.updated_at, p.gender,
+    s.name AS shop_name
+FROM products p
+JOIN shops s ON s.id = p.shop_id
+WHERE p.subcategory_id = $1
+  AND p.status = 'active'
+  AND s.status = 'active'
+ORDER BY p.created_at DESC
 LIMIT $2
 OFFSET $3
 `
@@ -416,15 +516,34 @@ type ListProductsBySubcategoryParams struct {
 	Offset        int32
 }
 
-func (q *Queries) ListProductsBySubcategory(ctx context.Context, arg ListProductsBySubcategoryParams) ([]Product, error) {
+type ListProductsBySubcategoryRow struct {
+	ID            uuid.UUID
+	ShopID        uuid.UUID
+	CategoryID    uuid.UUID
+	SubcategoryID uuid.UUID
+	Name          string
+	Description   sql.NullString
+	Brand         sql.NullString
+	Color         sql.NullString
+	Size          sql.NullString
+	Price         string
+	Stock         int32
+	Status        string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	Gender        string
+	ShopName      string
+}
+
+func (q *Queries) ListProductsBySubcategory(ctx context.Context, arg ListProductsBySubcategoryParams) ([]ListProductsBySubcategoryRow, error) {
 	rows, err := q.db.QueryContext(ctx, listProductsBySubcategory, arg.SubcategoryID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Product
+	var items []ListProductsBySubcategoryRow
 	for rows.Next() {
-		var i Product
+		var i ListProductsBySubcategoryRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ShopID,
@@ -441,6 +560,7 @@ func (q *Queries) ListProductsBySubcategory(ctx context.Context, arg ListProduct
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Gender,
+			&i.ShopName,
 		); err != nil {
 			return nil, err
 		}

@@ -21,10 +21,11 @@ type CartHandler struct {
 	ShopQueries ShopOwnershipQuerier
 }
 
-func NewCartHandler(queries CartQuerier, logger *slog.Logger) *CartHandler {
+func NewCartHandler(queries CartQuerier, shopqueries ShopOwnershipQuerier,  logger *slog.Logger) *CartHandler {
 	return &CartHandler{
 		Queries: queries,
 		Logger:  logger,
+		ShopQueries: shopqueries,
 	}
 }
 

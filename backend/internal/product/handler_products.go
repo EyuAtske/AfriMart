@@ -35,14 +35,9 @@ type ProductWithImages struct {
 
 // enrichProductsWithImages fetches all images for a slice of products in a
 // single query and returns them paired together. This avoids the N+1 problem.
-func (h *ProductHandler) enrichProductsWithImages(ctx context.Context, products []database.Product) ([]ProductWithImages, error) {
-	if len(products) == 0 {
-		return []ProductWithImages{}, nil
-	}
-
-	productIDs := make([]uuid.UUID, len(products))
-	for i, p := range products {
-		productIDs[i] = p.ID
+func (h *ProductHandler) fetchImagesMap(ctx context.Context, productIDs []uuid.UUID) (map[uuid.UUID][]database.ProductImage, error) {
+	if len(productIDs) == 0 {
+		return make(map[uuid.UUID][]database.ProductImage), nil
 	}
 
 	allImages, err := h.Queries.GetProductImagesByProductIDs(ctx, productIDs)
@@ -50,25 +45,12 @@ func (h *ProductHandler) enrichProductsWithImages(ctx context.Context, products 
 		return nil, err
 	}
 
-	// Group images by product_id
-	imageMap := make(map[uuid.UUID][]database.ProductImage, len(products))
+	imageMap := make(map[uuid.UUID][]database.ProductImage, len(productIDs))
 	for _, img := range allImages {
 		imageMap[img.ProductID] = append(imageMap[img.ProductID], img)
 	}
 
-	result := make([]ProductWithImages, len(products))
-	for i, p := range products {
-		images := imageMap[p.ID]
-		if images == nil {
-			images = []database.ProductImage{} // never null in JSON
-		}
-		result[i] = ProductWithImages{
-			Product: p,
-			Images:  images,
-		}
-	}
-
-	return result, nil
+	return imageMap, nil
 }
 
 func NewProductHandler(cfg *config.ApiConfig, queries ProductQuerier, shopQueries ShopOwnershipQuerier, imageStorage storage.ImageStorage, logger *slog.Logger) *ProductHandler {
@@ -384,7 +366,8 @@ func (h *ProductHandler) HandleGetProduct(w http.ResponseWriter, r *http.Request
 
 	h.Logger.InfoContext(ctx, "handling get product request", "product_id", productID)
 
-	product, err := h.Queries.GetProduct(ctx, productID)
+	// Fetch as GetProductRow
+	productRow, err := h.Queries.GetProduct(ctx, productID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			h.Logger.WarnContext(ctx, "get product failed: product not found", "product_id", productID)
@@ -403,12 +386,29 @@ func (h *ProductHandler) HandleGetProduct(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Map GetProductRow to database.Product for the response
 	response := struct {
 		Product database.Product        `json:"product"`
 		Images  []database.ProductImage `json:"images"`
 	}{
-		Product: product,
-		Images:  images,
+		Product: database.Product{
+			ID:            productRow.ID,
+			ShopID:        productRow.ShopID,
+			CategoryID:    productRow.CategoryID,
+			SubcategoryID: productRow.SubcategoryID,
+			Name:          productRow.Name,
+			Description:   productRow.Description,
+			Brand:         productRow.Brand,
+			Color:         productRow.Color,
+			Size:          productRow.Size,
+			Price:         productRow.Price,
+			Stock:         productRow.Stock,
+			Status:        productRow.Status,
+			CreatedAt:     productRow.CreatedAt,
+			UpdatedAt:     productRow.UpdatedAt,
+			Gender:        productRow.Gender,
+		},
+		Images: images,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -730,11 +730,45 @@ func (h *ProductHandler) HandleListProducts(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	response, err := h.enrichProductsWithImages(ctx, products)
+	// Extract IDs for the N+1 optimized image fetch
+	productIDs := make([]uuid.UUID, len(products))
+	for i, p := range products {
+		productIDs[i] = p.ID
+	}
+
+	imageMap, err := h.fetchImagesMap(ctx, productIDs)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "list products failed: could not fetch images", "error", err)
 		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Failed to retrieve product images", err)
 		return
+	}
+
+	response := make([]ProductWithImages, len(products))
+	for i, p := range products {
+		images := imageMap[p.ID]
+		if images == nil {
+			images = []database.ProductImage{}
+		}
+		response[i] = ProductWithImages{
+			Product: database.Product{
+				ID:            p.ID,
+				ShopID:        p.ShopID,
+				CategoryID:    p.CategoryID,
+				SubcategoryID: p.SubcategoryID,
+				Name:          p.Name,
+				Description:   p.Description,
+				Brand:         p.Brand,
+				Color:         p.Color,
+				Size:          p.Size,
+				Price:         p.Price,
+				Stock:         p.Stock,
+				Status:        p.Status,
+				CreatedAt:     p.CreatedAt,
+				UpdatedAt:     p.UpdatedAt,
+				Gender:        p.Gender,
+			},
+			Images: images,
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -815,11 +849,44 @@ func (h *ProductHandler) HandleListProductsByShop(w http.ResponseWriter, r *http
 		return
 	}
 
-	response, err := h.enrichProductsWithImages(ctx, products)
+	productIDs := make([]uuid.UUID, len(products))
+	for i, p := range products {
+		productIDs[i] = p.ID
+	}
+
+	imageMap, err := h.fetchImagesMap(ctx, productIDs)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "list products by shop failed: could not fetch images", "user_id", userID, "shop_id", shopID, "error", err)
 		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not retrieve product images", err)
 		return
+	}
+
+	response := make([]ProductWithImages, len(products))
+	for i, p := range products {
+		images := imageMap[p.ID]
+		if images == nil {
+			images = []database.ProductImage{}
+		}
+		response[i] = ProductWithImages{
+			Product: database.Product{
+				ID:            p.ID,
+				ShopID:        p.ShopID,
+				CategoryID:    p.CategoryID,
+				SubcategoryID: p.SubcategoryID,
+				Name:          p.Name,
+				Description:   p.Description,
+				Brand:         p.Brand,
+				Color:         p.Color,
+				Size:          p.Size,
+				Price:         p.Price,
+				Stock:         p.Stock,
+				Status:        p.Status,
+				CreatedAt:     p.CreatedAt,
+				UpdatedAt:     p.UpdatedAt,
+				Gender:        p.Gender,
+			},
+			Images: images,
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -878,11 +945,44 @@ func (h *ProductHandler) HandleListProductsByCategory(w http.ResponseWriter, r *
 		return
 	}
 
-	response, err := h.enrichProductsWithImages(ctx, products)
+	productIDs := make([]uuid.UUID, len(products))
+	for i, p := range products {
+		productIDs[i] = p.ID
+	}
+
+	imageMap, err := h.fetchImagesMap(ctx, productIDs)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "list products by category failed: could not fetch images", "category_id", categoryID, "error", err)
 		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not retrieve product images", err)
 		return
+	}
+
+	response := make([]ProductWithImages, len(products))
+	for i, p := range products {
+		images := imageMap[p.ID]
+		if images == nil {
+			images = []database.ProductImage{}
+		}
+		response[i] = ProductWithImages{
+			Product: database.Product{
+				ID:            p.ID,
+				ShopID:        p.ShopID,
+				CategoryID:    p.CategoryID,
+				SubcategoryID: p.SubcategoryID,
+				Name:          p.Name,
+				Description:   p.Description,
+				Brand:         p.Brand,
+				Color:         p.Color,
+				Size:          p.Size,
+				Price:         p.Price,
+				Stock:         p.Stock,
+				Status:        p.Status,
+				CreatedAt:     p.CreatedAt,
+				UpdatedAt:     p.UpdatedAt,
+				Gender:        p.Gender,
+			},
+			Images: images,
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -941,11 +1041,44 @@ func (h *ProductHandler) HandleListProductsBySubcategory(w http.ResponseWriter, 
 		return
 	}
 
-	response, err := h.enrichProductsWithImages(ctx, products)
+	productIDs := make([]uuid.UUID, len(products))
+	for i, p := range products {
+		productIDs[i] = p.ID
+	}
+
+	imageMap, err := h.fetchImagesMap(ctx, productIDs)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "list products by subcategory failed: could not fetch images", "subcategory_id", subcategoryID, "error", err)
 		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not retrieve product images", err)
 		return
+	}
+
+	response := make([]ProductWithImages, len(products))
+	for i, p := range products {
+		images := imageMap[p.ID]
+		if images == nil {
+			images = []database.ProductImage{}
+		}
+		response[i] = ProductWithImages{
+			Product: database.Product{
+				ID:            p.ID,
+				ShopID:        p.ShopID,
+				CategoryID:    p.CategoryID,
+				SubcategoryID: p.SubcategoryID,
+				Name:          p.Name,
+				Description:   p.Description,
+				Brand:         p.Brand,
+				Color:         p.Color,
+				Size:          p.Size,
+				Price:         p.Price,
+				Stock:         p.Stock,
+				Status:        p.Status,
+				CreatedAt:     p.CreatedAt,
+				UpdatedAt:     p.UpdatedAt,
+				Gender:        p.Gender,
+			},
+			Images: images,
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -31,7 +31,7 @@ func main() {
 	authHandler := auth.NewAuthHandler(apicfg, apicfg.Queries, slog.Default())
 	shopHandler := shop.NewShopHandler(apicfg, apicfg.Queries, slog.Default())
 	productHandler := product.NewProductHandler(apicfg, apicfg.Queries, apicfg.Queries, apicfg.ImageStorage, slog.Default())
-	cartHandler := cart.NewCartHandler(apicfg.Queries, slog.Default())
+	cartHandler := cart.NewCartHandler(apicfg.Queries, apicfg.Queries, slog.Default())
 	orderHandler := order.NewOrderHandler(apicfg, apicfg.Queries, slog.Default())
 	paymentHandler := payment.NewPaymentHandler(apicfg.Queries, slog.Default())
 	servermux := http.NewServeMux()
