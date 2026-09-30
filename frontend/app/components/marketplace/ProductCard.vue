@@ -3,6 +3,7 @@ import type { ProductMedia } from '~/types/product'
 
 const props = defineProps<{
   id: number | string
+  shopId?: string
   shop: string
   name: string
   price: string
@@ -20,7 +21,7 @@ const { flyToCart } = useFlyToCart()
 const { isOwnProduct } = useMarketplace()
 const imageEl = ref<HTMLImageElement | null>(null)
 
-const isSelfProduct = computed(() => isOwnProduct({ id: props.id, shop: props.shop } as any))
+const isSelfProduct = computed(() => isOwnProduct({ id: props.id, shop: props.shop, shopId: props.shopId } as any))
 const isSoldOut = computed(() => props.stock !== undefined && props.stock <= 0)
 
 const displayImage = computed(() => {
@@ -58,12 +59,13 @@ const handleAddToCart = () => {
           :alt="name"
           @error="onImageError"
           class="block h-auto w-full transition duration-700 group-hover:scale-105"
+          :class="{ 'grayscale opacity-80': isSoldOut }"
         />
 
         <!-- SOLD OUT Badge -->
         <span
           v-if="isSoldOut"
-          class="absolute left-3 top-3 rounded-full bg-red-700 text-white px-3 py-1 text-xs font-bold uppercase tracking-wider shadow"
+          class="absolute left-3 top-3 z-10 rounded-full bg-red-700 text-white px-3 py-1 text-xs font-bold uppercase tracking-wider shadow"
         >
           Sold Out
         </span>

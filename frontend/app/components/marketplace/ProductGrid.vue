@@ -19,6 +19,7 @@ const { addToCart } = useMarketplace()
     >
       <ProductCard
         :id="product.id"
+        :shop-id="product.shopId"
         :shop="product.shop"
         :name="product.name"
         :price="formatPrice(product.price)"

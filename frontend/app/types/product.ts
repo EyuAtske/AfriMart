@@ -81,6 +81,9 @@ export interface ProductReview {
 export interface Product {
   id: number | string
   backendId?: string
+  shopId?: string
+  categoryId?: string
+  subcategoryId?: string
   shop: string
   name: string
   description: string

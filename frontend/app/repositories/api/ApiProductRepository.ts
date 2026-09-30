@@ -16,6 +16,7 @@ import {
   isValidUuid,
   resolveCategoryId,
   resolveSubcategoryId,
+  ensureCategoryCatalog,
   STATIC_CATALOG
 } from '~/utils/categoryCatalog'
 
@@ -35,6 +36,7 @@ interface BackendProductResponse {
   Size?: { String: string; Valid: boolean } | string | null
   Price: string
   Stock: number
+  Gender?: string
   Image?: { String: string; Valid: boolean } | string | null
   Status: string
   CreatedAt?: string
@@ -140,14 +142,20 @@ function mapBackendProduct(raw: any, shopName: string = 'Shop'): Product {
 
   const categoryRaw = extractString(p.Category || p.category) || p.CategoryID || p.category_id || ''
   const subcategoryRaw = extractString(p.Subcategory || p.subcategory) || p.SubcategoryID || p.subcategory_id || ''
+  const genderRaw = String(p.Gender || p.gender || '').toLowerCase()
+  const gender = genderRaw === 'men' ? 'Men' : genderRaw === 'women' ? 'Women' : genderRaw === 'kids' ? 'Kids' : undefined
 
   return {
     id: p.ID || p.id,
     backendId: p.ID || p.id,
+    shopId: p.ShopID || p.shop_id || p.shopId,
+    categoryId: p.CategoryID || p.category_id || p.categoryId,
+    subcategoryId: p.SubcategoryID || p.subcategory_id || p.subcategoryId,
     shop: shopName,
     name: p.Name || p.name || 'AfriMart Product',
     description: desc,
     category: resolveCategoryName(categoryRaw),
+    gender,
     subCategory: resolveSubcategoryName(subcategoryRaw),
     price: priceNum,
     stock: p.Stock !== undefined ? p.Stock : (p.stock ?? 0),
@@ -175,6 +183,7 @@ export class ApiProductRepository implements IProductRepository {
     }
 
     if (params.category && params.category !== 'All') {
+      await ensureCategoryCatalog()
       const catId = resolveCategoryId(params.category)
       if (catId && isValidUuid(catId)) {
         queryParams.category_id = catId
@@ -193,9 +202,7 @@ export class ApiProductRepository implements IProductRepository {
       const data = (rawProducts || []).map(p => mapBackendProduct(p, params.shop || 'Shop'))
 
       const { products } = useMockDataStore()
-      if (data.length > 0) {
-        products.value = data
-      }
+      products.value = data
 
       return {
         data,
@@ -206,6 +213,35 @@ export class ApiProductRepository implements IProductRepository {
       }
     } catch (err: any) {
       throw new Error(extractError(err, 'Failed to fetch products'))
+    }
+  }
+
+  async getProductsByShop(shopId: string, limit: number = 1000, offset: number = 0): Promise<Product[]> {
+    const strShopId = String(shopId).trim().replace(/[()[\]<>{}`'"]/g, '')
+    if (!strShopId) return []
+
+    try {
+      const queryParams = new URLSearchParams({
+        limit: String(limit),
+        offset: String(offset)
+      })
+      const res = await authenticatedFetch<any[]>(`api/shops/${encodeURIComponent(strShopId)}/products?${queryParams.toString()}`, {
+        method: 'GET'
+      })
+      const rawList = res || []
+      const { shop } = useMockDataStore()
+      const shopName = shop.value?.name || 'Shop'
+      const data = rawList.map(p => mapBackendProduct(p, shopName))
+
+      if (shop.value && (shop.value.backendId === strShopId || shop.value.id === strShopId)) {
+        shop.value.products = data
+      }
+
+      return data
+    } catch (err: any) {
+      const status = err?.response?.status || err?.statusCode || err?.status
+      if (status === 404) return []
+      throw new Error(extractError(err, 'Failed to fetch shop products'))
     }
   }
 
@@ -248,6 +284,7 @@ export class ApiProductRepository implements IProductRepository {
       const apiShopRepo = new (await import('./ApiShopRepository')).ApiShopRepository()
       const myShop = await apiShopRepo.getMyShop()
       if (myShop) {
+        shop.value = myShop
         shopId = myShop.backendId || myShop.id
       }
     }
@@ -257,6 +294,7 @@ export class ApiProductRepository implements IProductRepository {
     }
 
     // 1. Category and subcategory UUID validation
+    await ensureCategoryCatalog()
     const categoryId = dto.categoryId || resolveCategoryId(dto.category)
     const subcategoryId = dto.subcategoryId || resolveSubcategoryId(dto.category, dto.subCategory)
 
@@ -292,19 +330,6 @@ export class ApiProductRepository implements IProductRepository {
           // ignore blob fetch error
         }
       }
-    }
-
-    // Ultimate fallback: if an image was specified but no File object could be resolved, create a valid 1x1 PNG file
-    if (filesToUpload.length === 0 && (dto.image || dto.media?.length)) {
-      const dummyPngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
-      const byteCharacters = atob(dummyPngBase64)
-      const byteNumbers = new Array(byteCharacters.length)
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i)
-      }
-      const byteArray = new Uint8Array(byteNumbers)
-      const blob = new Blob([byteArray], { type: 'image/png' })
-      filesToUpload.push(new File([blob], 'product-cover.png', { type: 'image/png' }))
     }
 
     if (filesToUpload.length === 0) {
@@ -354,7 +379,9 @@ export class ApiProductRepository implements IProductRepository {
       // Update local reactive store as well
       products.value.unshift(created)
       if (shop.value) {
-        shop.value.products.unshift(created)
+        if (!shop.value.products.some(p => String(p.id) === String(created.id))) {
+          shop.value.products.unshift(created)
+        }
       }
 
       return created
@@ -371,9 +398,13 @@ export class ApiProductRepository implements IProductRepository {
       const existing = await this.getProductById(strId)
       if (!existing) return null
 
-      const catId = dto.categoryId || (existing as any).categoryId || resolveCategoryId(dto.category || existing.category) || '00000000-0000-0000-0000-000000000001'
-      const subId = dto.subcategoryId || (existing as any).subcategoryId || resolveSubcategoryId(dto.category || existing.category, dto.subCategory || existing.subCategory) || '00000000-0000-0000-0000-000000000002'
+      await ensureCategoryCatalog()
+      const catId = dto.categoryId || existing.categoryId || resolveCategoryId(dto.category || existing.category)
+      const subId = dto.subcategoryId || existing.subcategoryId || resolveSubcategoryId(dto.category || existing.category, dto.subCategory || existing.subCategory)
 
+      if (!isValidUuid(catId) || !isValidUuid(subId)) {
+        throw new Error('Please select a valid category and subcategory.')
+      }
       const res = await authenticatedFetch<BackendProductResponse>(`api/products/${strId}`, {
         method: 'PUT',
         body: {
