@@ -2,10 +2,15 @@ package auth
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/EyuAtske/AfriMart/backend/internal/database"
 	"github.com/google/uuid"
 )
 
@@ -49,7 +54,7 @@ func TestJWT(t *testing.T) {
 func TestGetBearerToken(t *testing.T) {
 	headers := make(map[string][]string)
 	headers["Authorization"] = []string{"Bearer mytoken"}
-	token, err:= GetBearerToken(headers)
+	token, err := GetBearerToken(headers)
 	if err != nil {
 		t.Fatalf("Failed to get bearer token: %v", err)
 	}
@@ -227,110 +232,160 @@ func TestHashRefreshTokenChangesWhenInputChanges(t *testing.T) {
 }
 
 func TestValidateRegistration(t *testing.T) {
-    tests := []registrationTestCase{
-        {
-            name: "valid registration",
-            request: register{
-                Email:    "user@example.com",
-                Username: "testuser",
-                Password: "password123",
-            },
-            wantEmail:    "user@example.com",
-            wantUsername: "testuser",
-        },
-        {
-            name: "trims email",
-            request: register{
-                Email:    "  user@example.com  ",
-                Username: "testuser",
-                Password: "password123",
-            },
-            wantEmail:    "user@example.com",
-            wantUsername: "testuser",
-        },
-        {
-            name: "missing email",
-            request: register{
-                Username: "testuser",
-                Password: "password123",
-            },
-            wantError: true,
-        },
-        {
-            name: "invalid email",
-            request: register{
-                Email:    "not-an-email",
-                Username: "testuser",
-                Password: "password123",
-            },
-            wantError: true,
-        },
-        {
-            name: "password too short",
-            request: register{
-                Email:    "user@example.com",
-                Username: "testuser",
-                Password: "1234567",
-            },
-            wantError: true,
-        },
-        {
-            name: "missing username",
-            request: register{
-                Email:    "user@example.com",
-                Password: "password123",
-            },
-            wantError: true,
-        },
-    }
+	tests := []registrationTestCase{
+		{
+			name: "valid registration",
+			request: register{
+				Email:    "user@example.com",
+				Username: "testuser",
+				Password: "password123",
+			},
+			wantEmail:    "user@example.com",
+			wantUsername: "testuser",
+		},
+		{
+			name: "trims email",
+			request: register{
+				Email:    "  user@example.com  ",
+				Username: "testuser",
+				Password: "password123",
+			},
+			wantEmail:    "user@example.com",
+			wantUsername: "testuser",
+		},
+		{
+			name: "missing email",
+			request: register{
+				Username: "testuser",
+				Password: "password123",
+			},
+			wantError: true,
+		},
+		{
+			name: "invalid email",
+			request: register{
+				Email:    "not-an-email",
+				Username: "testuser",
+				Password: "password123",
+			},
+			wantError: true,
+		},
+		{
+			name: "password too short",
+			request: register{
+				Email:    "user@example.com",
+				Username: "testuser",
+				Password: "1234567",
+			},
+			wantError: true,
+		},
+		{
+			name: "missing username",
+			request: register{
+				Email:    "user@example.com",
+				Password: "password123",
+			},
+			wantError: true,
+		},
+	}
 
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            req := tt.request
-            err := validateRegistration(&req)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := tt.request
+			err := validateRegistration(&req)
 
-            assertValidationResult(t, err, tt.wantError)
-            assertSanitizedValues(t, req, tt)
-        })
-    }
+			assertValidationResult(t, err, tt.wantError)
+			assertSanitizedValues(t, req, tt)
+		})
+	}
 }
 
 type registrationTestCase struct {
-    name         string
-    request      register
-    wantError    bool
-    wantEmail    string
-    wantUsername string
+	name         string
+	request      register
+	wantError    bool
+	wantEmail    string
+	wantUsername string
 }
 
 func assertValidationResult(t *testing.T, err error, wantError bool) {
-    t.Helper()
+	t.Helper()
 
-    if wantError && err == nil {
-        t.Fatal("expected validation error, got nil")
-    }
+	if wantError && err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
 
-    if !wantError && err != nil {
-        t.Fatalf("expected no validation error, got: %v", err)
-    }
+	if !wantError && err != nil {
+		t.Fatalf("expected no validation error, got: %v", err)
+	}
 }
 
 func assertSanitizedValues(
-    t *testing.T,
-    req register,
-    tt registrationTestCase,
+	t *testing.T,
+	req register,
+	tt registrationTestCase,
 ) {
-    t.Helper()
+	t.Helper()
 
-    if tt.wantError {
-        return
-    }
+	if tt.wantError {
+		return
+	}
 
-    if req.Email != tt.wantEmail {
-        t.Fatalf("expected email %q, got %q", tt.wantEmail, req.Email)
-    }
+	if req.Email != tt.wantEmail {
+		t.Fatalf("expected email %q, got %q", tt.wantEmail, req.Email)
+	}
 
-    if req.Username != tt.wantUsername {
-        t.Fatalf("expected username %q, got %q", tt.wantUsername, req.Username)
-    }
+	if req.Username != tt.wantUsername {
+		t.Fatalf("expected username %q, got %q", tt.wantUsername, req.Username)
+	}
+}
+
+func decodeProfile(t *testing.T, usr database.GetUserByIDRow) map[string]any {
+	t.Helper()
+
+	rec := httptest.NewRecorder()
+	RespondWithUserProfile(rec, usr)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode profile response: %v", err)
+	}
+	return body
+}
+
+func TestRespondWithUserProfile_IncludesPhoneNumber(t *testing.T) {
+	body := decodeProfile(t, database.GetUserByIDRow{
+		Email:       "abel@example.com",
+		Username:    sql.NullString{String: "abel", Valid: true},
+		PhoneNumber: sql.NullString{String: "+251912345678", Valid: true},
+	})
+
+	if got := body["phone_number"]; got != "+251912345678" {
+		t.Fatalf("expected phone_number %q, got %v", "+251912345678", got)
+	}
+	// Existing keys must be unchanged.
+	if body["email"] != "abel@example.com" || body["username"] != "abel" {
+		t.Fatalf("existing profile fields changed: %v", body)
+	}
+}
+
+// Users created before the phone_number column existed have NULL there. The
+// key must still be present (as "") so the frontend can rely on its shape.
+func TestRespondWithUserProfile_NullPhoneIsEmptyString(t *testing.T) {
+	body := decodeProfile(t, database.GetUserByIDRow{
+		Email:    "old@example.com",
+		Username: sql.NullString{String: "old", Valid: true},
+	})
+
+	got, present := body["phone_number"]
+	if !present {
+		t.Fatalf("phone_number key missing from profile response: %v", body)
+	}
+	if got != "" {
+		t.Fatalf("expected empty phone_number for NULL column, got %v", got)
+	}
 }
