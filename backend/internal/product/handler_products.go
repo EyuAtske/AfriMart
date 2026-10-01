@@ -28,8 +28,17 @@ type ProductHandler struct {
 	Logger       *slog.Logger
 }
 
+// ProductResponse is the public JSON shape of a product. It embeds the
+// database model (whose fields are serialized flat, with their existing
+// names) and adds the owning shop's name, which comes from the JOIN in the
+// product queries and is not part of the products table itself.
+type ProductResponse struct {
+	database.Product
+	ShopName string `json:"ShopName"`
+}
+
 type ProductWithImages struct {
-	Product database.Product        `json:"product"`
+	Product ProductResponse         `json:"product"`
 	Images  []database.ProductImage `json:"images"`
 }
 
@@ -388,25 +397,28 @@ func (h *ProductHandler) HandleGetProduct(w http.ResponseWriter, r *http.Request
 
 	// Map GetProductRow to database.Product for the response
 	response := struct {
-		Product database.Product        `json:"product"`
+		Product ProductResponse         `json:"product"`
 		Images  []database.ProductImage `json:"images"`
 	}{
-		Product: database.Product{
-			ID:            productRow.ID,
-			ShopID:        productRow.ShopID,
-			CategoryID:    productRow.CategoryID,
-			SubcategoryID: productRow.SubcategoryID,
-			Name:          productRow.Name,
-			Description:   productRow.Description,
-			Brand:         productRow.Brand,
-			Color:         productRow.Color,
-			Size:          productRow.Size,
-			Price:         productRow.Price,
-			Stock:         productRow.Stock,
-			Status:        productRow.Status,
-			CreatedAt:     productRow.CreatedAt,
-			UpdatedAt:     productRow.UpdatedAt,
-			Gender:        productRow.Gender,
+		Product: ProductResponse{
+			Product: database.Product{
+				ID:            productRow.ID,
+				ShopID:        productRow.ShopID,
+				CategoryID:    productRow.CategoryID,
+				SubcategoryID: productRow.SubcategoryID,
+				Name:          productRow.Name,
+				Description:   productRow.Description,
+				Brand:         productRow.Brand,
+				Color:         productRow.Color,
+				Size:          productRow.Size,
+				Price:         productRow.Price,
+				Stock:         productRow.Stock,
+				Status:        productRow.Status,
+				CreatedAt:     productRow.CreatedAt,
+				UpdatedAt:     productRow.UpdatedAt,
+				Gender:        productRow.Gender,
+			},
+			ShopName: productRow.ShopName,
 		},
 		Images: images,
 	}
@@ -750,22 +762,25 @@ func (h *ProductHandler) HandleListProducts(w http.ResponseWriter, r *http.Reque
 			images = []database.ProductImage{}
 		}
 		response[i] = ProductWithImages{
-			Product: database.Product{
-				ID:            p.ID,
-				ShopID:        p.ShopID,
-				CategoryID:    p.CategoryID,
-				SubcategoryID: p.SubcategoryID,
-				Name:          p.Name,
-				Description:   p.Description,
-				Brand:         p.Brand,
-				Color:         p.Color,
-				Size:          p.Size,
-				Price:         p.Price,
-				Stock:         p.Stock,
-				Status:        p.Status,
-				CreatedAt:     p.CreatedAt,
-				UpdatedAt:     p.UpdatedAt,
-				Gender:        p.Gender,
+			Product: ProductResponse{
+				Product: database.Product{
+					ID:            p.ID,
+					ShopID:        p.ShopID,
+					CategoryID:    p.CategoryID,
+					SubcategoryID: p.SubcategoryID,
+					Name:          p.Name,
+					Description:   p.Description,
+					Brand:         p.Brand,
+					Color:         p.Color,
+					Size:          p.Size,
+					Price:         p.Price,
+					Stock:         p.Stock,
+					Status:        p.Status,
+					CreatedAt:     p.CreatedAt,
+					UpdatedAt:     p.UpdatedAt,
+					Gender:        p.Gender,
+				},
+				ShopName: p.ShopName,
 			},
 			Images: images,
 		}
@@ -868,22 +883,25 @@ func (h *ProductHandler) HandleListProductsByShop(w http.ResponseWriter, r *http
 			images = []database.ProductImage{}
 		}
 		response[i] = ProductWithImages{
-			Product: database.Product{
-				ID:            p.ID,
-				ShopID:        p.ShopID,
-				CategoryID:    p.CategoryID,
-				SubcategoryID: p.SubcategoryID,
-				Name:          p.Name,
-				Description:   p.Description,
-				Brand:         p.Brand,
-				Color:         p.Color,
-				Size:          p.Size,
-				Price:         p.Price,
-				Stock:         p.Stock,
-				Status:        p.Status,
-				CreatedAt:     p.CreatedAt,
-				UpdatedAt:     p.UpdatedAt,
-				Gender:        p.Gender,
+			Product: ProductResponse{
+				Product: database.Product{
+					ID:            p.ID,
+					ShopID:        p.ShopID,
+					CategoryID:    p.CategoryID,
+					SubcategoryID: p.SubcategoryID,
+					Name:          p.Name,
+					Description:   p.Description,
+					Brand:         p.Brand,
+					Color:         p.Color,
+					Size:          p.Size,
+					Price:         p.Price,
+					Stock:         p.Stock,
+					Status:        p.Status,
+					CreatedAt:     p.CreatedAt,
+					UpdatedAt:     p.UpdatedAt,
+					Gender:        p.Gender,
+				},
+				ShopName: p.ShopName,
 			},
 			Images: images,
 		}
@@ -964,22 +982,25 @@ func (h *ProductHandler) HandleListProductsByCategory(w http.ResponseWriter, r *
 			images = []database.ProductImage{}
 		}
 		response[i] = ProductWithImages{
-			Product: database.Product{
-				ID:            p.ID,
-				ShopID:        p.ShopID,
-				CategoryID:    p.CategoryID,
-				SubcategoryID: p.SubcategoryID,
-				Name:          p.Name,
-				Description:   p.Description,
-				Brand:         p.Brand,
-				Color:         p.Color,
-				Size:          p.Size,
-				Price:         p.Price,
-				Stock:         p.Stock,
-				Status:        p.Status,
-				CreatedAt:     p.CreatedAt,
-				UpdatedAt:     p.UpdatedAt,
-				Gender:        p.Gender,
+			Product: ProductResponse{
+				Product: database.Product{
+					ID:            p.ID,
+					ShopID:        p.ShopID,
+					CategoryID:    p.CategoryID,
+					SubcategoryID: p.SubcategoryID,
+					Name:          p.Name,
+					Description:   p.Description,
+					Brand:         p.Brand,
+					Color:         p.Color,
+					Size:          p.Size,
+					Price:         p.Price,
+					Stock:         p.Stock,
+					Status:        p.Status,
+					CreatedAt:     p.CreatedAt,
+					UpdatedAt:     p.UpdatedAt,
+					Gender:        p.Gender,
+				},
+				ShopName: p.ShopName,
 			},
 			Images: images,
 		}
@@ -1060,22 +1081,25 @@ func (h *ProductHandler) HandleListProductsBySubcategory(w http.ResponseWriter, 
 			images = []database.ProductImage{}
 		}
 		response[i] = ProductWithImages{
-			Product: database.Product{
-				ID:            p.ID,
-				ShopID:        p.ShopID,
-				CategoryID:    p.CategoryID,
-				SubcategoryID: p.SubcategoryID,
-				Name:          p.Name,
-				Description:   p.Description,
-				Brand:         p.Brand,
-				Color:         p.Color,
-				Size:          p.Size,
-				Price:         p.Price,
-				Stock:         p.Stock,
-				Status:        p.Status,
-				CreatedAt:     p.CreatedAt,
-				UpdatedAt:     p.UpdatedAt,
-				Gender:        p.Gender,
+			Product: ProductResponse{
+				Product: database.Product{
+					ID:            p.ID,
+					ShopID:        p.ShopID,
+					CategoryID:    p.CategoryID,
+					SubcategoryID: p.SubcategoryID,
+					Name:          p.Name,
+					Description:   p.Description,
+					Brand:         p.Brand,
+					Color:         p.Color,
+					Size:          p.Size,
+					Price:         p.Price,
+					Stock:         p.Stock,
+					Status:        p.Status,
+					CreatedAt:     p.CreatedAt,
+					UpdatedAt:     p.UpdatedAt,
+					Gender:        p.Gender,
+				},
+				ShopName: p.ShopName,
 			},
 			Images: images,
 		}

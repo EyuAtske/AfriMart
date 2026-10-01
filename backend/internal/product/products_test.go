@@ -3667,3 +3667,51 @@ func TestHandleListProductsBySubcategory_InvalidOffset(t *testing.T) {
 		)
 	}
 }
+
+// The shop name comes from a JOIN in the product queries; it must reach the
+// JSON response (inside "product") for both list and detail endpoints.
+func TestHandleListProducts_IncludesShopName(t *testing.T) {
+	row := database.ListProductsRow{
+		ID:       uuid.New(),
+		Name:     "T-Shirt",
+		ShopName: "Habesha Threads",
+	}
+
+	mock := &mockProductQueries{
+		listProductsFunc: func(ctx context.Context, arg database.ListProductsParams) ([]database.ListProductsRow, error) {
+			return []database.ListProductsRow{row}, nil
+		},
+		getProductImagesByProductIDsFunc: func(ctx context.Context, productIDs []uuid.UUID) ([]database.ProductImage, error) {
+			return []database.ProductImage{}, nil
+		},
+	}
+
+	handler := &ProductHandler{Queries: mock, ShopQueries: mock, Logger: slog.Default()}
+
+	rec := httptest.NewRecorder()
+	handler.HandleListProducts(rec, httptest.NewRequest(http.MethodGet, "/products", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	// Decode generically so the test checks the actual JSON keys the frontend sees.
+	var body []struct {
+		Product map[string]any `json:"product"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if len(body) != 1 {
+		t.Fatalf("expected 1 product, got %d", len(body))
+	}
+
+	product := body[0].Product
+	if got := product["ShopName"]; got != "Habesha Threads" {
+		t.Fatalf("expected ShopName %q in product JSON, got %v", "Habesha Threads", got)
+	}
+	// Existing flat keys must be unchanged by the embedding.
+	if product["ID"] != row.ID.String() || product["Name"] != "T-Shirt" {
+		t.Fatalf("existing product fields changed: %v", product)
+	}
+}
