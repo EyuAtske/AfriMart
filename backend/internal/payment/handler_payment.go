@@ -18,6 +18,14 @@ import (
 	"github.com/google/uuid"
 )
 
+const maxChapaReferenceLen = 20
+
+func newTransactionRef() string {
+	const prefix = "AFR-"
+	hexID := strings.ReplaceAll(uuid.New().String(), "-", "")
+	return prefix + hexID[:maxChapaReferenceLen-len(prefix)]
+}
+
 type PaymentHandler struct {
 	Queries     PaymentQuerier
 	Logger      *slog.Logger
@@ -137,7 +145,7 @@ func (h *PaymentHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) 
 	}
 
 	amountStr := fmt.Sprintf("%.2f", totalAmount)
-	transactionID := "AFR-" + uuid.New().String()
+	transactionID := newTransactionRef()
 
 	// 5. Create Order (Delivery info comes from the request)
 	order, err := h.Queries.CreateOrder(ctx, database.CreateOrderParams{
