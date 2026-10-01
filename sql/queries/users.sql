@@ -43,7 +43,7 @@ WHERE id = $2
 RETURNING *;
 
 -- name: GetUserByID :one
-SELECT email, username
+SELECT email, username, phone_number
 FROM users
 WHERE id = $1;
 

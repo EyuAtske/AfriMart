@@ -16,7 +16,7 @@ services:
       MINIO_SECRET_KEY: "minio123"
       MINIO_BUCKET: "afrimart-images"
       MINIO_USE_SSL: "false"
-      CHAPA_SECRET_KEY: ${CHAPA_SECRET_KEY}
+      CHAPA_SECRET_KEY: "CHAPA_TEST_PRIV_mbXl2ZyWMsS5ZJmwFfKZK5EX1X6gcFobVGp51AeP"
       CHAPA_CALLBACK_URL: "http://localhost:8080/api/v1/payment/chapa/callback"
     depends_on:
       - postgres
