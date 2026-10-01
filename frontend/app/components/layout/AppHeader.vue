@@ -182,7 +182,7 @@ const categories = [
         <button
           type="button"
           aria-label="Toggle menu"
-          class="flex h-8 w-8 items-center justify-center text-[#302d29] lg:hidden"
+          class="flex h-8 w-8 items-center justify-center text-[#302d29] md:hidden"
           @click="isMenuOpen = !isMenuOpen"
         >
           <!-- Hamburger -->
@@ -222,14 +222,14 @@ const categories = [
         <!-- Logo (Mobile: Shifts to the left) -->
         <NuxtLink
           to="/"
-          class="whitespace-nowrap font-serif text-base tracking-[0.15em] text-[#24211e] sm:text-lg lg:hidden"
+          class="whitespace-nowrap font-serif text-base tracking-[0.15em] text-[#24211e] sm:text-lg md:hidden"
         >
           AFRIMART
         </NuxtLink>
       </div>
 
       <!-- Desktop navigation -->
-      <div class="hidden items-center gap-5 lg:flex xl:gap-7">
+      <div class="hidden items-center gap-5 md:flex xl:gap-7">
         <!-- New In -->
         <NuxtLink
           to="/"
@@ -330,7 +330,7 @@ const categories = [
       <!-- Logo (Desktop: Absolutely Centered) -->
       <NuxtLink
         to="/"
-        class="absolute left-1/2 -translate-x-1/2 hidden whitespace-nowrap font-serif lg:text-2xl lg:tracking-[0.3em] text-[#24211e] lg:block"
+        class="absolute left-1/2 -translate-x-1/2 hidden whitespace-nowrap font-serif text-[#24211e] md:block lg:text-2xl lg:tracking-[0.3em]"
       >
         AFRIMART
       </NuxtLink>
@@ -425,7 +425,7 @@ const categories = [
       </div>
     </nav>
 
-    <nav aria-label="Shop categories" class="grid h-9 grid-cols-3 items-center border-t border-[#ded8ce] px-5 text-center lg:hidden">
+    <nav aria-label="Shop categories" class="hidden h-9 grid-cols-3 items-center border-t border-[#ded8ce] px-5 text-center">
       <NuxtLink to="/products?category=Men" class="text-xs font-medium uppercase tracking-[0.12em] text-[#302d29] hover:text-[#806344]">Men</NuxtLink>
       <NuxtLink to="/products?category=Women" class="text-xs font-medium uppercase tracking-[0.12em] text-[#302d29] hover:text-[#806344]">Women</NuxtLink>
       <NuxtLink to="/products?category=Kids" class="text-xs font-medium uppercase tracking-[0.12em] text-[#302d29] hover:text-[#806344]">Kids</NuxtLink>
@@ -434,7 +434,7 @@ const categories = [
     <!-- Mobile menu -->
     <div
       v-if="isMenuOpen"
-      class="border-t border-[#ded8ce] bg-[#f5f1e9] shadow-xl max-h-[calc(100dvh-5rem)] overflow-y-auto lg:hidden"
+      class="border-t border-[#ded8ce] bg-[#f5f1e9] shadow-xl max-h-[calc(100dvh-5rem)] overflow-y-auto md:hidden"
     >
       <div class="px-5 py-3 divide-y divide-[#ded8ce]">
         <!-- New In -->

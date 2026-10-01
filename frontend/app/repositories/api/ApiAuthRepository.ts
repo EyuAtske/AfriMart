@@ -105,6 +105,7 @@ export class ApiAuthRepository implements IAuthRepository {
           firstname: dto.firstName.trim(),
           Lastname: dto.lastName.trim(),
           email: dto.email.trim(),
+          phone_number: dto.phoneNumber.trim(),
           password: dto.password.trim()
         }
       })

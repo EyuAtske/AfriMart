@@ -8,6 +8,7 @@ const registerForm = reactive({
   firstName: '',
   lastName: '',
   email: '',
+  phoneNumber: '',
   password: '',
   confirmPassword: ''
 })
@@ -25,6 +26,7 @@ const submitRegister = async () => {
     !registerForm.firstName.trim() ||
     !registerForm.lastName.trim() ||
     !registerForm.email.trim() ||
+    !registerForm.phoneNumber.trim() ||
     !registerForm.password.trim() ||
     !registerForm.confirmPassword.trim()
   ) {
@@ -36,7 +38,10 @@ const submitRegister = async () => {
     registerError.value = 'Please enter a valid email address.'
     return
   }
-
+  if (!/^(0[79]\d{8}|\+251[79]\d{8})$/.test(registerForm.phoneNumber.trim())) {
+    registerError.value = 'Please enter a valid Ethiopian phone number.'
+    return
+  }
   if (registerForm.password.length < 8) {
     registerError.value = 'Password must be at least 8 characters long.'
     return
@@ -55,6 +60,7 @@ const submitRegister = async () => {
       firstName: registerForm.firstName.trim(),
       lastName: registerForm.lastName.trim(),
       email: registerForm.email.trim(),
+      phoneNumber: registerForm.phoneNumber.trim(),
       password: registerForm.password
     })
 
@@ -117,6 +123,15 @@ const submitRegister = async () => {
       type="email"
       autocomplete="email"
       name="register-email"
+    />
+
+    <AuthInput
+      v-model="registerForm.phoneNumber"
+      label="Phone number"
+      placeholder="+251911234567"
+      type="tel"
+      autocomplete="tel"
+      name="register-phone-number"
     />
 
     <!-- Password -->

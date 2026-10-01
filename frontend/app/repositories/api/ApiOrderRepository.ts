@@ -1,5 +1,5 @@
 import type { IOrderRepository } from '../interfaces/IOrderRepository'
-import type { MarketplaceOrder, OrderStatus, CreateOrderDTO, CartItem } from '~/types/order'
+import type { MarketplaceOrder, OrderStatus, CreateOrderDTO, CartItem, ChapaCheckoutRequest, ChapaCheckoutResponse } from '~/types/order'
 import { useMockDataStore } from '../mock/MockDataStore'
 import { authenticatedFetch, extractError, getAccessToken } from './apiHelpers'
 
@@ -145,6 +145,27 @@ export class ApiOrderRepository implements IOrderRepository {
       return mapBackendOrder(res)
     } catch (err: any) {
       throw new Error(extractError(err, 'Failed to create order'))
+    }
+  }
+
+  async initiateChapaCheckout(request: ChapaCheckoutRequest): Promise<ChapaCheckoutResponse> {
+    if (!getAccessToken()) {
+      throw new Error('Authentication required to start online checkout.')
+    }
+
+    try {
+      const response = await authenticatedFetch<ChapaCheckoutResponse>('api/payments/checkout', {
+        method: 'POST',
+        body: request
+      })
+
+      if (!response?.checkout_url || !response.order_id || !response.transaction_id) {
+        throw new Error('Server returned an incomplete payment checkout response.')
+      }
+
+      return response
+    } catch (err: any) {
+      throw new Error(extractError(err, 'Failed to start online checkout'))
     }
   }
 
