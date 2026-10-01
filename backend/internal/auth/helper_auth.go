@@ -19,8 +19,9 @@ type updateParams struct {
 }
 
 type profile struct {
-	Email    string `json:"email"`
-	Username string `json:"username"`
+	Email       string `json:"email"`
+	Username    string `json:"username"`
+	PhoneNumber string `json:"phone_number"` // registered number in +251 form; "" if none on file
 }
 
 func DecodeUpdateParams(r *http.Request) (updateParams, error) {
@@ -64,8 +65,9 @@ func RespondWithUpdatedUser(w http.ResponseWriter, usr database.User) {
 
 func RespondWithUserProfile(w http.ResponseWriter, usr database.GetUserByIDRow) {
 	resp := profile{
-		Email:    usr.Email,
-		Username: usr.Username.String,
+		Email:       usr.Email,
+		Username:    usr.Username.String,
+		PhoneNumber: usr.PhoneNumber.String,
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
