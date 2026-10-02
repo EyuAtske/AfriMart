@@ -26,12 +26,12 @@ const items = computed(() =>
       My Account
     </h2>
 
-    <nav class="mt-3 space-y-1">
+    <nav class="mt-3 flex gap-1 overflow-x-auto lg:flex-col lg:gap-0 lg:space-y-1 lg:overflow-visible">
       <NuxtLink
         v-for="item in items"
         :key="item.key"
         :to="item.to"
-        class="block rounded-lg px-3 py-3 text-base text-[#665c53] transition hover:bg-[#eee8df] hover:text-[#211f1d]"
+        class="block shrink-0 whitespace-nowrap rounded-lg px-3 py-3 text-base text-[#665c53] transition hover:bg-[#eee8df] hover:text-[#211f1d]"
         :class="{
           'bg-[#eee8df] font-medium text-[#211f1d]': active === item.key
         }"
@@ -41,7 +41,7 @@ const items = computed(() =>
 
       <button
         type="button"
-        class="w-full rounded-lg px-3 py-3 text-left text-base text-[#665c53] transition hover:bg-[#eee8df] hover:text-[#211f1d]"
+        class="w-auto shrink-0 whitespace-nowrap rounded-lg px-3 py-3 text-left text-base text-[#665c53] transition hover:bg-[#eee8df] hover:text-[#211f1d] lg:w-full"
         @click="logout"
       >
         Logout

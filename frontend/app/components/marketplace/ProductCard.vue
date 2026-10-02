@@ -20,6 +20,12 @@ const emit = defineEmits<{
 const { flyToCart } = useFlyToCart()
 const { isOwnProduct } = useMarketplace()
 const imageEl = ref<HTMLImageElement | null>(null)
+const shopLink = computed(() => {
+  const path = `/shops/${props.shop.toLowerCase().replace(/\s+/g, '-')}`
+  return props.shopId
+    ? { path, query: { shopId: props.shopId, shopName: props.shop } }
+    : path
+})
 
 const isSelfProduct = computed(() => isOwnProduct({ id: props.id, shop: props.shop, shopId: props.shopId } as any))
 const isSoldOut = computed(() => props.stock !== undefined && props.stock <= 0)
@@ -90,8 +96,8 @@ const handleAddToCart = () => {
 
     <div class="p-3 sm:p-5">
       <NuxtLink
-        :to="`/shops/${shop.toLowerCase().replace(/\s+/g, '-')}`"
-        class="inline-block text-[10px] sm:text-xs uppercase tracking-[0.14em] text-[#806344] transition hover:text-[#211f1d] hover:underline truncate max-w-full"
+        :to="shopLink"
+        class="inline-block max-w-full truncate cursor-pointer text-[10px] uppercase tracking-[0.14em] text-[#806344] underline decoration-[#c9b69e] underline-offset-2 transition hover:text-[#211f1d] hover:decoration-[#211f1d] sm:text-xs"
       >
         {{ shop }}
       </NuxtLink>
