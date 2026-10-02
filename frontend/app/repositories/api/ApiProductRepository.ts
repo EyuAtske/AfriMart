@@ -422,8 +422,16 @@ export class ApiProductRepository implements IProductRepository {
       if (!existing) return null
 
       await ensureCategoryCatalog()
-      const catId = dto.categoryId || existing.categoryId || resolveCategoryId(dto.category || existing.category)
-      const subId = dto.subcategoryId || existing.subcategoryId || resolveSubcategoryId(dto.category || existing.category, dto.subCategory || existing.subCategory)
+      const category = dto.category || existing.category
+      const subcategory = dto.subCategory || existing.subCategory
+      const categoryChanged = category !== existing.category
+      const subcategoryChanged = categoryChanged || subcategory !== existing.subCategory
+      const catId = categoryChanged
+        ? resolveCategoryId(category)
+        : existing.categoryId || dto.categoryId || resolveCategoryId(category)
+      const subId = subcategoryChanged
+        ? resolveSubcategoryId(category, subcategory)
+        : existing.subcategoryId || dto.subcategoryId || resolveSubcategoryId(category, subcategory)
 
       if (!isValidUuid(catId) || !isValidUuid(subId)) {
         throw new Error('Please select a valid category and subcategory.')

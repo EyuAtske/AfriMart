@@ -5,6 +5,7 @@ export interface User {
   username: string
   name: string
   email: string
+  phoneNumber?: string
   role: UserRole
   created_at?: string
   updated_at?: string

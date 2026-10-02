@@ -47,6 +47,9 @@ watch(
     if (currentUser.name || currentUser.username) {
       checkoutForm.fullName = currentUser.name || currentUser.username
     }
+    if (currentUser.phoneNumber && !checkoutForm.phone) {
+      checkoutForm.phone = currentUser.phoneNumber
+    }
   },
   { immediate: true }
 )
