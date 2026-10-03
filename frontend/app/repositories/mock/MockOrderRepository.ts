@@ -1,5 +1,5 @@
 import type { IOrderRepository } from '../interfaces/IOrderRepository'
-import type { MarketplaceOrder, OrderStatus, CreateOrderDTO, CartItem } from '~/types/order'
+import type { MarketplaceOrder, OrderStatus, CreateOrderDTO, CartItem, ChapaCheckoutRequest, ChapaCheckoutResponse } from '~/types/order'
 import { useMockDataStore } from './MockDataStore'
 
 export class MockOrderRepository implements IOrderRepository {
@@ -44,6 +44,10 @@ export class MockOrderRepository implements IOrderRepository {
     cart.value = []
 
     return { ...order }
+  }
+
+  async initiateChapaCheckout(_request: ChapaCheckoutRequest): Promise<ChapaCheckoutResponse> {
+    throw new Error('Chapa checkout is only available with the live API.')
   }
 
   async updateOrderStatus(orderId: number | string, status: OrderStatus): Promise<MarketplaceOrder | null> {

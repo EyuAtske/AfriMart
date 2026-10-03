@@ -49,6 +49,18 @@ function extractString(val: { String: string; Valid: boolean } | string | null |
   return val.Valid ? val.String : ''
 }
 
+function extractShopName(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim()
+    if (value && typeof value === 'object') {
+      const shop = value as { Name?: unknown; name?: unknown }
+      const name = shop.Name ?? shop.name
+      if (typeof name === 'string' && name.trim()) return name.trim()
+    }
+  }
+  return ''
+}
+
 function resolveCategoryName(categoryIdOrName?: string): ProductCategory {
   if (!categoryIdOrName) return 'Men'
   const trimmed = categoryIdOrName.trim()
@@ -71,9 +83,20 @@ function resolveSubcategoryName(subcategoryIdOrName?: string): ProductSubCategor
   return undefined
 }
 
-function mapBackendProduct(raw: any, shopName: string = 'Shop'): Product {
+function mapBackendProduct(raw: any, fallbackShopName?: string): Product {
   const p = raw?.product ? raw.product : raw
   const desc = extractString(p.Description || p.description)
+  const shopId = String(p.ShopID || p.shop_id || p.shopId || '')
+  const responseShopName = extractShopName(
+    p.ShopName, p.shop_name, p.shopName, p.Shop, p.shop,
+    raw?.ShopName, raw?.shop_name, raw?.shopName, raw?.Shop, raw?.shop
+  )
+  const { shop } = useMockDataStore()
+  const matchingShop = shop.value &&
+    String(shop.value.backendId || shop.value.id) === shopId
+    ? shop.value
+    : null
+  const resolvedShopName = responseShopName || matchingShop?.name || fallbackShopName?.trim() || ''
 
   let configuredMinioBase = 'http://localhost:9000/afrimart-images'
   try {
@@ -148,10 +171,10 @@ function mapBackendProduct(raw: any, shopName: string = 'Shop'): Product {
   return {
     id: p.ID || p.id,
     backendId: p.ID || p.id,
-    shopId: p.ShopID || p.shop_id || p.shopId,
+    shopId: shopId || undefined,
     categoryId: p.CategoryID || p.category_id || p.categoryId,
     subcategoryId: p.SubcategoryID || p.subcategory_id || p.subcategoryId,
-    shop: shopName,
+    shop: resolvedShopName,
     name: p.Name || p.name || 'AfriMart Product',
     description: desc,
     category: resolveCategoryName(categoryRaw),
@@ -199,7 +222,7 @@ export class ApiProductRepository implements IProductRepository {
         method: 'GET'
       })
 
-      const data = (rawProducts || []).map(p => mapBackendProduct(p, params.shop || 'Shop'))
+      const data = (rawProducts || []).map(p => mapBackendProduct(p, params.shop))
 
       const { products } = useMockDataStore()
       products.value = data
@@ -230,12 +253,12 @@ export class ApiProductRepository implements IProductRepository {
       })
       const rawList = res || []
       const { shop } = useMockDataStore()
-      const shopName = shop.value?.name || 'Shop'
-      const data = rawList.map(p => mapBackendProduct(p, shopName))
+      const matchingShop = shop.value && String(shop.value.backendId || shop.value.id) === strShopId
+        ? shop.value
+        : null
+      const data = rawList.map(p => mapBackendProduct(p, matchingShop?.name))
 
-      if (shop.value && (shop.value.backendId === strShopId || shop.value.id === strShopId)) {
-        shop.value.products = data
-      }
+      if (matchingShop) matchingShop.products = data
 
       return data
     } catch (err: any) {
@@ -399,8 +422,16 @@ export class ApiProductRepository implements IProductRepository {
       if (!existing) return null
 
       await ensureCategoryCatalog()
-      const catId = dto.categoryId || existing.categoryId || resolveCategoryId(dto.category || existing.category)
-      const subId = dto.subcategoryId || existing.subcategoryId || resolveSubcategoryId(dto.category || existing.category, dto.subCategory || existing.subCategory)
+      const category = dto.category || existing.category
+      const subcategory = dto.subCategory || existing.subCategory
+      const categoryChanged = category !== existing.category
+      const subcategoryChanged = categoryChanged || subcategory !== existing.subCategory
+      const catId = categoryChanged
+        ? resolveCategoryId(category)
+        : existing.categoryId || dto.categoryId || resolveCategoryId(category)
+      const subId = subcategoryChanged
+        ? resolveSubcategoryId(category, subcategory)
+        : existing.subcategoryId || dto.subcategoryId || resolveSubcategoryId(category, subcategory)
 
       if (!isValidUuid(catId) || !isValidUuid(subId)) {
         throw new Error('Please select a valid category and subcategory.')

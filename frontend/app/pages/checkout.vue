@@ -5,7 +5,7 @@ definePageMeta({
 
 const router = useRouter()
 const { user } = useAuth()
-const { cartProducts, cartSubtotal, createOrder, retryPostCheckoutRefresh, isOwnProduct } = useMarketplace()
+const { cartProducts, cartSubtotal, createOrder, initiateChapaCheckout, retryPostCheckoutRefresh, isOwnProduct } = useMarketplace()
 const { gtag } = useGtag()
 const { $posthog } = useNuxtApp()
 const checkoutForm = reactive({
@@ -17,6 +17,7 @@ const checkoutForm = reactive({
 })
 
 const isSubmitting = ref(false)
+const paymentMethod = ref<'cod' | 'online'>('cod')
 const errorMessage = ref('')
 const orderSuccess = ref(false)
 const refreshWarning = ref('')
@@ -45,6 +46,9 @@ watch(
   (currentUser) => {
     if (currentUser.name || currentUser.username) {
       checkoutForm.fullName = currentUser.name || currentUser.username
+    }
+    if (currentUser.phoneNumber && !checkoutForm.phone) {
+      checkoutForm.phone = currentUser.phoneNumber
     }
   },
   { immediate: true }
@@ -99,6 +103,28 @@ const handlePlaceOrder = async () => {
 
   isSubmitting.value = true
   try {
+    if (paymentMethod.value === 'online') {
+      if (!user.value.email?.trim()) {
+        throw new Error('Your account needs an email address to continue with Chapa.')
+      }
+
+      const checkout = await initiateChapaCheckout({
+        payment_method: 'online',
+        recipient_name: checkoutForm.fullName.trim(),
+        phone: checkoutForm.phone.trim(),
+        email: user.value.email.trim(),
+        delivery_address: checkoutForm.address.trim(),
+        delivery_city: checkoutForm.deliveryCity.trim(),
+        delivery_notes: checkoutForm.deliveryNotes.trim()
+      })
+      const checkoutUrl = new URL(checkout.checkout_url)
+      if (checkoutUrl.protocol !== 'https:') {
+        throw new Error('The payment provider returned an invalid checkout URL.')
+      }
+      window.location.assign(checkoutUrl.toString())
+      return
+    }
+
     const result = await createOrder({
       buyerName: checkoutForm.fullName.trim(),
       phone: checkoutForm.phone.trim(),
@@ -273,13 +299,16 @@ const handlePlaceOrder = async () => {
 
             <div class="mt-4 space-y-3">
               <!-- Cash on Delivery (Enabled & Default) -->
-              <label class="flex items-center justify-between rounded-lg border-2 border-[#806344] bg-[#f5f1e9] p-4 cursor-pointer">
+              <label
+                class="flex items-center justify-between rounded-lg border-2 p-4 cursor-pointer"
+                :class="paymentMethod === 'cod' ? 'border-[#806344] bg-[#f5f1e9]' : 'border-[#ded6cc] bg-white'"
+              >
                 <div class="flex items-center gap-3">
                   <input
                     type="radio"
                     name="payment"
                     value="cod"
-                    checked
+                    v-model="paymentMethod"
                     class="h-4 w-4 text-[#806344] focus:ring-[#806344]"
                   />
                   <div>
@@ -287,31 +316,28 @@ const handlePlaceOrder = async () => {
                     <p class="text-xs text-[#756a60] mt-0.5">Payment is collected in cash when your package is delivered to your doorstep.</p>
                   </div>
                 </div>
-                <span class="rounded bg-[#806344]/10 px-2.5 py-1 text-xs font-semibold text-[#806344]">Selected</span>
+                <span v-if="paymentMethod === 'cod'" class="rounded bg-[#806344]/10 px-2.5 py-1 text-xs font-semibold text-[#806344]">Selected</span>
               </label>
 
-              <!-- Online / Mobile Payment Options (Disabled & Coming Soon) -->
-              <div class="flex items-center justify-between rounded-lg border border-[#ded6cc] bg-[#f0ede8] p-4 opacity-60 cursor-not-allowed">
+              <label
+                class="flex items-center justify-between rounded-lg border-2 p-4 cursor-pointer"
+                :class="paymentMethod === 'online' ? 'border-[#806344] bg-[#f5f1e9]' : 'border-[#ded6cc] bg-white'"
+              >
                 <div class="flex items-center gap-3">
-                  <input type="radio" name="payment" disabled class="h-4 w-4" />
+                  <input
+                    type="radio"
+                    name="payment"
+                    value="online"
+                    v-model="paymentMethod"
+                    class="h-4 w-4 text-[#806344] focus:ring-[#806344]"
+                  />
                   <div>
-                    <p class="font-medium text-[#756a60]">Telebirr / Mobile Money</p>
-                    <p class="text-xs text-[#a0958b] mt-0.5">Digital mobile payment integration.</p>
+                    <p class="font-medium text-[#211f1d]">Online Payment</p>
+                    <p class="text-xs text-[#756a60] mt-0.5">Payment is processed securely through Chapa. Choose an available method such as Telebirr or bank payment on Chapa's checkout page.</p>
                   </div>
                 </div>
-                <span class="rounded bg-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600">Coming soon</span>
-              </div>
-
-              <div class="flex items-center justify-between rounded-lg border border-[#ded6cc] bg-[#f0ede8] p-4 opacity-60 cursor-not-allowed">
-                <div class="flex items-center gap-3">
-                  <input type="radio" name="payment" disabled class="h-4 w-4" />
-                  <div>
-                    <p class="font-medium text-[#756a60]">Credit / Debit Card</p>
-                    <p class="text-xs text-[#a0958b] mt-0.5">Visa, Mastercard, or local card.</p>
-                  </div>
-                </div>
-                <span class="rounded bg-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600">Coming soon</span>
-              </div>
+                <span v-if="paymentMethod === 'online'" class="rounded bg-[#806344]/10 px-2.5 py-1 text-xs font-semibold text-[#806344]">Selected</span>
+              </label>
             </div>
           </section>
 
@@ -323,8 +349,8 @@ const handlePlaceOrder = async () => {
               class="min-w-[200px]"
               @click="handlePlaceOrder"
             >
-              <span v-if="isSubmitting">Placing order...</span>
-              <span v-else>Place order</span>
+              <span v-if="isSubmitting">{{ paymentMethod === 'online' ? 'Preparing secure checkout...' : 'Placing order...' }}</span>
+              <span v-else>{{ paymentMethod === 'online' ? 'Continue to payment' : 'Place order' }}</span>
             </UiAppButton>
 
             <NuxtLink

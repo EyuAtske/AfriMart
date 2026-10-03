@@ -40,3 +40,21 @@ export interface CreateOrderDTO {
   paymentStatus?: PaymentStatus
   deliveryFee?: number
 }
+
+export interface ChapaCheckoutRequest {
+  payment_method: 'cod' | 'online'
+  recipient_name: string
+  phone: string
+  email: string
+  delivery_address: string
+  delivery_city: string
+  delivery_notes: string
+}
+
+export interface ChapaCheckoutResponse {
+  payment_method: string
+  order_id: string
+  transaction_id: string
+  checkout_url: string
+  message: string
+}

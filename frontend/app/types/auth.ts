@@ -5,6 +5,7 @@ export interface User {
   username: string
   name: string
   email: string
+  phoneNumber?: string
   role: UserRole
   created_at?: string
   updated_at?: string
@@ -20,6 +21,7 @@ export interface RegisterDTO {
   firstName: string
   lastName: string
   email: string
+  phoneNumber: string
   password: string
 }
 

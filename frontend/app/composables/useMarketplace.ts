@@ -1,6 +1,6 @@
 import { computed } from 'vue'
 import type { Product, ProductFilterParams } from '~/types/product'
-import type { MarketplaceOrder, OrderStatus, PaymentStatus, CartItem, CartProductItem, CreateOrderDTO } from '~/types/order'
+import type { MarketplaceOrder, OrderStatus, PaymentStatus, CartItem, CartProductItem, CreateOrderDTO, ChapaCheckoutRequest, ChapaCheckoutResponse } from '~/types/order'
 import { useMockDataStore } from '~/repositories/mock/MockDataStore'
 import { useRepositories } from '~/composables/useRepositories'
 import { STATIC_CATALOG, ensureCategoryCatalog } from '~/utils/categoryCatalog'
@@ -79,7 +79,11 @@ export const useMarketplace = () => {
       const sessionRestored = useState<boolean>('marketplace-auth-session-restored', () => false)
       if (!sessionRestored.value) {
         sessionRestored.value = true
-        authRepo.getCurrentSession().catch(() => {})
+        authRepo.getCurrentSession()
+          .then((currentUser) => {
+            if (currentUser) return syncCartFromBackend()
+          })
+          .catch(() => {})
       }
 
       try {
@@ -153,19 +157,6 @@ export const useMarketplace = () => {
     } catch (err: any) {
       console.warn('Cart sync warning:', err?.message || err)
     }
-  }
-
-  try {
-    if (import.meta.client) {
-      const cartHydrated = useState<boolean>('marketplace-cart-hydrated', () => false)
-
-      if (!cartHydrated.value) {
-        cartHydrated.value = true
-        syncCartFromBackend()
-      }
-    }
-  } catch (err: any) {
-    console.warn('Cart sync warning:', err?.message || err)
   }
 
 const isOwnProduct = (target: number | string | Product): boolean => {
@@ -411,6 +402,9 @@ const createOrder = async (details: CreateOrderDTO): Promise<{ order: Marketplac
     return { order: newOrder, refreshError }
   }
 
+  const initiateChapaCheckout = (request: ChapaCheckoutRequest): Promise<ChapaCheckoutResponse> =>
+    orderRepo.initiateChapaCheckout(request)
+
   /**
    * Retry cart + order + product refetch after a successful checkout.
    * Throws if any refetch still fails.
@@ -513,6 +507,7 @@ return {
   removeFromCart,
   syncCartFromBackend,
   createOrder,
+  initiateChapaCheckout,
   retryPostCheckoutRefresh,
   fetchUserOrders,
   fetchSellerOrders,
