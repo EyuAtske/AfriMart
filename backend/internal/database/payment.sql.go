@@ -8,15 +8,26 @@ package database
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 const createPayment = `-- name: CreatePayment :one
 INSERT INTO payments (
-    order_id, payment_method, payment_status, amount, provider
+    order_id,
+    payment_method,
+    payment_status,
+    amount,
+    provider,
+    transaction_id
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6
 ) RETURNING id, order_id, payment_method, payment_status, amount, provider, transaction_id, provider_reference, failure_reason, paid_at, created_at, updated_at
 `
 
@@ -26,6 +37,7 @@ type CreatePaymentParams struct {
 	PaymentStatus string
 	Amount        string
 	Provider      sql.NullString
+	TransactionID sql.NullString
 }
 
 func (q *Queries) CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error) {
@@ -35,6 +47,7 @@ func (q *Queries) CreatePayment(ctx context.Context, arg CreatePaymentParams) (P
 		arg.PaymentStatus,
 		arg.Amount,
 		arg.Provider,
+		arg.TransactionID,
 	)
 	var i Payment
 	err := row.Scan(
@@ -52,6 +65,42 @@ func (q *Queries) CreatePayment(ctx context.Context, arg CreatePaymentParams) (P
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getExpiredPendingPayments = `-- name: GetExpiredPendingPayments :many
+SELECT id, order_id 
+FROM payments 
+WHERE payment_method = 'online' 
+  AND payment_status = 'pending' 
+  AND created_at < $1
+`
+
+type GetExpiredPendingPaymentsRow struct {
+	ID      uuid.UUID
+	OrderID uuid.UUID
+}
+
+func (q *Queries) GetExpiredPendingPayments(ctx context.Context, createdAt time.Time) ([]GetExpiredPendingPaymentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getExpiredPendingPayments, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetExpiredPendingPaymentsRow
+	for rows.Next() {
+		var i GetExpiredPendingPaymentsRow
+		if err := rows.Scan(&i.ID, &i.OrderID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getPaymentByProviderRef = `-- name: GetPaymentByProviderRef :one
