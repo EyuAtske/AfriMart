@@ -346,6 +346,32 @@ func (q *Queries) ReduceProductStock(ctx context.Context, arg ReduceProductStock
 	return i, err
 }
 
+const restoreProductStock = `-- name: RestoreProductStock :one
+UPDATE products
+SET
+    stock = stock + $2,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, stock
+`
+
+type RestoreProductStockParams struct {
+	ID    uuid.UUID
+	Stock int32
+}
+
+type RestoreProductStockRow struct {
+	ID    uuid.UUID
+	Stock int32
+}
+
+func (q *Queries) RestoreProductStock(ctx context.Context, arg RestoreProductStockParams) (RestoreProductStockRow, error) {
+	row := q.db.QueryRowContext(ctx, restoreProductStock, arg.ID, arg.Stock)
+	var i RestoreProductStockRow
+	err := row.Scan(&i.ID, &i.Stock)
+	return i, err
+}
+
 const updateOrderStatus = `-- name: UpdateOrderStatus :one
 UPDATE orders
 SET

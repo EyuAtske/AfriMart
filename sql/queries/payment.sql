@@ -1,8 +1,18 @@
 -- name: CreatePayment :one
 INSERT INTO payments (
-    order_id, payment_method, payment_status, amount, provider
+    order_id,
+    payment_method,
+    payment_status,
+    amount,
+    provider,
+    transaction_id
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6
 ) RETURNING *;
 
 -- name: GetPaymentByProviderRef :one
@@ -20,3 +30,10 @@ SET
     failure_reason = COALESCE(sqlc.narg(failure_reason), failure_reason),
     updated_at = NOW()
 WHERE id = sqlc.arg(id) AND payment_status = sqlc.arg(current_status);
+
+-- name: GetExpiredPendingPayments :many
+SELECT id, order_id 
+FROM payments 
+WHERE payment_method = 'online' 
+  AND payment_status = 'pending' 
+  AND created_at < $1;

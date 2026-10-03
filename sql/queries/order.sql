@@ -106,3 +106,11 @@ SELECT *
 FROM carts
 WHERE user_id = $1
 FOR UPDATE;
+
+-- name: RestoreProductStock :one
+UPDATE products
+SET
+    stock = stock + $2,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, stock;

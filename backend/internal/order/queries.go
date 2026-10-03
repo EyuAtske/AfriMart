@@ -55,7 +55,34 @@ type OrderQuerier interface {
 	) ([]database.Order, error)
 
 	GetCartByUserIDForUpdate(
-		ctx context.Context, 
+		ctx context.Context,
 		userID uuid.UUID,
 	) (database.Cart, error)
+
+	GetUserByIDFull(
+		ctx context.Context,
+		id uuid.UUID,
+	) (database.User, error)
+
+	CreatePayment(
+		ctx context.Context,
+		arg database.CreatePaymentParams,
+	) (database.Payment, error)
+
+	UpdatePaymentStatusConditional(
+		ctx context.Context,
+		arg database.UpdatePaymentStatusConditionalParams,
+	) (int64, error)
+
+	RestoreProductStock(
+		ctx context.Context,
+		arg database.RestoreProductStockParams,
+	) (database.RestoreProductStockRow, error)
+}
+
+type PaymentUpdater interface {
+	UpdatePaymentStatusConditional(
+		ctx context.Context,
+		arg database.UpdatePaymentStatusConditionalParams,
+	) (int64, error)
 }
