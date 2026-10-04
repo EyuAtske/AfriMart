@@ -154,7 +154,7 @@ export class ApiOrderRepository implements IOrderRepository {
     }
 
     try {
-      const response = await authenticatedFetch<ChapaCheckoutResponse>('api/payments/checkout', {
+      const response = await authenticatedFetch<ChapaCheckoutResponse>('api/orders/checkout', {
         method: 'POST',
         body: request
       })
