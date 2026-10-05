@@ -159,7 +159,7 @@ export class ApiOrderRepository implements IOrderRepository {
         body: request
       })
 
-      if (!response?.checkout_url || !response.order_id || !response.transaction_id) {
+      if (!response?.checkout_url || !response.order?.ID || !response.transaction_id) {
         throw new Error('Server returned an incomplete payment checkout response.')
       }
 

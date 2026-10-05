@@ -52,9 +52,19 @@ export interface ChapaCheckoutRequest {
 }
 
 export interface ChapaCheckoutResponse {
+  order: {
+    ID: string
+  }
+  items: Array<{
+    ID: string
+    OrderID: string
+    ProductID: string
+    Quantity: number
+    Price: string
+    CreatedAt: string
+  }>
+  payment_id: string
   payment_method: string
-  order_id: string
   transaction_id: string
   checkout_url: string
-  message: string
 }
