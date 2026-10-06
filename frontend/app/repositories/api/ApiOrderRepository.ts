@@ -4,28 +4,50 @@ import { useMockDataStore } from '../mock/MockDataStore'
 import { authenticatedFetch, extractError, getAccessToken } from './apiHelpers'
 
 export interface BackendOrderResponse {
-  id: string | number
+  id?: string | number
+  ID?: string | number
   user_id?: string
+  UserID?: string
   subtotal?: string | number
+  Subtotal?: string | number
   status?: string
+  Status?: string
   recipient_name?: string
+  RecipientName?: string
   phone?: string
+  Phone?: string
   delivery_address?: string
+  DeliveryAddress?: string
   delivery_city?: string
+  DeliveryCity?: string
   delivery_notes?: string
+  DeliveryNotes?: string | { String?: string; Valid?: boolean }
   created_at?: string
+  CreatedAt?: string
   items?: any[]
+  Items?: any[]
   order?: BackendOrderResponse
+}
+
+function extractNullableString(value: unknown): string {
+  if (!value) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'object') {
+    const nullable = value as { String?: unknown; Valid?: unknown }
+    return nullable.Valid && typeof nullable.String === 'string' ? nullable.String : ''
+  }
+  return String(value)
 }
 
 function mapBackendOrder(raw: any): MarketplaceOrder {
   const o = raw?.order ? raw.order : raw
-  const rawItems = raw?.items || o?.items || []
+  const rawItems = raw?.items || raw?.Items || o?.items || o?.Items || []
 
-  const strId = String(o.id || '')
-  const numId = typeof o.id === 'number' ? o.id : (parseInt(strId.replace(/\D/g, ''), 10) || Date.now())
+  const rawId = o.ID ?? o.id
+  const strId = rawId !== undefined && rawId !== null ? String(rawId) : ''
+  const id = strId || Date.now()
 
-  const rawStatus = (o.status || 'pending').toLowerCase()
+  const rawStatus = String(o.Status || o.status || 'pending').toLowerCase()
   let status: OrderStatus = 'Pending'
   if (rawStatus === 'confirmed') status = 'Confirmed'
   else if (rawStatus === 'processing') status = 'Processing'
@@ -35,24 +57,26 @@ function mapBackendOrder(raw: any): MarketplaceOrder {
   else if (rawStatus === 'ordered') status = 'Ordered'
   else status = 'Pending'
 
-  const subtotalNum = typeof o.subtotal === 'number' ? o.subtotal : parseFloat(String(o.subtotal || 0)) || 0
+  const rawSubtotal = o.Subtotal ?? o.subtotal
+  const subtotalNum = typeof rawSubtotal === 'number' ? rawSubtotal : parseFloat(String(rawSubtotal || 0)) || 0
+  const rawCreatedAt = o.CreatedAt || o.created_at
 
   return {
-    id: numId,
+    id,
     backendId: strId,
-    buyerName: o.recipient_name || o.buyer_name || o.buyerName || 'Valued Customer',
+    buyerName: o.RecipientName || o.recipient_name || o.buyer_name || o.buyerName || 'Valued Customer',
     items: (rawItems || []).map((item: any) => ({
       productId: item.product_id || item.ProductID || item.productId || 0,
-      quantity: item.quantity || item.Quantity || 1
+      quantity: item.quantity ?? item.Quantity ?? 1
     })),
-    deliveryAddress: o.delivery_address || o.deliveryAddress || '',
-    deliveryCity: o.delivery_city || o.deliveryCity || 'Addis Ababa',
-    deliveryNotes: o.delivery_notes || o.deliveryNotes || '',
-    phone: o.phone || '',
+    deliveryAddress: o.DeliveryAddress || o.delivery_address || o.deliveryAddress || '',
+    deliveryCity: o.DeliveryCity || o.delivery_city || o.deliveryCity || 'Addis Ababa',
+    deliveryNotes: extractNullableString(o.DeliveryNotes ?? o.delivery_notes ?? o.deliveryNotes),
+    phone: o.Phone || o.phone || '',
     paymentMethod: 'Cash on delivery',
     paymentStatus: 'Pending',
     status,
-    date: o.created_at ? o.created_at.split('T')[0] : new Date().toISOString().split('T')[0]!,
+    date: rawCreatedAt ? String(rawCreatedAt).split('T')[0] : new Date().toISOString().split('T')[0]!,
     total: subtotalNum
   }
 }
