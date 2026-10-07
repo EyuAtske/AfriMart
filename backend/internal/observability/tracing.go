@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -19,7 +20,6 @@ import (
 
 func InitTracer(ctx context.Context) (func(context.Context) error, error) {
 	endpoint := getOTLPEndpoint()
-
 	res, err := createResource(ctx)
 	if err != nil {
 		return nil, err
@@ -39,8 +39,12 @@ func InitTracer(ctx context.Context) (func(context.Context) error, error) {
 	otel.SetTracerProvider(tracerProvider)
 	otel.SetMeterProvider(meterProvider)
 
-	startRuntimeMetrics(meterProvider)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
 
+	startRuntimeMetrics(meterProvider)
 	return createShutdown(tracerProvider, meterProvider), nil
 }
 

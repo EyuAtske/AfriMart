@@ -43,7 +43,7 @@ type checkoutResponse struct {
 	PaymentID     uuid.UUID            `json:"payment_id"`
 	PaymentMethod string               `json:"payment_method"`
 	TransactionID string               `json:"transaction_id"`
-	CheckoutURL   string               `json:"checkout_url,omitempty"`
+	CheckoutURL   string               `json:"checkoutUrl,omitempty"`
 }
 
 type checkoutRequest struct {
@@ -80,7 +80,6 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// EDIT 1: Temporary default so the current frontend keeps working
 	if req.PaymentMethod == "" {
 		req.PaymentMethod = "cod"
 	}
@@ -107,7 +106,6 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// EDIT 2: Validate online phone BEFORE starting the transaction
 	var customerPhone, firstName, lastName string
 	if req.PaymentMethod == "online" {
 		if usr.PhoneNumber.Valid {
@@ -121,7 +119,7 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !strings.HasPrefix(customerPhone, "+") {
-			customerPhone = "+251" + strings.TrimLeft(customerPhone, "0")
+			customerPhone = "251" + strings.TrimLeft(customerPhone, "0")
 		}
 		firstName = usr.FirstName.String
 		if !usr.FirstName.Valid || strings.TrimSpace(firstName) == "" {
@@ -148,7 +146,6 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Prevent buying own products
 	ownedItems, _ := txQueries.GetCartItemsOwnedByUser(ctx, database.GetCartItemsOwnedByUserParams{CartID: cart.ID, OwnerID: userID})
 	if len(ownedItems) > 0 {
 		comm.RespondErrorWithJson(w, r, http.StatusForbidden, "You cannot purchase your own product", nil)
@@ -157,7 +154,19 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 
 	cartItems, err := txQueries.GetCartItems(ctx, cart.ID)
 	if err != nil || len(cartItems) == 0 {
+		h.Logger.ErrorContext(ctx, "GetCartItems failed",
+			"error", err,
+			"cart_id", cart.ID,
+			"user_id", userID)
 		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Cart is empty or could not be loaded", err)
+		return
+	}
+
+	if len(cartItems) == 0 {
+		h.Logger.WarnContext(ctx, "Cart is empty",
+			"cart_id", cart.ID,
+			"user_id", userID)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Cart is empty", nil)
 		return
 	}
 
@@ -190,7 +199,6 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 
 		_, err = txQueries.ReduceProductStock(ctx, database.ReduceProductStockParams{ID: item.ProductID, Stock: item.Quantity})
 		if err != nil {
-			// EDIT 4: Stock race should return 409 Conflict, not 500
 			if errors.Is(err, sql.ErrNoRows) {
 				comm.RespondErrorWithJson(w, r, http.StatusConflict, "Insufficient stock for product: "+item.ProductName, nil)
 				return
@@ -224,7 +232,6 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Online Payment Flow
 	chapaReq := payment.InitializePaymentRequest{
 		Amount: subtotal, Currency: "ETB", MerchantReference: transactionID,
 		Customer: payment.Customer{FirstName: firstName, LastName: lastName, Email: usr.Email, PhoneNumber: customerPhone},
@@ -232,10 +239,39 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	chapaResp, err := h.ChapaClient.InitializePayment(ctx, chapaReq)
+	h.Logger.InfoContext(ctx, "Chapa Raw Response", 
+		"status", chapaResp.Status, 
+		"message", chapaResp.Message, 
+		"data", chapaResp.Data,
+		"error", err)
 	if err != nil {
-		// Compensation for Chapa init failure
-		payment.CancelUnpaidOrder(ctx, h.Config.DB, order.ID, paymentRecord.ID, "failed", "Failed to initialize Chapa payment")
+		applied, cancelErr := payment.CancelUnpaidOrder(ctx, h.Config.DB, order.ID, paymentRecord.ID, "failed", "Failed to initialize Chapa payment")
+		if cancelErr != nil || !applied {
+			h.Logger.ErrorContext(ctx, "CRITICAL: Compensation failed! Order needs manual cleanup",
+				"order_id", order.ID, 
+				"payment_id", paymentRecord.ID, 
+				"error", cancelErr)
+		} else {
+			h.Logger.InfoContext(ctx, "Compensation successful: stock restored and order cancelled",
+				"order_id", order.ID, "payment_id", paymentRecord.ID)
+		}
 		comm.RespondErrorWithJson(w, r, http.StatusBadGateway, "Failed to initialize payment", err)
+		return
+	}
+	h.Logger.InfoContext(ctx, "Chapa Response", "response", chapaResp)
+
+	if chapaResp == nil || chapaResp.Data.CheckoutURL == "" {
+		applied, cancelErr := payment.CancelUnpaidOrder(ctx, h.Config.DB, order.ID, paymentRecord.ID, "failed", "Chapa returned empty checkout URL")
+		if cancelErr != nil || !applied {
+			h.Logger.ErrorContext(ctx, "CRITICAL: Compensation failed! Order needs manual cleanup",
+				"order_id", order.ID, 
+				"payment_id", paymentRecord.ID, 
+				"error", cancelErr)
+		} else {
+			h.Logger.InfoContext(ctx, "Compensation successful: stock restored and order cancelled",
+				"order_id", order.ID, "payment_id", paymentRecord.ID)
+		}
+		comm.RespondErrorWithJson(w, r, http.StatusBadGateway, "Payment gateway did not return a checkout URL. Please check your Chapa configuration.", nil)
 		return
 	}
 
@@ -576,7 +612,7 @@ func (h *OrderHandler) HandleCancelOrder(w http.ResponseWriter, r *http.Request)
 	}
 
 	order, err := h.Queries.GetOrderByID(ctx, database.GetOrderByIDParams{
-		ID: orderID,
+		ID:     orderID,
 		UserID: userID,
 	})
 	if err != nil {
