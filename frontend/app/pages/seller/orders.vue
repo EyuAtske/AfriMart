@@ -8,7 +8,17 @@ definePageMeta({
 
 const { orders, getOrderProducts, updateOrderStatus, fetchSellerOrders } = useMarketplace()
 const { showToast } = useToast()
-const statuses: OrderStatus[] = ['Pending', 'Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled']
+const statusTransitions: Record<OrderStatus, OrderStatus[]> = {
+  Pending: ['Confirmed', 'Cancelled'],
+  Confirmed: ['Processing', 'Cancelled'],
+  Processing: ['Shipped', 'Cancelled'],
+  Shipped: ['Delivered'],
+  Delivered: [],
+  Cancelled: [],
+}
+
+const getNextStatuses = (status: OrderStatus) => statusTransitions[status] || []
+const hasNextStatuses = (status: OrderStatus) => getNextStatuses(status).length > 0
 
 onMounted(() => {
   fetchSellerOrders()
@@ -67,17 +77,32 @@ const handleStatusChange = async (orderId: number | string, newStatus: OrderStat
 
                 <select
                   :value="order.status"
+                  :disabled="!hasNextStatuses(order.status)"
                   class="h-12 w-full rounded-md border border-[#cfc4b5] bg-[#f5f1e9] px-4 text-sm text-[#211f1d] outline-none transition hover:border-[#9e8b77] focus:border-[#806344] focus:ring-2 focus:ring-[#806344]/15"
-                  @change="handleStatusChange(order.id, ($event.target as HTMLSelectElement).value as OrderStatus)"
+                  @change="handleStatusChange(order.backendId || order.id, ($event.target as HTMLSelectElement).value as OrderStatus)"
                 >
                   <option
-                    v-for="status in statuses"
+                    :value="order.status"
+                    disabled
+                  >
+                    {{ order.status }}
+                  </option>
+
+                  <option
+                    v-for="status in getNextStatuses(order.status)"
                     :key="status"
                     :value="status"
                   >
                     {{ status }}
                   </option>
                 </select>
+
+                <span
+                  v-if="!hasNextStatuses(order.status)"
+                  class="block text-xs text-[#756a60]"
+                >
+                  No further status changes
+                </span>
               </label>
             </div>
 
