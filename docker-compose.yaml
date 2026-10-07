@@ -19,11 +19,16 @@ services:
       CHAPA_SECRET_KEY: "CHAPA_TEST_PRIV_mbXl2ZyWMsS5ZJmwFfKZK5EX1X6gcFobVGp51AeP"
       CHAPA_CALLBACK_URL: "https://scheme-outskirts-freckled.ngrok-free.dev/api/v1/payment/chapa/callback"
     depends_on:
-      - postgres
-      - rabbitmq
-      - otel-collector
-      - minio
-      - migrate
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
   frontend:
     container_name: afrimart-frontend
     build:
@@ -161,6 +166,11 @@ services:
       MINIO_ROOT_PASSWORD: minio123
     volumes:
       - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
   migrate:
     image: golang:1.22-alpine
     container_name: afrimart-migrate

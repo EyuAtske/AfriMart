@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 
@@ -61,7 +60,7 @@ func SetupAPIConfig(ctx context.Context) *ApiConfig {
 	)
 
 	if err != nil {
-		fmt.Printf("initialize MinIO storage: %s", err)
+		slog.Error("failed to initialize MinIO storage", "error", err)
 		return nil
 	}
 
@@ -69,11 +68,11 @@ func SetupAPIConfig(ctx context.Context) *ApiConfig {
 	chapaCallbackURL := os.Getenv("CHAPA_CALLBACK_URL")
 
 	return &ApiConfig{
-		DB:           dbConn,
-		Queries:      dbQueries,
-		Secret:       secretKey,
-		ImageStorage: imageStorage,
-		ChapaSecretKey: chapaSecretKey,
+		DB:               dbConn,
+		Queries:          dbQueries,
+		Secret:           secretKey,
+		ImageStorage:     imageStorage,
+		ChapaSecretKey:   chapaSecretKey,
 		ChapaCallbackURL: chapaCallbackURL,
 	}
 }
