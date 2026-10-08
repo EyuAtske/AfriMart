@@ -42,7 +42,7 @@ type checkoutResponse struct {
 	PaymentID     uuid.UUID            `json:"payment_id"`
 	PaymentMethod string               `json:"payment_method"`
 	TransactionID string               `json:"transaction_id"`
-	CheckoutURL   string               `json:"checkoutUrl,omitempty"`
+	CheckoutURL   string               `json:"checkout_url,omitempty"`
 }
 
 type checkoutRequest struct {
