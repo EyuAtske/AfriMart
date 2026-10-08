@@ -27,10 +27,11 @@ type Meta struct {
 type InitializePaymentRequest struct {
 	Amount            float64  `json:"amount"`
 	Currency          string   `json:"currency"`
-	MerchantReference string   `json:"merchant_reference"`
+	MerchantReference string   `json:"tx_ref"`
 	CallbackURL       string   `json:"callback_url"`
 	Customer          Customer `json:"customer"`
 	Meta              Meta     `json:"meta,omitempty"`
+	ReturnURL         string  `json:"return_url"`
 }
 
 type InitializePaymentResponse struct {

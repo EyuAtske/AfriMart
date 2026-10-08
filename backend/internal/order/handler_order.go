@@ -299,6 +299,7 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 			OrderID: order.ID.String(),
 			Notes:   "AfriMart Order",
 		},
+		ReturnURL: h.Config.ReturnURL,
 	}
 
 	chapaResp, err := h.ChapaClient.InitializePayment(ctx, chapaReq)
@@ -461,7 +462,7 @@ func (h *OrderHandler) HandleGetOrder(w http.ResponseWriter, r *http.Request) {
 		ID:     orderID,
 		UserID: userID,
 	})
-	
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// 2. If not found as buyer, check if the user is the seller

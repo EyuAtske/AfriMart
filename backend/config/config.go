@@ -8,10 +8,11 @@ import (
 )
 
 type ApiConfig struct {
-	DB           *sql.DB
-	Queries      *database.Queries
-	Secret       string
-	ImageStorage storage.ImageStorage
+	DB               *sql.DB
+	Queries          *database.Queries
+	Secret           string
+	ImageStorage     storage.ImageStorage
 	ChapaSecretKey   string
-    ChapaCallbackURL string
+	ChapaCallbackURL string
+	ReturnURL        string
 }

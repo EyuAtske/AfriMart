@@ -64,6 +64,14 @@ func SetupAPIConfig(ctx context.Context) *ApiConfig {
 		return nil
 	}
 
+	baseURL := os.Getenv("FRONTEND_URL")
+	if baseURL == "" {
+		baseURL = "https://localhost:3000" // Fallback for local testing
+	}
+
+	// Construct the full return URL
+	frontendReturnURL := baseURL + "/payment/success"
+
 	chapaSecretKey := os.Getenv("CHAPA_SECRET_KEY")
 	chapaCallbackURL := os.Getenv("CHAPA_CALLBACK_URL")
 
@@ -74,5 +82,6 @@ func SetupAPIConfig(ctx context.Context) *ApiConfig {
 		ImageStorage:     imageStorage,
 		ChapaSecretKey:   chapaSecretKey,
 		ChapaCallbackURL: chapaCallbackURL,
+		ReturnURL:        frontendReturnURL,
 	}
 }
