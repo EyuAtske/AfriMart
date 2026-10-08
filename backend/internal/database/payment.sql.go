@@ -103,6 +103,32 @@ func (q *Queries) GetExpiredPendingPayments(ctx context.Context, createdAt time.
 	return items, nil
 }
 
+const getPaymentByOrderID = `-- name: GetPaymentByOrderID :one
+SELECT id, order_id, payment_method, payment_status, amount, provider, transaction_id, provider_reference, failure_reason, paid_at, created_at, updated_at FROM payments
+WHERE order_id = $1
+LIMIT 1
+`
+
+func (q *Queries) GetPaymentByOrderID(ctx context.Context, orderID uuid.UUID) (Payment, error) {
+	row := q.db.QueryRowContext(ctx, getPaymentByOrderID, orderID)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.OrderID,
+		&i.PaymentMethod,
+		&i.PaymentStatus,
+		&i.Amount,
+		&i.Provider,
+		&i.TransactionID,
+		&i.ProviderReference,
+		&i.FailureReason,
+		&i.PaidAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getPaymentByProviderRef = `-- name: GetPaymentByProviderRef :one
 SELECT id, order_id, payment_method, payment_status, amount, provider, transaction_id, provider_reference, failure_reason, paid_at, created_at, updated_at FROM payments 
 WHERE provider_reference = $1 

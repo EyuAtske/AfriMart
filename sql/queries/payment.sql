@@ -37,3 +37,8 @@ FROM payments
 WHERE payment_method = 'online' 
   AND payment_status = 'pending' 
   AND created_at < $1;
+
+-- name: GetPaymentByOrderID :one
+SELECT * FROM payments
+WHERE order_id = $1
+LIMIT 1;

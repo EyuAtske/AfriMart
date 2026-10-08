@@ -17,12 +17,12 @@ services:
       MINIO_BUCKET: "afrimart-images"
       MINIO_USE_SSL: "false"
       CHAPA_SECRET_KEY: "CHAPA_TEST_PRIV_mbXl2ZyWMsS5ZJmwFfKZK5EX1X6gcFobVGp51AeP"
-      CHAPA_CALLBACK_URL: "https://scheme-outskirts-freckled.ngrok-free.dev/api/v1/payment/chapa/callback"
+      CHAPA_CALLBACK_URL: "https://scheme-outskirts-freckled.ngrok-free.dev/api/payments/callback"
     depends_on:
       postgres:
         condition: service_healthy
       minio:
-        condition: service_healthy
+        condition: service_started 
       rabbitmq:
         condition: service_started
       otel-collector:
@@ -155,7 +155,7 @@ services:
     restart: unless-stopped
 
   minio:
-    image: quay.io/minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest
     container_name: afrimart-minio
     command: server /data --console-address ":9001"
     ports:
@@ -166,11 +166,6 @@ services:
       MINIO_ROOT_PASSWORD: minio123
     volumes:
       - minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
   migrate:
     image: golang:1.22-alpine
     container_name: afrimart-migrate
