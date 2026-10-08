@@ -126,16 +126,14 @@ func TestHandleCallback_Success(t *testing.T) {
 		WithArgs("successful", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), paymentID, "pending").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	// UpdateOrderStatus is :one, so it uses QueryRowContext.
-	// We must return all columns defined in the Order struct for the RETURNING * clause.
-	mockDB.ExpectQuery(`UPDATE orders`).
+	mockDB.ExpectQuery(`(?i)UPDATE orders SET status = \$2, updated_at = NOW\(\) WHERE id = \$1 RETURNING .*`).
 		WithArgs(orderID, "confirmed").
 		WillReturnRows(sqlmock.NewRows([]string{
-			"id", "user_id", "subtotal", "Status", "created_at", "updated_at",
-			"recipient_name", "phone", "delivery_address", "delivery_city", "delivery_notes",
+			"id", "user_id", "subtotal", "status", "created_at", "updated_at",
+			"recipient_name", "phone", "delivery_address", "delivery_city", "delivery_notes", "method", // <-- 12 columns
 		}).AddRow(
 			orderID, uuid.New(), "1000.00", "confirmed", time.Now(), time.Now(),
-			"Test User", "+251911111111", "Test Address", "Test City", sql.NullString{},
+			"Test User", "+251911111111", "Test Address", "Test City", sql.NullString{}, "online", // <-- 12 values
 		))
 
 	mockDB.ExpectCommit()

@@ -143,7 +143,7 @@ func (m *mockOrderQuerier) GetOrderByIDForSeller(ctx context.Context, arg databa
 	if m.getOrderByIDForSellerFn != nil {
 		return m.getOrderByIDForSellerFn(ctx, arg)
 	}
-	return database.Order{}, nil
+	return database.Order{}, sql.ErrNoRows
 }
 
 func orderRequestWithUser(method, target, body string, userID uuid.UUID) *http.Request {
