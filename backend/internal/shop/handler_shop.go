@@ -106,8 +106,11 @@ func (h *ShopHandler) HandleGetMyShop(w http.ResponseWriter, r *http.Request) {
 	shop, err := h.Config.Queries.GetShopByOwnerID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			h.Logger.WarnContext(ctx, "get my shop failed: shop not found", "user_id", userID)
-			comm.RespondErrorWithJson(w, r, http.StatusNotFound, "Shop not found", err)
+			h.Logger.InfoContext(ctx, "user does not have a shop yet", "user_id", userID)
+			
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("null")) 
 			return
 		}
 		h.Logger.ErrorContext(ctx, "get my shop failed: database error", "user_id", userID, "error", err)
