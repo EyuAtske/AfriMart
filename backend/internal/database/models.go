@@ -45,6 +45,7 @@ type Order struct {
 	DeliveryAddress string
 	DeliveryCity    string
 	DeliveryNotes   sql.NullString
+	Method          string
 }
 
 type OrderItem struct {

@@ -17,7 +17,7 @@ services:
       MINIO_BUCKET: "afrimart-images"
       MINIO_USE_SSL: "false"
       CHAPA_SECRET_KEY: "CHAPA_TEST_PRIV_mbXl2ZyWMsS5ZJmwFfKZK5EX1X6gcFobVGp51AeP"
-      CHAPA_CALLBACK_URL: "https://scheme-outskirts-freckled.ngrok-free.dev/api/v1/payment/chapa/callback"
+      CHAPA_CALLBACK_URL: "https://scheme-outskirts-freckled.ngrok-free.dev/api/payments/callback"
     depends_on:
       postgres:
         condition: service_healthy

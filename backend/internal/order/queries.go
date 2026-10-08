@@ -78,6 +78,16 @@ type OrderQuerier interface {
 		ctx context.Context,
 		arg database.RestoreProductStockParams,
 	) (database.RestoreProductStockRow, error)
+
+	GetPaymentByOrderID(
+        ctx context.Context,
+        orderID uuid.UUID,
+    ) (database.Payment, error)
+
+	GetOrderByIDForSeller(
+		ctx context.Context,
+		arg database.GetOrderByIDForSellerParams,
+	) (database.Order, error)
 }
 
 type PaymentUpdater interface {

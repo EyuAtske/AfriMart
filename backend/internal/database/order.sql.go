@@ -18,6 +18,7 @@ INSERT INTO orders (
     user_id,
     subtotal,
     status,
+    method,
     recipient_name,
     phone,
     delivery_address,
@@ -32,14 +33,16 @@ VALUES (
     $4,
     $5,
     $6,
-    $7
+    $7,
+    $8
 )
-RETURNING id, user_id, subtotal, status, created_at, updated_at, recipient_name, phone, delivery_address, delivery_city, delivery_notes
+RETURNING id, user_id, subtotal, status, created_at, updated_at, recipient_name, phone, delivery_address, delivery_city, delivery_notes, method
 `
 
 type CreateOrderParams struct {
 	UserID          uuid.UUID
 	Subtotal        string
+	Method          string
 	RecipientName   string
 	Phone           string
 	DeliveryAddress string
@@ -51,6 +54,7 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 	row := q.db.QueryRowContext(ctx, createOrder,
 		arg.UserID,
 		arg.Subtotal,
+		arg.Method,
 		arg.RecipientName,
 		arg.Phone,
 		arg.DeliveryAddress,
@@ -70,6 +74,7 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 		&i.DeliveryAddress,
 		&i.DeliveryCity,
 		&i.DeliveryNotes,
+		&i.Method,
 	)
 	return i, err
 }
@@ -131,7 +136,7 @@ func (q *Queries) GetCartByUserIDForUpdate(ctx context.Context, userID uuid.UUID
 }
 
 const getOrderByID = `-- name: GetOrderByID :one
-SELECT id, user_id, subtotal, status, created_at, updated_at, recipient_name, phone, delivery_address, delivery_city, delivery_notes
+SELECT id, user_id, subtotal, status, created_at, updated_at, recipient_name, phone, delivery_address, delivery_city, delivery_notes, method
 FROM orders
 WHERE id = $1
   AND user_id = $2
@@ -157,6 +162,43 @@ func (q *Queries) GetOrderByID(ctx context.Context, arg GetOrderByIDParams) (Ord
 		&i.DeliveryAddress,
 		&i.DeliveryCity,
 		&i.DeliveryNotes,
+		&i.Method,
+	)
+	return i, err
+}
+
+const getOrderByIDForSeller = `-- name: GetOrderByIDForSeller :one
+SELECT o.id, o.user_id, o.subtotal, o.status, o.created_at, o.updated_at, o.recipient_name, o.phone, o.delivery_address, o.delivery_city, o.delivery_notes, o.method
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.id
+JOIN products p ON p.id = oi.product_id
+JOIN shops s ON s.id = p.shop_id
+WHERE o.id = $1
+AND s.owner_id = $2
+LIMIT 1
+`
+
+type GetOrderByIDForSellerParams struct {
+	ID      uuid.UUID
+	OwnerID uuid.UUID
+}
+
+func (q *Queries) GetOrderByIDForSeller(ctx context.Context, arg GetOrderByIDForSellerParams) (Order, error) {
+	row := q.db.QueryRowContext(ctx, getOrderByIDForSeller, arg.ID, arg.OwnerID)
+	var i Order
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Subtotal,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.RecipientName,
+		&i.Phone,
+		&i.DeliveryAddress,
+		&i.DeliveryCity,
+		&i.DeliveryNotes,
+		&i.Method,
 	)
 	return i, err
 }
@@ -218,7 +260,7 @@ func (q *Queries) GetOrderItems(ctx context.Context, orderID uuid.UUID) ([]GetOr
 }
 
 const listOrdersBySeller = `-- name: ListOrdersBySeller :many
-SELECT DISTINCT o.id, o.user_id, o.subtotal, o.status, o.created_at, o.updated_at, o.recipient_name, o.phone, o.delivery_address, o.delivery_city, o.delivery_notes
+SELECT DISTINCT o.id, o.user_id, o.subtotal, o.status, o.created_at, o.updated_at, o.recipient_name, o.phone, o.delivery_address, o.delivery_city, o.delivery_notes, o.method
 FROM orders o
 JOIN order_items oi ON oi.order_id = o.id
 JOIN products p ON p.id = oi.product_id
@@ -255,6 +297,7 @@ func (q *Queries) ListOrdersBySeller(ctx context.Context, arg ListOrdersBySeller
 			&i.DeliveryAddress,
 			&i.DeliveryCity,
 			&i.DeliveryNotes,
+			&i.Method,
 		); err != nil {
 			return nil, err
 		}
@@ -270,7 +313,7 @@ func (q *Queries) ListOrdersBySeller(ctx context.Context, arg ListOrdersBySeller
 }
 
 const listOrdersByUser = `-- name: ListOrdersByUser :many
-SELECT id, user_id, subtotal, status, created_at, updated_at, recipient_name, phone, delivery_address, delivery_city, delivery_notes
+SELECT id, user_id, subtotal, status, created_at, updated_at, recipient_name, phone, delivery_address, delivery_city, delivery_notes, method
 FROM orders
 WHERE user_id = $1
 ORDER BY created_at DESC
@@ -305,6 +348,7 @@ func (q *Queries) ListOrdersByUser(ctx context.Context, arg ListOrdersByUserPara
 			&i.DeliveryAddress,
 			&i.DeliveryCity,
 			&i.DeliveryNotes,
+			&i.Method,
 		); err != nil {
 			return nil, err
 		}
@@ -378,7 +422,7 @@ SET
     status = $2,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, subtotal, status, created_at, updated_at, recipient_name, phone, delivery_address, delivery_city, delivery_notes
+RETURNING id, user_id, subtotal, status, created_at, updated_at, recipient_name, phone, delivery_address, delivery_city, delivery_notes, method
 `
 
 type UpdateOrderStatusParams struct {
@@ -401,6 +445,7 @@ func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusPa
 		&i.DeliveryAddress,
 		&i.DeliveryCity,
 		&i.DeliveryNotes,
+		&i.Method,
 	)
 	return i, err
 }

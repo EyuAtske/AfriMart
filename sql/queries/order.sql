@@ -3,6 +3,7 @@ INSERT INTO orders (
     user_id,
     subtotal,
     status,
+    method,
     recipient_name,
     phone,
     delivery_address,
@@ -17,7 +18,8 @@ VALUES (
     $4,
     $5,
     $6,
-    $7
+    $7,
+    $8
 )
 RETURNING *;
 
@@ -114,3 +116,13 @@ SET
     updated_at = NOW()
 WHERE id = $1
 RETURNING id, stock;
+
+-- name: GetOrderByIDForSeller :one
+SELECT o.*
+FROM orders o
+JOIN order_items oi ON oi.order_id = o.id
+JOIN products p ON p.id = oi.product_id
+JOIN shops s ON s.id = p.shop_id
+WHERE o.id = $1
+AND s.owner_id = $2
+LIMIT 1;

@@ -31,6 +31,8 @@ type mockOrderQuerier struct {
 	createPaymentfn                  func(ctx context.Context, arg database.CreatePaymentParams) (database.Payment, error)
 	updatePaymentStatusConditionalfn func(ctx context.Context, arg database.UpdatePaymentStatusConditionalParams) (int64, error)
 	restoreProductStockfn            func(ctx context.Context, arg database.RestoreProductStockParams) (database.RestoreProductStockRow, error)
+	getPaymentByOrderIDfn            func(ctx context.Context, orderID uuid.UUID) (database.Payment, error)
+	getOrderByIDForSellerFn          func(context.Context, database.GetOrderByIDForSellerParams) (database.Order, error)
 }
 
 func (m *mockOrderQuerier) CreateOrder(ctx context.Context, arg database.CreateOrderParams) (database.Order, error) {
@@ -110,25 +112,38 @@ func (m *mockOrderQuerier) GetUserByIDFull(ctx context.Context, id uuid.UUID) (d
 	return database.User{}, nil
 }
 
-func (m *mockOrderQuerier) CreatePayment(ctx context.Context, arg database.CreatePaymentParams) (database.Payment, error){
+func (m *mockOrderQuerier) CreatePayment(ctx context.Context, arg database.CreatePaymentParams) (database.Payment, error) {
 	if m.createPaymentfn != nil {
 		return m.createPaymentfn(ctx, arg)
 	}
 	return database.Payment{}, nil
 }
 
-func (m *mockOrderQuerier) UpdatePaymentStatusConditional(ctx context.Context, arg database.UpdatePaymentStatusConditionalParams) (int64, error){
+func (m *mockOrderQuerier) UpdatePaymentStatusConditional(ctx context.Context, arg database.UpdatePaymentStatusConditionalParams) (int64, error) {
 	if m.updatePaymentStatusConditionalfn != nil {
 		return m.updatePaymentStatusConditionalfn(ctx, arg)
 	}
 	return 0, nil
 }
 
-func (m *mockOrderQuerier) RestoreProductStock(ctx context.Context, arg database.RestoreProductStockParams) (database.RestoreProductStockRow, error){
+func (m *mockOrderQuerier) RestoreProductStock(ctx context.Context, arg database.RestoreProductStockParams) (database.RestoreProductStockRow, error) {
 	if m.restoreProductStockfn != nil {
 		return m.restoreProductStockfn(ctx, arg)
 	}
 	return database.RestoreProductStockRow{}, nil
+}
+func (m *mockOrderQuerier) GetPaymentByOrderID(ctx context.Context, orderID uuid.UUID,) (database.Payment, error){
+	if m.getPaymentByOrderIDfn != nil {
+		return m.getPaymentByOrderIDfn(ctx, orderID)
+	}
+	return database.Payment{}, nil
+}
+
+func (m *mockOrderQuerier) GetOrderByIDForSeller(ctx context.Context, arg database.GetOrderByIDForSellerParams) (database.Order, error) {
+	if m.getOrderByIDForSellerFn != nil {
+		return m.getOrderByIDForSellerFn(ctx, arg)
+	}
+	return database.Order{}, nil
 }
 
 func orderRequestWithUser(method, target, body string, userID uuid.UUID) *http.Request {
