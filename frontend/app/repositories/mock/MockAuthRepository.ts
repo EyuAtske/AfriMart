@@ -70,14 +70,15 @@ export class MockAuthRepository implements IAuthRepository {
     return isLoggedIn.value ? { ...user.value } : null
   }
 
-  async getProfile(): Promise<{ email: string; username: string }> {
+  async getProfile(): Promise<{ email: string; username: string; phone_number: string }> {
     const { user, isLoggedIn } = useMockDataStore()
     if (!isLoggedIn.value) {
       throw new Error('User not authenticated')
     }
     return {
       email: user.value.email,
-      username: user.value.username || user.value.name || 'User'
+      username: user.value.username || user.value.name || 'User',
+      phone_number: user.value.phoneNumber || ''
     }
   }
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AccountSidebar from '~/components/account/AccountSidebar.vue'
+import { formatPaymentSummary } from '~/utils/orderDisplay'
 import type { OrderStatus } from '~/types/order'
 
 definePageMeta({
@@ -15,6 +16,7 @@ const statusTransitions: Record<OrderStatus, OrderStatus[]> = {
   Shipped: ['Delivered'],
   Delivered: [],
   Cancelled: [],
+  Ordered: ['Confirmed', 'Cancelled']
 }
 
 const getNextStatuses = (status: OrderStatus) => statusTransitions[status] || []
@@ -58,7 +60,7 @@ const handleStatusChange = async (orderId: number | string, newStatus: OrderStat
             <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <p class="text-xs font-medium uppercase tracking-[0.18em] text-[#806344]">
-                  Order #{{ order.id }}
+                  Order #{{ order.backendId || order.id }}
                 </p>
 
                 <h2 class="mt-2 font-serif text-3xl text-[#211f1d]">
@@ -150,7 +152,7 @@ const handleStatusChange = async (orderId: number | string, newStatus: OrderStat
                 </UiAppBadge>
 
                 <UiAppBadge variant="success">
-                  {{ order.paymentMethod }}
+                  {{ formatPaymentSummary(order) }}
                 </UiAppBadge>
               </div>
             </div>

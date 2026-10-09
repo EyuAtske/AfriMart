@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { MarketplaceOrder } from '~/types/order'
-import type { Product } from '~/types/product'
-import { formatPrice, useMarketplace } from '~/composables/useMarketplace'
+import type { MarketplaceOrder, OrderStatus } from '~/types/order'
+import { formatPrice } from '~/composables/useMarketplace'
+import { formatPaymentSummary } from '~/utils/orderDisplay'
 
 const props = defineProps<{
   isOpen: boolean
@@ -10,19 +10,18 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
-  openReview: [product: Product]
 }>()
 
-const { getOrderProducts, getUserReviewForProduct } = useMarketplace()
-
-const trackingSteps = [
-  { key: 'Ordered', title: 'Order Placed', desc: 'Order received & confirmed by seller' },
-  { key: 'Shipped', title: 'Shipped / In Transit', desc: 'Package picked up & on its way' },
+const trackingSteps: { key: OrderStatus; title: string; desc: string }[] = [
+  { key: 'Pending', title: 'Order Placed', desc: 'Order received and waiting for seller confirmation' },
+  { key: 'Confirmed', title: 'Confirmed', desc: 'Seller confirmed the order' },
+  { key: 'Processing', title: 'Processing', desc: 'Seller is preparing the shipment' },
+  { key: 'Shipped', title: 'Shipped / In Transit', desc: 'Package picked up and on its way' },
   { key: 'Delivered', title: 'Delivered', desc: 'Order delivered to buyer address' }
-] as const
+]
 
-const getStepIndex = (status: string) => {
-  const idx = trackingSteps.findIndex(s => s.key === status)
+const getStepIndex = (status: OrderStatus) => {
+  const idx = trackingSteps.findIndex(step => step.key === status)
   return idx >= 0 ? idx : 0
 }
 
@@ -30,37 +29,59 @@ const currentStepIndex = computed(() =>
   props.order ? getStepIndex(props.order.status) : 0
 )
 
-const orderItems = computed(() =>
-  props.order ? getOrderProducts(props.order) : []
-)
+const isCancelled = computed(() => props.order?.status === 'Cancelled')
+const orderItems = computed(() => props.order?.items || [])
+const orderNumber = computed(() => props.order ? props.order.backendId || String(props.order.id) : '')
+const deliveryAddress = computed(() => {
+  if (!props.order) return ''
+  return [props.order.deliveryAddress, props.order.deliveryCity].filter(Boolean).join(', ')
+})
+const paymentLabel = computed(() => {
+  if (!props.order) return 'Payment details unavailable'
+  return formatPaymentSummary(props.order)
+})
+const amountPaid = computed(() => props.order?.paymentAmount)
 </script>
 
 <template>
   <UiAppModal
     :is-open="isOpen && !!order"
     title="Shipping & Order Tracking"
-    :kicker="order ? `Order #${order.id}` : ''"
+    :kicker="order ? `Order #${orderNumber}` : ''"
     max-width="lg"
     @close="emit('close')"
   >
     <template v-if="order" #header>
       <p class="mt-2 text-sm text-[#756a60]">
-        Placed on {{ order.date }} — Delivery to: <strong class="text-[#211f1d]">{{ order.deliveryAddress }}</strong>
+        <span v-if="order.date">Placed on {{ order.date }}</span>
+        <span v-if="order.date && deliveryAddress"> - </span>
+        <span v-if="deliveryAddress">
+          Delivery to: <strong class="text-[#211f1d]">{{ deliveryAddress }}</strong>
+        </span>
       </p>
     </template>
 
     <template v-if="order">
-      <!-- Tracking Pipeline Steps -->
-      <div class="rounded-lg border border-[#ded6cc] bg-[#f5f1e9] p-5">
-        <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-[#806344] mb-4">
+      <div
+        v-if="isCancelled"
+        class="rounded-lg border border-red-200 bg-red-50 p-5 text-red-800"
+      >
+        <h3 class="text-sm font-semibold">Order Cancelled</h3>
+        <p class="mt-1 text-sm">
+          This order was cancelled. The status is coming from the backend order record.
+        </p>
+      </div>
+
+      <div v-else class="rounded-lg border border-[#ded6cc] bg-[#f5f1e9] p-5">
+        <h3 class="mb-4 text-xs font-semibold uppercase tracking-[0.14em] text-[#806344]">
           Current Delivery Progress
         </h3>
 
-        <div class="relative flex flex-col sm:flex-row justify-between items-start gap-6">
+        <div class="relative grid gap-5 md:grid-cols-5">
           <div
             v-for="(step, index) in trackingSteps"
             :key="step.key"
-            class="flex flex-1 items-start gap-3 relative z-10"
+            class="flex items-start gap-3 md:flex-col"
           >
             <div
               class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all"
@@ -70,7 +91,7 @@ const orderItems = computed(() =>
                   : 'border-2 border-[#cfc4b5] bg-white text-[#92877b]'
               "
             >
-              {{ index <= currentStepIndex ? '✓' : index + 1 }}
+              {{ index < currentStepIndex ? '✓' : index + 1 }}
             </div>
 
             <div>
@@ -80,7 +101,7 @@ const orderItems = computed(() =>
               >
                 {{ step.title }}
               </p>
-              <p class="mt-0.5 text-xs text-[#756a60] leading-snug">
+              <p class="mt-0.5 text-xs leading-snug text-[#756a60]">
                 {{ step.desc }}
               </p>
             </div>
@@ -88,78 +109,62 @@ const orderItems = computed(() =>
         </div>
       </div>
 
-      <!-- Detailed Product Items -->
       <div class="mt-6 space-y-4">
         <h3 class="text-sm font-semibold uppercase tracking-[0.14em] text-[#211f1d]">
           Items in this Shipment ({{ orderItems.length }})
         </h3>
 
-        <div class="space-y-3 max-h-60 overflow-y-auto pr-1">
+        <div class="max-h-60 space-y-3 overflow-y-auto pr-1">
           <div
             v-for="item in orderItems"
-            :key="item?.productId"
+            :key="item.backendItemId || item.productId"
             class="flex items-center gap-4 rounded-lg border border-[#ded6cc] bg-white p-3.5 shadow-sm"
           >
             <img
-              v-if="item"
-              :src="item.product.image"
-              :alt="item.product.name"
+              v-if="item.productImage"
+              :src="item.productImage"
+              :alt="item.productName || 'Order item'"
               class="h-16 w-14 rounded-md object-cover object-top"
             />
 
-            <div v-if="item" class="min-w-0 flex-1">
+            <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-medium text-[#211f1d]">
-                {{ item.product.name }}
+                {{ item.productName || 'Product details unavailable' }}
               </p>
               <p class="mt-1 text-xs text-[#756a60]">
-                Seller: {{ item.product.shop }} | Qty: {{ item.quantity }}
+                <span v-if="item.productShop">Seller: {{ item.productShop }} | </span>Qty: {{ item.quantity }}
               </p>
-              <p class="text-xs text-[#806344] font-medium mt-0.5">
-                Unit Price: {{ formatPrice(item.product.price) }}
+              <p v-if="item.price !== undefined" class="mt-0.5 text-xs font-medium text-[#806344]">
+                Unit Price: {{ formatPrice(item.price) }}
               </p>
             </div>
 
-            <div v-if="item" class="text-right flex flex-col items-end gap-1.5">
+            <div class="text-right">
               <p class="text-sm font-semibold text-[#211f1d]">
-                {{ formatPrice(item.lineTotal) }}
+                {{ item.lineTotal !== undefined ? formatPrice(item.lineTotal) : 'Amount unavailable' }}
               </p>
-
-              <!-- Add Review or Review Status Badge if Delivered -->
-              <div v-if="order.status === 'Delivered'">
-                <template v-if="getUserReviewForProduct(item.product.id, order.id)">
-                  <UiAppBadge
-                    v-if="getUserReviewForProduct(item.product.id, order.id)?.status === 'pending'"
-                    variant="warning"
-                  >
-                    <span>⏳</span> Under review
-                  </UiAppBadge>
-                  <UiAppBadge v-else variant="success">
-                    <span>✓</span> Reviewed
-                  </UiAppBadge>
-                </template>
-                <UiAppButton
-                  v-else
-                  variant="primary"
-                  size="small"
-                  class="h-8 px-3.5 text-xs"
-                  @click="emit('openReview', item.product)"
-                >
-                  Add Review
-                </UiAppButton>
-              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Footer Total -->
-      <div class="mt-6 flex items-center justify-between border-t border-[#ded6cc] pt-4">
+      <div class="mt-6 grid gap-4 border-t border-[#ded6cc] pt-4 sm:grid-cols-3">
         <div>
-          <span class="text-xs font-medium uppercase tracking-[0.14em] text-[#756a60]">Payment Method</span>
-          <p class="text-sm font-semibold text-[#211f1d]">{{ order.paymentMethod }} ({{ order.paymentStatus }})</p>
+          <span class="text-xs font-medium uppercase tracking-[0.14em] text-[#756a60]">Payment</span>
+          <p class="text-sm font-semibold text-[#211f1d]">{{ paymentLabel }}</p>
+          <p v-if="order.transactionId" class="mt-1 text-xs text-[#756a60]">
+            Transaction {{ order.transactionId }}
+          </p>
         </div>
 
-        <div class="text-right">
+        <div>
+          <span class="text-xs font-medium uppercase tracking-[0.14em] text-[#756a60]">Amount Paid</span>
+          <p class="text-sm font-semibold text-[#211f1d]">
+            {{ amountPaid !== undefined ? formatPrice(amountPaid) : 'Unavailable' }}
+          </p>
+        </div>
+
+        <div class="sm:text-right">
           <span class="text-xs font-medium uppercase tracking-[0.14em] text-[#756a60]">Total Amount</span>
           <p class="font-serif text-2xl text-[#211f1d]">{{ formatPrice(order.total) }}</p>
         </div>

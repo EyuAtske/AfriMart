@@ -50,7 +50,7 @@ const submitReview = () => {
   >
     <template v-if="product" #header>
       <p class="mt-1 text-xs text-[#756a60]">
-        From shop: <strong class="text-[#211f1d]">{{ product.shop }}</strong>
+        From shop: <strong class="text-[#211f1d]">{{ product.shop || 'Shop unavailable' }}</strong>
       </p>
     </template>
 
@@ -58,6 +58,7 @@ const submitReview = () => {
       <!-- Product Preview Header -->
       <div class="flex items-center gap-4 rounded-lg border border-[#ded6cc] bg-[#f5f1e9] p-3">
         <img
+          v-if="product.image"
           :src="product.image"
           :alt="product.name"
           class="h-14 w-12 rounded-md object-cover object-top"
