@@ -1,12 +1,17 @@
 import type { Product } from './product'
 
 export type OrderStatus = 'Pending' | 'Confirmed' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Ordered'
-export type PaymentStatus = 'Pending' | 'Paid' | 'Failed' | 'Cash on delivery'
+export type PaymentStatus = 'Pending' | 'Processing' | 'Paid' | 'Failed' | 'Cancelled' | 'Cash on delivery'
 
 export interface CartItem {
   productId: number | string
   quantity: number
   backendItemId?: string
+  productName?: string
+  productImage?: string
+  productShop?: string
+  price?: number
+  lineTotal?: number
 }
 
 export interface CartProductItem extends CartItem {
@@ -25,6 +30,8 @@ export interface MarketplaceOrder {
   phone: string
   paymentMethod: string
   paymentStatus: PaymentStatus
+  paymentAmount?: number
+  transactionId?: string
   status: OrderStatus
   date: string
   total: number

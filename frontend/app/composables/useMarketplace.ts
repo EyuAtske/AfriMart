@@ -459,18 +459,29 @@ const updateOrderStatus = async (orderId: number | string, status: OrderStatus) 
 }
 
 const getOrderProducts = (order: MarketplaceOrder): CartProductItem[] =>
-  order.items
+  (order.items || [])
     .map((item) => {
-      const product = getProduct(item.productId)
-      if (!product) return null
+      const found = getProduct(item.productId)
+      const product: Product = found || {
+        id: item.productId,
+        name: item.productName || 'Product details unavailable',
+        image: item.productImage || '',
+        shop: item.productShop || '',
+        price: item.price ?? 0,
+        category: 'Clothing',
+        stock: 0,
+        rating: '0',
+        description: '',
+        status: 'Active'
+      }
 
+      const price = item.price ?? product.price ?? 0
       return {
         ...item,
         product,
-        lineTotal: product.price * item.quantity
+        lineTotal: item.lineTotal !== undefined ? item.lineTotal : (price * item.quantity)
       }
     })
-    .filter((item): item is CartProductItem => item !== null)
 
 const updateProduct = (id: number | string, updates: Partial<Product>) => {
   return productRepo.updateProduct(id, updates)
