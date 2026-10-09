@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"log"
 	"log/slog"
 	"os"
 
@@ -61,15 +62,14 @@ func SetupAPIConfig(ctx context.Context) *ApiConfig {
 
 	if err != nil {
 		slog.Error("failed to initialize MinIO storage", "error", err)
-		return nil
+		log.Fatal("Failed to initialize MinIO storage: ", err)
 	}
 
 	baseURL := os.Getenv("FRONTEND_URL")
 	if baseURL == "" {
-		baseURL = "https://localhost:3000" // Fallback for local testing
+		baseURL = "https://localhost:3000"
 	}
 
-	// Construct the full return URL
 	frontendReturnURL := baseURL + "/payment/success"
 
 	chapaSecretKey := os.Getenv("CHAPA_SECRET_KEY")
