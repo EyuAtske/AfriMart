@@ -1,7 +1,7 @@
 <template>
   <NuxtLink
     to="/"
-    class="absolute left-1/2 -translate-x-1/2 whitespace-nowrap font-serif text-lg tracking-[0.18em] text-[#24211e] sm:text-xl lg:text-2xl lg:tracking-[0.3em]"
+    class="whitespace-nowrap font-serif text-xl tracking-[0.25em] text-stone-900 uppercase sm:text-2xl transition-opacity hover:opacity-80"
   >
     AFRIMART
   </NuxtLink>
