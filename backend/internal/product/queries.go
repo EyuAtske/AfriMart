@@ -21,7 +21,7 @@ type ProductQuerier interface {
     DeleteProduct(
         ctx context.Context,
         id uuid.UUID,
-    ) error
+    ) (int64, error)
 
     UpdateProduct(
         ctx context.Context,

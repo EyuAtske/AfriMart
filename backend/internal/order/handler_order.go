@@ -182,15 +182,31 @@ func (h *OrderHandler) HandleCheckout(w http.ResponseWriter, r *http.Request) {
 	h.Logger.InfoContext(ctx, "Validating cart items", "cart_id", cart.ID, "item_count", len(cartItems))
 
 	var subtotal float64
+	var invalidItems []string
 	for _, item := range cartItems {
-		if item.Status != "active" || item.Quantity > item.Stock {
-			h.Logger.WarnContext(ctx, "checkout failed: insufficient stock or product unavailable",
+		// 1. If the product is soft-deleted (inactive), mark it as invalid
+		if item.Status != "active" {
+			invalidItems = append(invalidItems, item.ProductName)
+			continue // Skip the stock check for this item
+		}
+
+		// 2. Check stock for active items
+		if item.Quantity > item.Stock {
+			h.Logger.WarnContext(ctx, "checkout failed: insufficient stock",
 				"product_id", item.ProductID, "product_name", item.ProductName, "requested", item.Quantity, "available", item.Stock)
-			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Insufficient stock or product unavailable: "+item.ProductName, nil)
+			comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Insufficient stock for: "+item.ProductName, nil)
 			return
 		}
+
 		price, _ := strconv.ParseFloat(item.Price, 64)
 		subtotal += price * float64(item.Quantity)
+	}
+
+	// 3. If there were inactive items in the cart, block checkout and tell the user to clear them
+	if len(invalidItems) > 0 {
+		h.Logger.WarnContext(ctx, "checkout failed: cart contains unavailable items", "items", invalidItems)
+		comm.RespondErrorWithJson(w, r, http.StatusBadRequest, "Your cart contains unavailable items: "+strings.Join(invalidItems, ", ")+". Please update your cart.", nil)
+		return
 	}
 	subtotalString := strconv.FormatFloat(subtotal, 'f', 2, 64)
 	h.Logger.InfoContext(ctx, "Cart validation successful", "cart_id", cart.ID, "subtotal", subtotalString)

@@ -38,7 +38,7 @@ type mockProductQueries struct {
 	deleteProductFunc func(
 		context.Context,
 		uuid.UUID,
-	) error
+	) (int64, error)
 
 	updateProductFunc func(
 		context.Context,
@@ -174,7 +174,7 @@ func (m *mockProductQueries) GetProduct(
 func (m *mockProductQueries) DeleteProduct(
 	ctx context.Context,
 	id uuid.UUID,
-) error {
+) (int64, error) {
 	return m.deleteProductFunc(ctx, id)
 }
 
@@ -1579,7 +1579,7 @@ func TestHandleDeleteProduct_Success(t *testing.T) {
 	shopID := uuid.New()
 	categoryID := uuid.New()
 	subcategoryID := uuid.New()
-
+	
 	existingProduct := database.GetProductRow{
 		ID:            productID,
 		ShopID:        shopID,
@@ -1591,10 +1591,10 @@ func TestHandleDeleteProduct_Success(t *testing.T) {
 		Status:        "active",
 		ShopName:      "My Shop",
 	}
-
+	
 	imageDeleted := false
-	productDeleted := false
-
+	var rowsAffected int64 = 0
+	
 	mockStorage := &mockImageStorage{
 		deleteFunc: func(
 			ctx context.Context,
@@ -1604,7 +1604,7 @@ func TestHandleDeleteProduct_Success(t *testing.T) {
 			return nil
 		},
 	}
-
+	
 	mock := &mockProductQueries{
 		getProductFunc: func(
 			ctx context.Context,
@@ -1613,10 +1613,8 @@ func TestHandleDeleteProduct_Success(t *testing.T) {
 			if id != productID {
 				t.Errorf("expected product ID %v, got %v", productID, id)
 			}
-
 			return existingProduct, nil
 		},
-
 		getShopByIDAndOwnerIDFunc: func(
 			ctx context.Context,
 			arg database.GetShopByIDAndOwnerIDParams,
@@ -1624,29 +1622,24 @@ func TestHandleDeleteProduct_Success(t *testing.T) {
 			if arg.ID != shopID {
 				t.Errorf("expected shop ID %v, got %v", shopID, arg.ID)
 			}
-
 			if arg.OwnerID != userID {
 				t.Errorf("expected owner ID %v, got %v", userID, arg.OwnerID)
 			}
-
 			return database.Shop{
 				ID:      shopID,
 				OwnerID: userID,
 			}, nil
 		},
-
 		deleteProductFunc: func(
 			ctx context.Context,
 			id uuid.UUID,
-		) error {
+		) (int64, error) { // <-- Ensure this returns (int64, error)
 			if id != productID {
 				t.Errorf("expected product ID %v, got %v", productID, id)
 			}
-			productDeleted = true
-
-			return nil
+			rowsAffected = 1
+			return 1, nil
 		},
-
 		getProductImagesFunc: func(
 			ctx context.Context,
 			id uuid.UUID,
@@ -1660,7 +1653,6 @@ func TestHandleDeleteProduct_Success(t *testing.T) {
 				},
 			}, nil
 		},
-
 		getProductImagesByProductIDsFunc: func(
 			ctx context.Context,
 			productIDs []uuid.UUID,
@@ -1668,48 +1660,41 @@ func TestHandleDeleteProduct_Success(t *testing.T) {
 			return []database.ProductImage{}, nil
 		},
 	}
-
+	
 	handler := &ProductHandler{
 		Logger:       slog.Default(),
 		Queries:      mock,
 		ShopQueries:  mock,
 		ImageStorage: mockStorage,
 	}
-
+	
 	req := httptest.NewRequest(
 		http.MethodDelete,
 		"/products/"+productID.String(),
 		nil,
 	)
-
 	req.SetPathValue("id", productID.String())
-
 	req = req.WithContext(
 		auth.ContextWithUserID(req.Context(), userID),
 	)
-
 	rec := httptest.NewRecorder()
-
+	
 	handler.HandleDeleteProduct(rec, req)
-
+	
 	if rec.Code != http.StatusNoContent {
-		t.Fatalf(
-			"expected status %d, got %d",
-			http.StatusNoContent,
-			rec.Code,
-		)
+		t.Fatalf("expected status %d, got %d", http.StatusNoContent, rec.Code)
 	}
-
 	if rec.Body.Len() != 0 {
 		t.Errorf("expected empty response body, got %q", rec.Body.String())
 	}
-
-	if !imageDeleted {
-		t.Error("expected product image to be deleted from storage")
+	
+	// ✅ CRITICAL FIX: We intentionally DO NOT delete images on soft delete
+	// so that historical orders can still render the product images.
+	if imageDeleted {
+		t.Error("expected product image NOT to be deleted from storage (soft delete preserves images)")
 	}
-
-	if !productDeleted {
-		t.Error("expected product to be deleted")
+	if rowsAffected != 1 {
+		t.Error("expected product to be soft-deleted (1 row affected)")
 	}
 }
 
@@ -1746,9 +1731,12 @@ func TestHandleDeleteProduct_ShopNotOwned(t *testing.T) {
 			return database.Shop{}, sql.ErrNoRows
 		},
 
-		deleteProductFunc: func(ctx context.Context, id uuid.UUID) error {
+		deleteProductFunc: func(
+			ctx context.Context,
+			id uuid.UUID,
+		) (int64, error) {
 			t.Fatal("DeleteProduct should not be called when shop is not owned")
-			return nil
+			return 0, nil
 		},
 	}
 
@@ -2001,8 +1989,8 @@ func TestHandleDeleteProduct_DeleteError(t *testing.T) {
 		deleteProductFunc: func(
 			ctx context.Context,
 			id uuid.UUID,
-		) error {
-			return errors.New("database error")
+		) (int64, error) {
+			return 0, errors.New("database error")
 		},
 	}
 
