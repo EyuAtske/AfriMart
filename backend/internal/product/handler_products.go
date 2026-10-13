@@ -270,7 +270,7 @@ func (h *ProductHandler) HandleCreateProduct(w http.ResponseWriter, r *http.Requ
 			}
 		}
 
-		delErr := h.Queries.DeleteProduct(context.Background(), product.ID)
+		_, delErr := h.Queries.DeleteProduct(context.Background(), product.ID)
 		if delErr != nil {
 			h.Logger.ErrorContext(ctx, "cleanup failed: could not delete orphaned product from database",
 				"product_id", product.ID,
@@ -624,28 +624,20 @@ func (h *ProductHandler) HandleDeleteProduct(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	images, err := h.Queries.GetProductImages(ctx, productID)
-	if err != nil {
-		h.Logger.ErrorContext(ctx, "delete product failed: could not fetch product images", "user_id", userID, "product_id", productID, "error", err)
-		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not get product images", err)
-		return
-	}
-
-	for _, image := range images {
-		if err := h.ImageStorage.Delete(ctx, image.ObjectKey); err != nil {
-			h.Logger.ErrorContext(ctx, "delete product: failed to delete image from storage", "user_id", userID, "product_id", productID, "object_key", image.ObjectKey, "error", err)
-			// Continue to try deleting the DB record anyway
-		}
-	}
-
-	err = h.Queries.DeleteProduct(ctx, productID)
+	rowsAffected, err := h.Queries.DeleteProduct(ctx, productID)
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "delete product failed: database error", "user_id", userID, "product_id", productID, "error", err)
 		comm.RespondErrorWithJson(w, r, http.StatusInternalServerError, "Could not delete product", err)
 		return
 	}
 
-	h.Logger.InfoContext(ctx, "product deleted successfully", "user_id", userID, "product_id", productID, "images_deleted", len(images))
+	if rowsAffected == 0 {
+		h.Logger.InfoContext(ctx, "product was already inactive", "user_id", userID, "product_id", productID)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	h.Logger.InfoContext(ctx, "product soft-deleted (set to inactive) successfully", "user_id", userID, "product_id", productID)
 	w.WriteHeader(http.StatusNoContent)
 }
 

@@ -38,12 +38,6 @@ FROM products p
 JOIN shops s ON s.id = p.shop_id
 WHERE p.id = $1;
 
-
--- name: DeleteProduct :exec
-
-DELETE FROM products
-WHERE id = $1;
-
 -- name: UpdateProduct :one
 
 UPDATE products
@@ -171,3 +165,10 @@ SELECT *
 FROM subcategories
 WHERE category_id = $1
 ORDER BY name ASC;
+
+-- name: DeleteProduct :execrows
+UPDATE products
+SET status = 'inactive',
+    updated_at = NOW()
+WHERE id = $1
+  AND status = 'active';

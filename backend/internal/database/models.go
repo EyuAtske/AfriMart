@@ -88,6 +88,7 @@ type Product struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	Gender        string
+	DeletedAt     sql.NullTime
 }
 
 type ProductImage struct {

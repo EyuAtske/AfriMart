@@ -43,7 +43,7 @@ VALUES (
     $11,
     $12
 )
-RETURNING id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at, gender
+RETURNING id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at, gender, deleted_at
 `
 
 type CreateProductParams struct {
@@ -93,19 +93,25 @@ func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (P
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Gender,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
-const deleteProduct = `-- name: DeleteProduct :exec
-
-DELETE FROM products
+const deleteProduct = `-- name: DeleteProduct :execrows
+UPDATE products
+SET status = 'inactive',
+    updated_at = NOW()
 WHERE id = $1
+  AND status = 'active'
 `
 
-func (q *Queries) DeleteProduct(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteProduct, id)
-	return err
+func (q *Queries) DeleteProduct(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteProduct, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getCategory = `-- name: GetCategory :one
@@ -124,7 +130,7 @@ func (q *Queries) GetCategory(ctx context.Context, id uuid.UUID) (Category, erro
 
 const getProduct = `-- name: GetProduct :one
 SELECT
-    p.id, p.shop_id, p.category_id, p.subcategory_id, p.name, p.description, p.brand, p.color, p.size, p.price, p.stock, p.status, p.created_at, p.updated_at, p.gender,
+    p.id, p.shop_id, p.category_id, p.subcategory_id, p.name, p.description, p.brand, p.color, p.size, p.price, p.stock, p.status, p.created_at, p.updated_at, p.gender, p.deleted_at,
     s.name AS shop_name
 FROM products p
 JOIN shops s ON s.id = p.shop_id
@@ -147,6 +153,7 @@ type GetProductRow struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	Gender        string
+	DeletedAt     sql.NullTime
 	ShopName      string
 }
 
@@ -169,6 +176,7 @@ func (q *Queries) GetProduct(ctx context.Context, id uuid.UUID) (GetProductRow, 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Gender,
+		&i.DeletedAt,
 		&i.ShopName,
 	)
 	return i, err
@@ -207,7 +215,7 @@ func (q *Queries) ListCategories(ctx context.Context) ([]Category, error) {
 const listProducts = `-- name: ListProducts :many
 
 SELECT
-    p.id, p.shop_id, p.category_id, p.subcategory_id, p.name, p.description, p.brand, p.color, p.size, p.price, p.stock, p.status, p.created_at, p.updated_at, p.gender,
+    p.id, p.shop_id, p.category_id, p.subcategory_id, p.name, p.description, p.brand, p.color, p.size, p.price, p.stock, p.status, p.created_at, p.updated_at, p.gender, p.deleted_at,
     s.name AS shop_name
 FROM products p
 JOIN shops s ON s.id = p.shop_id
@@ -281,6 +289,7 @@ type ListProductsRow struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	Gender        string
+	DeletedAt     sql.NullTime
 	ShopName      string
 }
 
@@ -320,6 +329,7 @@ func (q *Queries) ListProducts(ctx context.Context, arg ListProductsParams) ([]L
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Gender,
+			&i.DeletedAt,
 			&i.ShopName,
 		); err != nil {
 			return nil, err
@@ -338,7 +348,7 @@ func (q *Queries) ListProducts(ctx context.Context, arg ListProductsParams) ([]L
 const listProductsByCategory = `-- name: ListProductsByCategory :many
 
 SELECT
-    p.id, p.shop_id, p.category_id, p.subcategory_id, p.name, p.description, p.brand, p.color, p.size, p.price, p.stock, p.status, p.created_at, p.updated_at, p.gender,
+    p.id, p.shop_id, p.category_id, p.subcategory_id, p.name, p.description, p.brand, p.color, p.size, p.price, p.stock, p.status, p.created_at, p.updated_at, p.gender, p.deleted_at,
     s.name AS shop_name
 FROM products p
 JOIN shops s ON s.id = p.shop_id
@@ -372,6 +382,7 @@ type ListProductsByCategoryRow struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	Gender        string
+	DeletedAt     sql.NullTime
 	ShopName      string
 }
 
@@ -400,6 +411,7 @@ func (q *Queries) ListProductsByCategory(ctx context.Context, arg ListProductsBy
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Gender,
+			&i.DeletedAt,
 			&i.ShopName,
 		); err != nil {
 			return nil, err
@@ -418,7 +430,7 @@ func (q *Queries) ListProductsByCategory(ctx context.Context, arg ListProductsBy
 const listProductsByShop = `-- name: ListProductsByShop :many
 
 SELECT
-    p.id, p.shop_id, p.category_id, p.subcategory_id, p.name, p.description, p.brand, p.color, p.size, p.price, p.stock, p.status, p.created_at, p.updated_at, p.gender,
+    p.id, p.shop_id, p.category_id, p.subcategory_id, p.name, p.description, p.brand, p.color, p.size, p.price, p.stock, p.status, p.created_at, p.updated_at, p.gender, p.deleted_at,
     s.name AS shop_name
 FROM products p
 JOIN shops s ON s.id = p.shop_id
@@ -452,6 +464,7 @@ type ListProductsByShopRow struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	Gender        string
+	DeletedAt     sql.NullTime
 	ShopName      string
 }
 
@@ -480,6 +493,7 @@ func (q *Queries) ListProductsByShop(ctx context.Context, arg ListProductsByShop
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Gender,
+			&i.DeletedAt,
 			&i.ShopName,
 		); err != nil {
 			return nil, err
@@ -498,7 +512,7 @@ func (q *Queries) ListProductsByShop(ctx context.Context, arg ListProductsByShop
 const listProductsBySubcategory = `-- name: ListProductsBySubcategory :many
 
 SELECT
-    p.id, p.shop_id, p.category_id, p.subcategory_id, p.name, p.description, p.brand, p.color, p.size, p.price, p.stock, p.status, p.created_at, p.updated_at, p.gender,
+    p.id, p.shop_id, p.category_id, p.subcategory_id, p.name, p.description, p.brand, p.color, p.size, p.price, p.stock, p.status, p.created_at, p.updated_at, p.gender, p.deleted_at,
     s.name AS shop_name
 FROM products p
 JOIN shops s ON s.id = p.shop_id
@@ -532,6 +546,7 @@ type ListProductsBySubcategoryRow struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	Gender        string
+	DeletedAt     sql.NullTime
 	ShopName      string
 }
 
@@ -560,6 +575,7 @@ func (q *Queries) ListProductsBySubcategory(ctx context.Context, arg ListProduct
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Gender,
+			&i.DeletedAt,
 			&i.ShopName,
 		); err != nil {
 			return nil, err
@@ -627,7 +643,7 @@ SET
     status = $11,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at, gender
+RETURNING id, shop_id, category_id, subcategory_id, name, description, brand, color, size, price, stock, status, created_at, updated_at, gender, deleted_at
 `
 
 type UpdateProductParams struct {
@@ -675,6 +691,7 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) (P
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Gender,
+		&i.DeletedAt,
 	)
 	return i, err
 }

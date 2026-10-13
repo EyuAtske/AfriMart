@@ -169,15 +169,14 @@ services:
     volumes:
       - minio_data:/data
   migrate:
-    image: golang:1.22-alpine
+    build:
+      context: ./sql
+      dockerfile: Dockerfile
     container_name: afrimart-migrate
     volumes:
       - ./sql/schema:/sql/schema:ro
-    command: >
-      sh -c "
-        go install github.com/pressly/goose/v3/cmd/goose@v3.20.0 &&
-        goose -dir /sql/schema postgres 'postgres://postgres:postgres@postgres:5432/afrimart?sslmode=disable' up
-      "
+    command: -dir /sql/schema postgres 'postgres://postgres:postgres@postgres:5432/afrimart?sslmode=disable' up
+    
     depends_on:
       postgres:
         condition: service_healthy
